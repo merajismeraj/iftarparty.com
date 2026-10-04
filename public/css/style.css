@@ -329,3 +329,6 @@ blockquote cite { display: block; font: normal .9rem var(--sans); color: var(--m
   .admin-main { padding: 20px 16px 40px; }
   .payout-card { grid-template-columns: 1fr; }
 }
+.cancel-note { margin: 4px 28px 8px; padding: 14px 16px; border-radius: 12px; background: var(--bad-bg); color: var(--bad); text-align: center; }
+.cancel-note p { margin: 0 0 6px; }
+.party-card.cancelled { opacity: .85; }

@@ -34,6 +34,7 @@ const config = {
     token: env.WHATSAPP_TOKEN || '',
     phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID || '',
     templateName: env.WHATSAPP_TEMPLATE_NAME || 'iftar_invite',
+    cancelTemplateName: env.WHATSAPP_CANCEL_TEMPLATE_NAME || 'iftar_cancelled',
     templateLang: env.WHATSAPP_TEMPLATE_LANG || 'en',
     apiVersion: env.WHATSAPP_API_VERSION || 'v21.0',
   },

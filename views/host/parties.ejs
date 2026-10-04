@@ -12,7 +12,7 @@
   <% } %>
   <div class="party-list">
     <% parties.forEach(p => { const past = p.event_date < today; %>
-      <article class="card party-card <%= past ? 'past' : '' %>">
+      <article class="card party-card <%= past ? "past" : "" %> <%= p.status === "cancelled" ? "cancelled" : "" %>">
         <% if (p.image) { %><img src="/uploads/<%= p.image %>" alt=""><% } %>
         <div class="party-body">
           <div class="party-top">
@@ -20,11 +20,16 @@
               <h2 class="h3"><%= p.title %></h2>
               <p class="muted"><%= fmt.longDate(p.event_date) %> · <%= p.venue_name %>, <%= p.restaurant_name %></p>
             </div>
-            <% if (p.status === 'pending_payment') { %><span class="pill pill-warn">Awaiting payment</span>
+            <% if (p.status === 'cancelled') { %><span class="pill pill-bad">Cancelled</span>
+            <% } else if (p.status === 'pending_payment') { %><span class="pill pill-warn">Awaiting payment</span>
             <% } else if (past) { %><span class="pill">Completed</span>
             <% } else { %><span class="pill pill-ok">Reserved</span><% } %>
           </div>
-          <% if (p.status === 'confirmed') { %>
+          <% if (p.status === 'cancelled') { %>
+            <p class="small"><%= p.cancel_reason ? `Reason: ${p.cancel_reason}` : 'This booking was cancelled.' %>
+              <% if (p.payment && p.payment.refund_status !== 'none') { %><br>Refund: <%= money.format(p.payment.refund_amount, p.currency) %> – <%= { success: 'completed', pending: 'processing (5–7 working days)', failed: 'being retried by our team' }[p.payment.refund_status] %><% } %>
+              <% if (p.notified) { %><br><span class="muted">We notified <%= p.notified %> of your guests by WhatsApp/email.</span><% } else if (p.rsvp.invited) { %><br><span class="muted">Your guests were not notified – please let them know.</span><% } %></p>
+          <% } else if (p.status === 'confirmed') { %>
             <div class="rsvp-strip">
               <div><span class="stat-n"><%= p.rsvp.yes %></span><span class="muted small">Attending</span></div>
               <div><span class="stat-n"><%= p.rsvp.headcount %></span><span class="muted small">Total heads</span></div>
@@ -34,7 +39,7 @@
               <div><span class="stat-n"><%= p.rsvp.invited %></span><span class="muted small">Invited</span></div>
             </div>
             <div class="btn-row">
-              <a class="btn btn-small" href="/bookings/<%= p.id %>"><%= p.rsvp.invited ? 'Manage guests & RSVPs' : 'Upload invite list' %></a>
+              <a class="btn btn-small" href="/bookings/<%= p.id %>"><%= past ? 'View party' : p.rsvp.invited ? 'Manage guests & RSVPs' : 'Upload invite list' %></a>
             </div>
           <% } else { %>
             <div class="btn-row"><a class="btn btn-small btn-gold" href="/bookings/<%= p.id %>/checkout">Complete payment</a></div>

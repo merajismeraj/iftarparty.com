@@ -200,6 +200,10 @@ const MIGRATIONS = [
   );
   CREATE INDEX admin_actions_entity ON admin_actions (entity_type, entity_id);
   `,
+  // v3: distinguish invitation vs cancellation notices in the delivery log.
+  `
+  ALTER TABLE message_log ADD COLUMN kind TEXT NOT NULL DEFAULT 'invite' CHECK (kind IN ('invite', 'cancellation'));
+  `,
 ];
 
 function migrate(db) {

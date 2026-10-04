@@ -59,7 +59,13 @@ Where: {{4}}
 Please RSVP here: {{5}}
 ```
 
-Every delivery attempt is recorded in the `message_log` table and shown in the admin portal.
+When a booking is cancelled, invited guests who haven't declined receive a cancellation notice. On WhatsApp this uses a second *Utility* template (default `iftar_cancelled`, set with `WHATSAPP_CANCEL_TEMPLATE_NAME`) with 4 body variables:
+
+```
+Assalamu Alaikum {{1}}, we're sorry – {{2}} on {{3}} at {{4}} has been cancelled. No action is needed from you.
+```
+
+Every delivery attempt, invitation or cancellation, is recorded in the `message_log` table and shown in the admin portal.
 
 ## Admin portal (`/admin`)
 
@@ -74,7 +80,7 @@ npm run admin -- promote someone@example.com
 |---|---|
 | **Overview** | GMV, platform revenue, refunds, live restaurants and upcoming RSVPs. A *Needs attention* queue lists pending approvals, payouts owed, failed or processing refunds, unrefunded payments and failed invites. |
 | **Restaurants** | Approve, reject, suspend or reinstate. New sign-ups stay **pending** and hidden from search until approved. Rejecting or suspending needs a reason, which the restaurant sees. Hide individual halls. View payout details. |
-| **Bookings** | Filter by status, refund state, event dates or free text, including the order id. Export to CSV for accounting. Each booking shows the event, RSVPs, the money breakdown and the full **payments ledger**. **Cancel with a full, partial or no refund** through Cashfree; the host is emailed and the night becomes free again. Re-check stuck orders with the gateway and retry failed refunds. |
+| **Bookings** | Filter by status, refund state, event dates or free text, including the order id. Export to CSV for accounting. Each booking shows the event, RSVPs, the money breakdown and the full **payments ledger**. **Cancel with a full, partial or no refund** through Cashfree. The host is emailed, invited guests are told by WhatsApp and email (optional), their RSVP links show the cancellation, and the night becomes free again. Re-check stuck orders with the gateway and retry failed refunds. |
 | **Payouts** | Lists what each restaurant is owed (total minus platform fee) for Iftars that have already happened, with their UPI and bank details. Record the bank reference (UTR) to mark them paid; the payout history is kept. |
 | **Users** | Search, then suspend or reactivate hosts and restaurant owners. A suspended user is signed out immediately and can't sign back in. |
 | **Messages** | WhatsApp and email delivery rates for the last 7 days, failed sends with the error from the provider, and one-click resend. |

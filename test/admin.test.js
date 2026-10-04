@@ -69,6 +69,61 @@ describe('admin portal', () => {
     assert.equal(db.prepare('SELECT refund_amount FROM payments WHERE id = ?').get(p.id).refund_amount, b.total_amount);
   });
 
+  test('cancelling tells invited guests on both channels and closes their RSVP links', async () => {
+    const invites = require('../src/services/invites');
+    const id = await paidBooking(db, { ...fx, date: futureDate(25) });
+    const add = (name, email, phone, status, invited = true) => db.prepare(
+      `INSERT INTO guests (booking_id, name, email, phone, rsvp_token, rsvp_status, invited_at) VALUES (?, ?, ?, ?, ?, ?, ${invited ? "datetime('now')" : 'NULL'})`
+    ).run(id, name, email, phone, invites.newToken(), status);
+    add('Aisha', 'aisha@g.test', '+919811111111', 'yes');
+    add('Omar', null, '+919822222222', 'pending');
+    add('Bilal', 'bilal@g.test', null, 'no');            // declined – not bothered again
+    add('Zara', 'zara@g.test', null, 'pending', false);  // never invited – never told
+    const aishaToken = db.prepare(`SELECT rsvp_token FROM guests WHERE name = 'Aisha'`).get().rsvp_token;
+
+    const token = await csrf(admin, `/admin/bookings/${id}`);
+    const res = await admin.post(`/admin/bookings/${id}/cancel`).type('form')
+      .send({ _csrf: token, reason: 'Hall flooded', refund: 'full', notify_guests: 'on' }).expect(302);
+    const flash = await admin.get(res.headers.location);
+    assert.match(flash.text, /2 guests notified/);
+
+    const sent = db.prepare(
+      `SELECT g.name, ml.channel FROM message_log ml JOIN guests g ON g.id = ml.guest_id
+       WHERE g.booking_id = ? AND ml.kind = 'cancellation' ORDER BY g.name, ml.channel`
+    ).all(id).map((r) => `${r.name}:${r.channel}`);
+    assert.deepEqual(sent, ['Aisha:email', 'Aisha:whatsapp', 'Omar:whatsapp']);
+
+    const page = await request(app).get(`/rsvp/${aishaToken}`).expect(200);
+    assert.match(page.text, /This Iftar has been cancelled/);
+    assert.match(page.text, /Reason: Hall flooded/);
+    assert.doesNotMatch(page.text, /Yes, I’ll be there/);
+    const guest = request.agent(app);
+    const t2 = await csrf(guest, "/login"); // the cancelled invite has no form; forge a POST anyway
+    await guest.post(`/rsvp/${aishaToken}`).type('form').send({ _csrf: t2, status: 'no' }).expect(303);
+    assert.equal(db.prepare(`SELECT rsvp_status FROM guests WHERE name = 'Aisha'`).get().rsvp_status, 'yes', 'RSVP frozen');
+
+    const host = await signin(app, 'host@fixture.test');
+    const parties = await host.get('/my-parties').expect(200);
+    assert.match(parties.text, /Cancelled/);
+    assert.match(parties.text, /Reason: Hall flooded/);
+    assert.match(parties.text, /Refund: ₹[\d,]+ – completed/);
+    assert.match(parties.text, /We notified 2 of your guests/);
+    await host.get(`/bookings/${id}`).expect(302);
+
+    const msgs = await admin.get('/admin/messages?kind=cancellation').expect(200);
+    assert.match(msgs.text, /cancellation/);
+  });
+
+  test('cancelling without notifying leaves guests alone', async () => {
+    const invites = require('../src/services/invites');
+    const id = await paidBooking(db, { ...fx, date: futureDate(26) });
+    db.prepare(`INSERT INTO guests (booking_id, name, email, rsvp_token, invited_at) VALUES (?, 'Quiet', 'q@g.test', ?, datetime('now'))`).run(id, invites.newToken());
+    const token = await csrf(admin, `/admin/bookings/${id}`);
+    await admin.post(`/admin/bookings/${id}/cancel`).type('form').send({ _csrf: token, reason: 'Duplicate booking', refund: 'none' }).expect(302);
+    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'cancelled');
+    assert.equal(db.prepare(`SELECT COUNT(*) n FROM message_log ml JOIN guests g ON g.id = ml.guest_id WHERE g.booking_id = ?`).get(id).n, 0);
+  });
+
   test('partial refund keeps the remainder and records the amount', async () => {
     const id = await paidBooking(db, { ...fx, date: futureDate(21) });
     const token = await csrf(admin, `/admin/bookings/${id}`);

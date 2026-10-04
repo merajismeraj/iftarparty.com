@@ -241,9 +241,11 @@ module.exports = (db) => {
       return res.redirect(`/admin/bookings/${b.id}#cancel`);
     }
     try {
-      const { refundStatus } = await checkout.cancelBooking(db, b.id, { reason, refundAmount: refund });
-      audit.log(db, req.user.id, 'booking.cancel', 'booking', b.id, `${reason}${refund ? ` · refund ${money.format(refund, b.currency)} (${refundStatus})` : ' · no refund'}`);
-      req.flash('success', `Booking cancelled${refund ? ` and ${money.format(refund, b.currency)} refund ${refundStatus === 'success' ? 'completed' : 'initiated'}` : ''}. The host has been emailed and the night is free again.`);
+      const notifyGuests = req.body.notify_guests === 'on';
+      const { refundStatus, guestsNotified } = await checkout.cancelBooking(db, b.id, { reason, refundAmount: refund, notifyGuests });
+      audit.log(db, req.user.id, 'booking.cancel', 'booking', b.id,
+        `${reason}${refund ? ` · refund ${money.format(refund, b.currency)} (${refundStatus})` : ' · no refund'} · ${notifyGuests ? `${guestsNotified} guest(s) notified` : 'guests not notified'}`);
+      req.flash('success', `Booking cancelled${refund ? ` and ${money.format(refund, b.currency)} refund ${refundStatus === 'success' ? 'completed' : 'initiated'}` : ''}. The host has been emailed${guestsNotified ? ` and ${guestsNotified} guest${guestsNotified === 1 ? '' : 's'} notified` : ''}; the night is free again.`);
     } catch (err) {
       if (!(err instanceof svc.BookingError || err instanceof payments.PaymentError)) throw err;
       audit.log(db, req.user.id, 'booking.cancel_failed', 'booking', b.id, err.message);
@@ -385,11 +387,12 @@ module.exports = (db) => {
     const params = [];
     if (['failed', 'sent', 'logged'].includes(q.status)) { where.push('ml.status = ?'); params.push(q.status); }
     if (['email', 'whatsapp'].includes(q.channel)) { where.push('ml.channel = ?'); params.push(q.channel); }
+    if (['invite', 'cancellation'].includes(q.kind)) { where.push('ml.kind = ?'); params.push(q.kind); }
     const page = pageOf(q);
     const base = `FROM message_log ml LEFT JOIN guests g ON g.id = ml.guest_id LEFT JOIN bookings b ON b.id = g.booking_id WHERE ${where.join(' AND ')}`;
     const total = db.prepare(`SELECT COUNT(*) n ${base}`).get(...params).n;
     const rows = db.prepare(
-      `SELECT ml.*, g.name AS guest_name, g.booking_id, b.title, b.event_date ${base} ORDER BY ml.id DESC LIMIT ? OFFSET ?`
+      `SELECT ml.*, g.name AS guest_name, g.booking_id, b.title, b.event_date, b.status AS booking_status ${base} ORDER BY ml.id DESC LIMIT ? OFFSET ?`
     ).all(...params, PAGE_SIZE, (page - 1) * PAGE_SIZE);
     const health = db.prepare(
       `SELECT channel, status, COUNT(*) AS n FROM message_log WHERE created_at >= datetime('now', '-7 days') GROUP BY channel, status`

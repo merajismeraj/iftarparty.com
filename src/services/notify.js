@@ -33,10 +33,11 @@ async function sendEmail({ to, subject, html, text }) {
  * Send a WhatsApp template message via the Meta Cloud API.
  * Business-initiated WhatsApp messages must use a pre-approved template; ours takes
  * five body parameters: {{1}} guest name, {{2}} party title, {{3}} date & time,
- * {{4}} venue, {{5}} RSVP link.
+ * {{4}} venue, {{5}} RSVP link. Pass `template` to send a different approved template.
  */
-async function sendWhatsApp({ to, params, previewText }) {
-  const { token, phoneNumberId, templateName, templateLang, apiVersion } = config.whatsapp;
+async function sendWhatsApp({ to, params, previewText, template }) {
+  const { token, phoneNumberId, templateLang, apiVersion } = config.whatsapp;
+  const templateName = template || config.whatsapp.templateName;
   if (!token || !phoneNumberId) {
     console.log(`[whatsapp:demo] to=${to}\n${previewText}\n`);
     return { status: 'logged', detail: 'WhatsApp API not configured – logged only' };

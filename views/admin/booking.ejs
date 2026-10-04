@@ -71,6 +71,9 @@
         <label class="check"><input type="radio" name="refund" value="none"> No refund</label>
       </fieldset>
     <% } %>
+    <% if (b.status === 'confirmed' && rsvp.invited) { %>
+      <label class="check"><input type="checkbox" name="notify_guests" checked> Tell the <%= rsvp.invited - rsvp.no %> invited guest<%= rsvp.invited - rsvp.no === 1 ? '' : 's' %> (excluding those who declined) by WhatsApp &amp; email</label>
+    <% } %>
     <button class="btn btn-danger" data-confirm="Cancel this booking<%= b.status === 'confirmed' ? ' and process the refund' : '' %>? This frees the venue and emails the host.">Cancel booking</button>
   </form>
 <% } %>

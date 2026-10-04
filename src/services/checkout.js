@@ -10,6 +10,7 @@ const bookings = require('./bookings');
 const notify = require('./notify');
 const fmt = require('./format');
 const money = require('./money');
+const invites = require('./invites');
 
 /** Create a gateway order for a held booking. Returns { orderId, sessionId, demo }. */
 async function startPayment(db, booking, host) {
@@ -132,9 +133,9 @@ function bookingPayment(db, booking) {
 
 /**
  * Cancel a booking (admin). Refunds first; if the gateway refuses, nothing is cancelled.
- * Frees the venue for that night and emails the host.
+ * Frees the venue for that night, emails the host and (optionally) tells invited guests.
  */
-async function cancelBooking(db, bookingId, { reason, refundAmount }) {
+async function cancelBooking(db, bookingId, { reason, refundAmount, notifyGuests = true }) {
   const b = bookings.getDetailed(db, bookingId);
   if (!b || !['confirmed', 'pending_payment'].includes(b.status)) throw new bookings.BookingError('Only active bookings can be cancelled.');
   let refundStatus = null;
@@ -148,10 +149,15 @@ async function cancelBooking(db, bookingId, { reason, refundAmount }) {
 
   if (b.status === 'confirmed') {
     const refundLine = refundAmount > 0 ? `A refund of ${money.format(refundAmount, b.currency)} has been initiated to your original payment method (usually 5–7 working days).` : 'No refund applies to this cancellation.';
-    const text = `Assalamu Alaikum ${b.host_name.split(' ')[0]},\n\nYour booking "${b.title}" at ${b.venue_name}, ${b.restaurant_name} on ${fmt.longDate(b.event_date)} has been cancelled.\n${reason ? `\nReason: ${reason}\n` : ''}\n${refundLine}\n\nIf you have questions, reply to this email.\n\n– IftarParty`;
+    const guestLine = notifyGuests ? 'We have let your invited guests know by WhatsApp and email.' : 'Your guests have not been notified – please let them know.';
+    const text = `Assalamu Alaikum ${b.host_name.split(' ')[0]},\n\nYour booking "${b.title}" at ${b.venue_name}, ${b.restaurant_name} on ${fmt.longDate(b.event_date)} has been cancelled.\n${reason ? `\nReason: ${reason}\n` : ''}\n${refundLine}\n${guestLine}\n\nIf you have questions, reply to this email.\n\n– IftarParty`;
     await notify.sendEmail({ to: b.host_email, subject: `Booking cancelled: ${b.title}`, text, html: `<pre style="font-family:Arial,sans-serif;white-space:pre-wrap">${escapeHtml(text)}</pre>` });
   }
-  return { refundStatus };
+  let guestsNotified = 0;
+  if (b.status === 'confirmed' && notifyGuests && b.event_date >= bookings.todayISO()) {
+    guestsNotified = await invites.sendCancellations(db, bookings.getDetailed(db, b.id));
+  }
+  return { refundStatus, guestsNotified };
 }
 
 function escapeHtml(s) {

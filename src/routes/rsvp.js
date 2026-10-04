@@ -12,7 +12,8 @@ module.exports = (db) => {
     const guest = db.prepare('SELECT * FROM guests WHERE rsvp_token = ?').get(token);
     if (!guest) return null;
     const booking = svc.getDetailed(db, guest.booking_id);
-    return booking?.status === 'confirmed' ? { guest, booking } : null;
+    // Guests of a cancelled party still see what happened instead of a dead link.
+    return ['confirmed', 'cancelled'].includes(booking?.status) && (booking.status === 'confirmed' || booking.cancelled_at) ? { guest, booking } : null;
   }
 
   const gone = (res) => res.status(404).render('error', { title: 'Invitation not found', message: 'This invitation link is invalid or the event was cancelled.' });
@@ -21,13 +22,13 @@ module.exports = (db) => {
     const ctx = load(req.params.token);
     if (!ctx) return gone(res);
     res.set('Referrer-Policy', 'no-referrer');
-    res.render('rsvp', { title: ctx.booking.title, ...ctx, closed: ctx.booking.event_date < svc.todayISO(), maxParty: MAX_PARTY, bare: true });
+    res.render('rsvp', { title: ctx.booking.title, ...ctx, cancelled: ctx.booking.status === 'cancelled', closed: ctx.booking.event_date < svc.todayISO(), maxParty: MAX_PARTY, bare: true });
   });
 
   router.post('/rsvp/:token', (req, res) => {
     const ctx = load(req.params.token);
     if (!ctx) return gone(res);
-    if (ctx.booking.event_date < svc.todayISO()) return res.redirect(`/rsvp/${req.params.token}`);
+    if (ctx.booking.status !== 'confirmed' || ctx.booking.event_date < svc.todayISO()) return res.redirect(303, `/rsvp/${req.params.token}`);
     const status = ['yes', 'no', 'maybe'].includes(req.body.status) ? req.body.status : null;
     if (!status) return res.redirect(`/rsvp/${req.params.token}`);
     const size = status === 'no' ? 0 : Math.min(MAX_PARTY, Math.max(1, Number.parseInt(req.body.party_size, 10) || 1));

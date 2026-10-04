@@ -164,12 +164,17 @@ module.exports = (db) => {
   router.get('/my-parties', host, (req, res) => {
     svc.expireStaleHolds(db);
     const rows = db.prepare(
-      `SELECT b.id FROM bookings b WHERE b.host_id = ? AND b.status IN ('confirmed', 'pending_payment')
-       ORDER BY b.event_date < ? , b.event_date`
+      `SELECT b.id FROM bookings b WHERE b.host_id = ?
+         AND (b.status IN ('confirmed', 'pending_payment') OR (b.status = 'cancelled' AND b.cancelled_at IS NOT NULL))
+       ORDER BY b.status = 'cancelled', b.event_date < ?, b.event_date`
     ).all(req.user.id, svc.todayISO());
     const parties = rows.map((r) => {
       const b = svc.getDetailed(db, r.id);
-      return { ...b, rsvp: svc.rsvpSummary(db, b.id) };
+      const notified = b.status === 'cancelled' ? db.prepare(
+        `SELECT COUNT(DISTINCT ml.guest_id) AS n FROM message_log ml JOIN guests g ON g.id = ml.guest_id
+         WHERE g.booking_id = ? AND ml.kind = 'cancellation'`
+      ).get(b.id).n : 0;
+      return { ...b, rsvp: svc.rsvpSummary(db, b.id), payment: checkout.bookingPayment(db, b), notified };
     });
     res.render('host/parties', { title: 'My Iftar parties', parties, today: svc.todayISO() });
   });
@@ -178,9 +183,7 @@ module.exports = (db) => {
     const b = ownBooking(req, res);
     if (!b) return;
     if (b.status === 'pending_payment') return res.redirect(`/bookings/${b.id}/checkout`);
-    if (b.status !== 'confirmed') {
-      return res.render('error', { title: 'Booking not active', message: 'This reservation is no longer active.' });
-    }
+    if (b.status !== 'confirmed') return res.redirect('/my-parties');
     const guests = db.prepare(
       `SELECT * FROM guests WHERE booking_id = ?
        ORDER BY CASE rsvp_status WHEN 'yes' THEN 0 WHEN 'maybe' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, name`
