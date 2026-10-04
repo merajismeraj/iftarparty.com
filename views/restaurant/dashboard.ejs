@@ -1,0 +1,103 @@
+<%- include('../partials/head') %>
+<section class="wrap section">
+  <div class="section-head">
+    <div>
+      <p class="eyebrow dark">Restaurant dashboard</p>
+      <h1><%= restaurant.name %></h1>
+      <p class="muted"><%= [restaurant.area, restaurant.city].filter(Boolean).join(', ') %> · <a href="/restaurant/profile">Edit profile</a></p>
+    </div>
+    <div class="btn-row">
+      <a class="btn" href="/restaurant/venues/new">+ Add hall</a>
+      <a class="btn btn-ghost" href="/restaurant/menus/new">+ Add menu</a>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><span class="stat-n"><%= venues.filter(v => v.active).length %></span><span class="muted">Live halls</span></div>
+    <div class="stat"><span class="stat-n"><%= menus.filter(m => m.active).length %></span><span class="muted">Menus offered</span></div>
+    <div class="stat"><span class="stat-n"><%= bookings.length %></span><span class="muted">Upcoming parties</span></div>
+    <div class="stat"><span class="stat-n"><%= money.format(stats.revenue) %></span><span class="muted">Booked revenue</span></div>
+  </div>
+
+  <% if (!venues.length || !menus.length) { %>
+    <div class="flash flash-info">
+      <strong>Finish setting up:</strong>
+      <%= !venues.length ? 'add at least one hall with photos' : '' %><%= !venues.length && !menus.length ? ' and ' : '' %><%= !menus.length ? 'add an Iftar menu with a per-guest price' : '' %> — then you’ll appear in search.
+    </div>
+  <% } %>
+
+  <h2 class="h3">Upcoming Iftar parties</h2>
+  <% if (!bookings.length) { %>
+    <p class="muted">No upcoming bookings yet.</p>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Party</th><th>Hall</th><th>Menu</th><th>Guests booked</th><th>RSVP yes (heads)</th><th>Payout</th></tr></thead>
+        <tbody>
+          <% bookings.forEach(b => { %>
+            <tr>
+              <td><strong><%= fmt.shortDate(b.event_date) %></strong><br><span class="muted small"><%= fmt.time12(b.arrival_time) %></span></td>
+              <td><%= b.title %><br><span class="muted small"><%= b.host_phone || b.host_email %></span></td>
+              <td><%= b.venue_name %></td>
+              <td><%= b.menu_name %></td>
+              <td><%= b.guest_count %></td>
+              <td><%= b.rsvp.yes %> (<%= b.rsvp.headcount %>)</td>
+              <td><%= money.format(b.total_amount - b.platform_fee) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <h2 class="h3">Party halls</h2>
+  <div class="grid cards">
+    <% venues.forEach(v => { %>
+      <div class="card venue-card <%= v.active ? '' : 'inactive' %>">
+        <div class="venue-card-img">
+          <% if (v.image) { %><img src="/uploads/<%= v.image %>" alt="<%= v.name %>"><% } else { %><div class="img-fallback">☾</div><% } %>
+          <% if (!v.active) { %><span class="pill pill-dark">Hidden</span><% } %>
+        </div>
+        <div class="venue-card-body">
+          <h3><%= v.name %></h3>
+          <p class="muted small"><%= v.min_pax %>–<%= v.max_pax %> guests · <%= v.hire_fee ? `${money.format(v.hire_fee)} hall fee` : 'no hall fee' %> · <%= v.upcoming %> upcoming</p>
+          <div class="btn-row">
+            <a class="btn btn-small btn-ghost" href="/restaurant/venues/<%= v.id %>/edit">Edit</a>
+            <a class="btn btn-small btn-ghost" href="/venues/<%= v.id %>">View</a>
+            <form method="post" action="/restaurant/venues/<%= v.id %>/toggle" class="inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button class="btn btn-small btn-ghost"><%= v.active ? 'Hide' : 'List again' %></button>
+            </form>
+          </div>
+        </div>
+      </div>
+    <% }) %>
+    <a class="card add-card" href="/restaurant/venues/new"><span>+</span>Add a hall</a>
+  </div>
+
+  <h2 class="h3">Iftar menus</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Menu</th><th>Type</th><th>Price / guest</th><th>Min guests</th><th></th></tr></thead>
+      <tbody>
+        <% menus.forEach(m => { %>
+          <tr class="<%= m.active ? '' : 'inactive' %>">
+            <td><strong><%= m.name %></strong><% if (!m.active) { %> <span class="pill">Not offered</span><% } %><br><span class="muted small"><%= m.items.split(/\r?\n|,/).filter(s => s.trim()).slice(0, 4).join(' · ') %></span></td>
+            <td><span class="diet diet-<%= m.diet %>"><%= m.diet %></span></td>
+            <td><%= money.format(m.price_per_person) %></td>
+            <td><%= m.min_pax %></td>
+            <td class="nowrap">
+              <a class="btn btn-small btn-ghost" href="/restaurant/menus/<%= m.id %>/edit">Edit</a>
+              <form method="post" action="/restaurant/menus/<%= m.id %>/toggle" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btn-small btn-ghost"><%= m.active ? 'Withdraw' : 'Offer again' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (!menus.length) { %><tr><td colspan="5" class="muted">No menus yet. <a href="/restaurant/menus/new">Add your first Iftar menu</a>.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+<%- include('../partials/foot') %>

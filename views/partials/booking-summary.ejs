@@ -1,0 +1,14 @@
+<div class="summary">
+  <% if (b.image) { %><img src="/uploads/<%= b.image %>" alt="<%= b.venue_name %>"><% } %>
+  <div>
+    <h2 class="h3"><%= b.title %></h2>
+    <p><strong><%= b.venue_name %></strong> · <%= b.restaurant_name %><br><span class="muted"><%= [b.address, b.area, b.city].filter(Boolean).join(', ') %></span></p>
+    <p><%= fmt.longDate(b.event_date) %> · arrive <%= fmt.time12(b.arrival_time) %><br><%= b.guest_count %> guests · <%= b.menu_name %></p>
+  </div>
+</div>
+<div class="quote">
+  <div><span><%= b.guest_count %> × <%= money.format(b.price_per_person, b.currency) %></span><span><%= money.format(b.food_total, b.currency) %></span></div>
+  <div><span>Hall fee</span><span><%= money.format(b.hire_fee, b.currency) %></span></div>
+  <div><span>Service fee</span><span><%= money.format(b.platform_fee, b.currency) %></span></div>
+  <div class="total"><span>Total</span><span><%= money.format(b.total_amount, b.currency) %></span></div>
+</div>

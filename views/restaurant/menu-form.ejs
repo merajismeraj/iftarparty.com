@@ -1,0 +1,29 @@
+<%- include('../partials/head') %>
+<% const editing = Boolean(menu.id); const price = locals.rawPrice ? menu.price_per_person : (menu.price_per_person ? money.toMajor(menu.price_per_person) : ''); %>
+<section class="wrap narrow page-pad">
+  <p class="crumbs"><a href="/restaurant">Dashboard</a> › <%= editing ? 'Edit menu' : 'New menu' %></p>
+  <div class="card form-card">
+    <h1 class="h2"><%= editing ? `Edit ${menu.name}` : 'Add an Iftar menu' %></h1>
+    <p class="muted">Menus apply to all your halls. Hosts see the price per guest and the total instantly.</p>
+    <%- include('../partials/errors') %>
+    <form method="post" action="<%= editing ? `/restaurant/menus/${menu.id}` : '/restaurant/menus' %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field"><span>Menu name</span><input name="name" required maxlength="120" value="<%= menu.name || '' %>" placeholder="Royal Iftar Platter"></label>
+      <div class="row-3">
+        <label class="field"><span>Price per guest (<%= currency %>)</span><input type="number" name="price_per_person" min="1" step="any" required value="<%= price %>"></label>
+        <label class="field"><span>Minimum guests</span><input type="number" name="min_pax" min="1" value="<%= menu.min_pax || 1 %>"></label>
+        <label class="field"><span>Type</span>
+          <select name="diet">
+            <% [['non-veg', 'Non-veg'], ['veg', 'Veg'], ['mixed', 'Veg & non-veg']].forEach(([v, l]) => { %>
+              <option value="<%= v %>" <%= menu.diet === v ? 'selected' : '' %>><%= l %></option>
+            <% }) %>
+          </select>
+        </label>
+      </div>
+      <label class="field"><span>Short description</span><input name="description" value="<%= menu.description || '' %>" placeholder="A traditional spread to break the fast"></label>
+      <label class="field"><span>Dishes included (one per line)</span><textarea name="items" rows="8" required placeholder="Dates & Rooh Afza&#10;Fruit chaat&#10;Chicken haleem&#10;Mutton biryani&#10;Phirni"><%= menu.items || '' %></textarea></label>
+      <button class="btn btn-gold btn-block"><%= editing ? 'Save menu' : 'Add menu' %></button>
+    </form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

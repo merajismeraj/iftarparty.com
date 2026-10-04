@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title ? `${title} · IftarParty` : 'IftarParty – Book Iftar party halls at local restaurants' %></title>
+  <meta name="description" content="Reserve a private hall at a local restaurant for your Iftar party, choose the menu, pay online and send WhatsApp & email invites with RSVP tracking.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body>
+<% if (!locals.bare) { %>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">☾</span> IftarParty</a>
+    <nav class="nav-links">
+      <a href="/search" class="<%= path === '/search' ? 'active' : '' %>">Find a venue</a>
+      <% if (!user) { %>
+        <a href="/signup?role=restaurant">For restaurants</a>
+        <a href="/login">Sign in</a>
+        <a class="btn btn-small" href="/signup">Host an Iftar</a>
+      <% } else if (user.role === 'restaurant') { %>
+        <a href="/restaurant" class="<%= path.startsWith('/restaurant') ? 'active' : '' %>">Dashboard</a>
+        <form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link">Sign out</button></form>
+      <% } else { %>
+        <a href="/my-parties" class="<%= path.startsWith('/my-parties') || path.startsWith('/bookings') ? 'active' : '' %>">My parties</a>
+        <form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link">Sign out</button></form>
+      <% } %>
+    </nav>
+  </div>
+</header>
+<% } %>
+<main>
+<%- include('flash') %>

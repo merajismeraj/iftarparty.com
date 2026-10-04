@@ -1,0 +1,47 @@
+<%- include('../partials/head') %>
+<section class="wrap section">
+  <div class="section-head">
+    <div><p class="eyebrow dark">Assalamu Alaikum, <%= user.name.split(' ')[0] %></p><h1>My Iftar parties</h1></div>
+    <a class="btn" href="/search">+ Book a new venue</a>
+  </div>
+  <% if (!parties.length) { %>
+    <div class="empty">
+      <p class="lead">You haven’t booked an Iftar yet.</p>
+      <a class="btn btn-gold" href="/search">Find a venue</a>
+    </div>
+  <% } %>
+  <div class="party-list">
+    <% parties.forEach(p => { const past = p.event_date < today; %>
+      <article class="card party-card <%= past ? 'past' : '' %>">
+        <% if (p.image) { %><img src="/uploads/<%= p.image %>" alt=""><% } %>
+        <div class="party-body">
+          <div class="party-top">
+            <div>
+              <h2 class="h3"><%= p.title %></h2>
+              <p class="muted"><%= fmt.longDate(p.event_date) %> · <%= p.venue_name %>, <%= p.restaurant_name %></p>
+            </div>
+            <% if (p.status === 'pending_payment') { %><span class="pill pill-warn">Awaiting payment</span>
+            <% } else if (past) { %><span class="pill">Completed</span>
+            <% } else { %><span class="pill pill-ok">Reserved</span><% } %>
+          </div>
+          <% if (p.status === 'confirmed') { %>
+            <div class="rsvp-strip">
+              <div><span class="stat-n"><%= p.rsvp.yes %></span><span class="muted small">Attending</span></div>
+              <div><span class="stat-n"><%= p.rsvp.headcount %></span><span class="muted small">Total heads</span></div>
+              <div><span class="stat-n"><%= p.rsvp.maybe %></span><span class="muted small">Maybe</span></div>
+              <div><span class="stat-n"><%= p.rsvp.no %></span><span class="muted small">Declined</span></div>
+              <div><span class="stat-n"><%= p.rsvp.pending %></span><span class="muted small">Awaiting</span></div>
+              <div><span class="stat-n"><%= p.rsvp.invited %></span><span class="muted small">Invited</span></div>
+            </div>
+            <div class="btn-row">
+              <a class="btn btn-small" href="/bookings/<%= p.id %>"><%= p.rsvp.invited ? 'Manage guests & RSVPs' : 'Upload invite list' %></a>
+            </div>
+          <% } else { %>
+            <div class="btn-row"><a class="btn btn-small btn-gold" href="/bookings/<%= p.id %>/checkout">Complete payment</a></div>
+          <% } %>
+        </div>
+      </article>
+    <% }) %>
+  </div>
+</section>
+<%- include('../partials/foot') %>

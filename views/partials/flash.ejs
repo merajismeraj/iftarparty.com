@@ -1,0 +1,7 @@
+<% if (flash && flash.length) { %>
+<div class="wrap flash-stack">
+  <% flash.forEach(f => { %>
+    <div class="flash flash-<%= f.type %>" role="<%= f.type === 'error' ? 'alert' : 'status' %>"><%= f.message %></div>
+  <% }) %>
+</div>
+<% } %>

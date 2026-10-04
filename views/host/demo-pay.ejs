@@ -1,0 +1,19 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <div class="card form-card">
+    <p class="pill">Demo payment gateway</p>
+    <h1 class="h2">Pay <%= money.format(b.total_amount, b.currency) %></h1>
+    <p class="muted">Stripe isn’t configured, so this simulated checkout confirms the booking without charging anything. Set <code>STRIPE_SECRET_KEY</code> to take real payments.</p>
+    <form method="post" action="/bookings/<%= b.id %>/demo-pay">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field"><span>Card number</span><input value="4242 4242 4242 4242" readonly></label>
+      <div class="row-2">
+        <label class="field"><span>Expiry</span><input value="12 / 30" readonly></label>
+        <label class="field"><span>CVC</span><input value="123" readonly></label>
+      </div>
+      <button class="btn btn-gold btn-block">Confirm payment</button>
+    </form>
+    <p class="center"><a class="small" href="/bookings/<%= b.id %>/checkout">← Back</a></p>
+  </div>
+</section>
+<%- include('../partials/foot') %>

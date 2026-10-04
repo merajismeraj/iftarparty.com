@@ -1,0 +1,23 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <ol class="progress-steps"><li class="done">Choose hall</li><li class="on">Pay</li><li>Invite guests</li></ol>
+  <div class="card form-card">
+    <h1 class="h2">Review &amp; pay</h1>
+    <%- include('../partials/booking-summary', { b }) %>
+    <% if (expired) { %>
+      <div class="flash flash-error">Your <%= holdMinutes %>-minute hold has expired. The evening may still be free — <a href="/venues/<%= b.venue_id %>?date=<%= b.event_date %>&guests=<%= b.guest_count %>&menu=<%= b.menu_id %>">reserve again</a>.</div>
+    <% } else { %>
+      <p class="hold-timer" data-countdown="<%= b.hold_expires_at %>">Hall held for you — complete payment within <strong data-countdown-text>…</strong></p>
+      <form method="post" action="/bookings/<%= b.id %>/pay">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn btn-gold btn-block">Pay <%= money.format(b.total_amount, b.currency) %> &amp; reserve</button>
+      </form>
+      <p class="small muted center"><%= paymentsLive ? 'Secure payment by Stripe. Cards, UPI and wallets where supported.' : 'Demo mode: no real money is charged.' %></p>
+      <form method="post" action="/bookings/<%= b.id %>/cancel" class="center">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="link small">Release hold &amp; cancel</button>
+      </form>
+    <% } %>
+  </div>
+</section>
+<%- include('../partials/foot') %>

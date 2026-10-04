@@ -1,0 +1,45 @@
+<%- include('partials/head') %>
+<section class="search-band">
+  <div class="wrap">
+    <%- include('partials/search-form', { q, compact: true }) %>
+  </div>
+</section>
+<section class="wrap section">
+  <%
+    const keep = new URLSearchParams(Object.entries(q).filter(([k, v]) => v && k !== 'page' && typeof v === 'string'));
+    const withParam = (k, v) => { const p = new URLSearchParams(keep); if (v) p.set(k, v); else p.delete(k); return `/search?${p}`; };
+    const venueQs = new URLSearchParams(Object.entries({ date: q.date, guests: q.guests }).filter(([, v]) => v && typeof v === 'string')).toString();
+  %>
+  <div class="results-head">
+    <h1 class="h2"><%= total %> venue<%= total === 1 ? '' : 's' %><%= q.location ? ` in “${q.location}”` : '' %><%= q.date ? ` free on ${fmt.shortDate(q.date)}` : '' %></h1>
+    <div class="filters">
+      <span class="muted small">Diet:</span>
+      <a class="chip <%= !q.diet ? 'on' : '' %>" href="<%= withParam('diet', '') %>">Any</a>
+      <a class="chip <%= q.diet === 'veg' ? 'on' : '' %>" href="<%= withParam('diet', 'veg') %>">Veg</a>
+      <a class="chip <%= q.diet === 'non-veg' ? 'on' : '' %>" href="<%= withParam('diet', 'non-veg') %>">Non-veg</a>
+      <span class="muted small sep">Sort:</span>
+      <a class="chip <%= !q.sort || q.sort === 'price' ? 'on' : '' %>" href="<%= withParam('sort', '') %>">Lowest price</a>
+      <a class="chip <%= q.sort === 'capacity' ? 'on' : '' %>" href="<%= withParam('sort', 'capacity') %>">Largest</a>
+      <a class="chip <%= q.sort === 'newest' ? 'on' : '' %>" href="<%= withParam('sort', 'newest') %>">Newest</a>
+    </div>
+  </div>
+  <% if (!rows.length) { %>
+    <div class="empty">
+      <p class="lead">No venues match all of those filters.</p>
+      <p class="muted">Try a nearby area, a different date, or raising your budget.</p>
+      <a class="btn btn-ghost" href="/search">Clear filters</a>
+    </div>
+  <% } else { %>
+    <div class="grid cards">
+      <% rows.forEach(v => { %><%- include('partials/venue-card', { v, qs: venueQs }) %><% }) %>
+    </div>
+    <% if (pages > 1) { %>
+      <nav class="pager">
+        <% if (page > 1) { %><a class="btn btn-ghost" href="<%= withParam('page', page - 1) %>">← Previous</a><% } %>
+        <span class="muted">Page <%= page %> of <%= pages %></span>
+        <% if (page < pages) { %><a class="btn btn-ghost" href="<%= withParam('page', page + 1) %>">Next →</a><% } %>
+      </nav>
+    <% } %>
+  <% } %>
+</section>
+<%- include('partials/foot') %>

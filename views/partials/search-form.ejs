@@ -1,0 +1,23 @@
+<form class="search-form <%= locals.compact ? 'compact' : '' %>" method="get" action="/search">
+  <label class="field">
+    <span>Location</span>
+    <input name="location" placeholder="City or area, e.g. Bandra" value="<%= q.location || '' %>">
+  </label>
+  <label class="field">
+    <span>Date</span>
+    <input type="date" name="date" min="<%= today %>" value="<%= q.date || '' %>">
+  </label>
+  <label class="field">
+    <span>Guests</span>
+    <input type="number" name="guests" min="1" max="2000" placeholder="50" value="<%= q.guests || '' %>">
+  </label>
+  <label class="field">
+    <span>Menu / cuisine</span>
+    <input name="menu" placeholder="Haleem, Biryani, Arabic…" value="<%= q.menu || '' %>">
+  </label>
+  <label class="field">
+    <span>Max price / guest</span>
+    <input type="number" name="max_price" min="0" step="50" placeholder="Any" value="<%= q.max_price || '' %>">
+  </label>
+  <button class="btn btn-gold">Search</button>
+</form>

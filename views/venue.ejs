@@ -1,0 +1,113 @@
+<%- include('partials/head') %>
+<section class="wrap section">
+  <p class="crumbs"><a href="/search">Venues</a> › <a href="/search?location=<%= encodeURIComponent(venue.city) %>"><%= venue.city %></a> › <%= venue.name %></p>
+  <div class="venue-title">
+    <div>
+      <h1><%= venue.name %></h1>
+      <p class="muted"><strong><%= venue.restaurant_name %></strong><%= venue.cuisine ? ` · ${venue.cuisine}` : '' %> · <%= [venue.address, venue.area, venue.city].filter(Boolean).join(', ') %></p>
+    </div>
+    <div class="pill-row">
+      <span class="pill"><%= venue.min_pax %>–<%= venue.max_pax %> guests</span>
+      <span class="pill"><%= venue.hire_fee ? `Hall fee ${money.format(venue.hire_fee)}` : 'No hall fee' %></span>
+    </div>
+  </div>
+
+  <div class="gallery <%= images.length === 1 ? 'single' : '' %>">
+    <% images.slice(0, 5).forEach((img, i) => { %>
+      <img src="/uploads/<%= img.filename %>" alt="<%= venue.name %> photo <%= i + 1 %>" class="<%= i === 0 ? 'main' : '' %>" <%= i ? 'loading=lazy' : '' %>>
+    <% }) %>
+    <% if (!images.length) { %><div class="img-fallback main">☾</div><% } %>
+  </div>
+
+  <div class="venue-layout">
+    <div class="venue-main">
+      <% if (venue.description) { %><h2 class="h3">About the hall</h2><p class="prewrap"><%= venue.description %></p><% } %>
+      <% if (venue.amenities) { %>
+        <div class="pill-row">
+          <% venue.amenities.split(',').map(s => s.trim()).filter(Boolean).forEach(a => { %><span class="pill pill-soft"><%= a %></span><% }) %>
+        </div>
+      <% } %>
+
+      <h2 class="h3" id="menus">Iftar menus</h2>
+      <% if (!menus.length) { %><p class="muted">This restaurant hasn’t published a menu yet.</p><% } %>
+      <div class="menu-list">
+        <% menus.forEach(m => { %>
+          <article class="menu-item">
+            <header>
+              <h3><%= m.name %> <span class="diet diet-<%= m.diet %>" title="<%= m.diet %>"><%= m.diet === 'veg' ? 'Veg' : m.diet === 'mixed' ? 'Veg & non-veg' : 'Non-veg' %></span></h3>
+              <strong><%= money.format(m.price_per_person) %><span class="muted small">/guest</span></strong>
+            </header>
+            <% if (m.description) { %><p class="muted"><%= m.description %></p><% } %>
+            <ul class="dishes"><% m.items.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean).forEach(d => { %><li><%= d %></li><% }) %></ul>
+            <% if (m.min_pax > 1) { %><p class="small muted">Minimum <%= m.min_pax %> guests</p><% } %>
+          </article>
+        <% }) %>
+      </div>
+
+      <% if (venue.restaurant_description) { %><h2 class="h3">About <%= venue.restaurant_name %></h2><p class="prewrap muted"><%= venue.restaurant_description %></p><% } %>
+
+      <h2 class="h3">Reserved evenings</h2>
+      <% if (!reservations.length) { %>
+        <p class="muted">No evenings booked yet — every date is open.</p>
+      <% } else { %>
+        <ul class="reserved-list">
+          <% reservations.forEach(r => { %><li><span class="date-badge"><%= fmt.shortDate(r.event_date) %></span> Reserved · <strong><%= r.title %></strong></li><% }) %>
+        </ul>
+      <% } %>
+    </div>
+
+    <aside class="venue-aside" id="reserve">
+      <form class="card book-card" method="post" action="/venues/<%= venue.id %>/reserve"
+            data-quote data-hire-fee="<%= venue.hire_fee %>" data-fee-percent="<%= feePercent %>" data-currency="<%= currency %>"
+            data-min-pax="<%= venue.min_pax %>" data-max-pax="<%= venue.max_pax %>" data-venue="<%= venue.id %>">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <h2 class="h3">Reserve this hall</h2>
+        <label class="field">
+          <span>Date of Iftar</span>
+          <input type="date" name="date" required min="<%= today %>" value="<%= form.date %>" data-availability>
+          <small class="availability <%= taken ? 'bad' : form.date ? 'good' : '' %>" data-availability-msg>
+            <%= taken ? (taken.status === 'confirmed' ? `Reserved · ${taken.title}` : 'On hold – payment in progress') : form.date ? 'Available ✓' : '' %>
+          </small>
+        </label>
+        <div class="row-2">
+          <label class="field">
+            <span>Guests</span>
+            <input type="number" name="guests" required min="<%= venue.min_pax %>" max="<%= venue.max_pax %>" value="<%= form.guests %>" placeholder="<%= venue.min_pax %>–<%= venue.max_pax %>">
+          </label>
+          <label class="field">
+            <span>Arrival</span>
+            <input type="time" name="arrival_time" value="<%= form.arrival_time %>">
+          </label>
+        </div>
+        <fieldset class="field">
+          <legend>Menu</legend>
+          <% menus.forEach((m, i) => { %>
+            <label class="radio-card">
+              <input type="radio" name="menu_id" value="<%= m.id %>" required data-price="<%= m.price_per_person %>" data-min="<%= m.min_pax %>"
+                <%= String(form.menu_id) === String(m.id) || (!form.menu_id && i === 0) ? 'checked' : '' %>>
+              <span><%= m.name %></span><strong><%= money.format(m.price_per_person) %></strong>
+            </label>
+          <% }) %>
+        </fieldset>
+
+        <div class="quote" data-quote-box hidden>
+          <div><span data-q-food-label>Food</span><span data-q-food></span></div>
+          <div><span>Hall fee</span><span data-q-hire></span></div>
+          <div><span>Service fee (<%= feePercent %>%)</span><span data-q-fee></span></div>
+          <div class="total"><span>Total</span><span data-q-total></span></div>
+        </div>
+        <p class="small bad" data-quote-error hidden></p>
+
+        <% if (user && user.role === 'restaurant') { %>
+          <p class="small muted">You’re signed in as a restaurant. Sign in with a host account to book.</p>
+        <% } else if (!menus.length) { %>
+          <button class="btn btn-block" disabled>Menus coming soon</button>
+        <% } else { %>
+          <button class="btn btn-gold btn-block" <%= taken ? 'disabled' : '' %> data-reserve-btn>Reserve &amp; continue to payment</button>
+          <p class="small muted center">Your hall is held for <%= locals.holdMinutes || 30 %> minutes while you pay. <%= user ? '' : 'You’ll be asked to sign in.' %></p>
+        <% } %>
+      </form>
+    </aside>
+  </div>
+</section>
+<%- include('partials/foot') %>
