@@ -6,6 +6,7 @@
   <div class="venue-card-body">
     <h3><%= v.name %></h3>
     <p class="muted"><%= v.restaurant_name %> · <%= [v.area, v.city].filter(Boolean).join(', ') %></p>
+    <% if (v.review_count) { %><p class="small card-rating"><span class="star-one">★</span> <strong><%= v.rating %></strong> <span class="muted">(<%= v.review_count %>)</span></p><% } %>
     <% if (v.menu_names) { %><p class="small menu-names"><%= v.menu_names.split(',').slice(0, 3).join(' · ') %></p><% } %>
     <div class="venue-card-foot">
       <span><span class="muted small">from</span> <strong><%= money.format(v.from_price) %></strong><span class="muted small">/guest</span></span>

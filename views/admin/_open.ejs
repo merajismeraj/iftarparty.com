@@ -4,9 +4,9 @@
     <p class="eyebrow dark">Admin</p>
     <nav>
       <% [['overview', '/admin', 'Overview'], ['restaurants', '/admin/restaurants', 'Restaurants'], ['bookings', '/admin/bookings', 'Bookings'],
-          ['payouts', '/admin/payouts', 'Payouts'], ['users', '/admin/users', 'Users'], ['messages', '/admin/messages', 'Messages'],
+          ['reviews', '/admin/reviews', 'Reviews'], ['payouts', '/admin/payouts', 'Payouts'], ['users', '/admin/users', 'Users'], ['messages', '/admin/messages', 'Messages'],
           ['settings', '/admin/settings', 'Settings'], ['audit', '/admin/audit', 'Audit log']].forEach(([key, href, label]) => { %>
-        <a href="<%= href %>" class="<%= adminSection === key ? 'on' : '' %>"><%= label %><% if (key === 'restaurants' && pendingCount) { %> <span class="count"><%= pendingCount %></span><% } %></a>
+        <a href="<%= href %>" class="<%= adminSection === key ? 'on' : '' %>"><%= label %><% if (key === 'restaurants' && pendingCount) { %> <span class="count"><%= pendingCount %></span><% } %><% if (key === 'reviews' && reviewQueue) { %> <span class="count"><%= reviewQueue %></span><% } %></a>
       <% }) %>
     </nav>
   </aside>

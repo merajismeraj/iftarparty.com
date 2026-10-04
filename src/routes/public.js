@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const money = require('../services/money');
+const reviews = require('../services/reviews');
 const { isValidDate, todayISO, blockingBooking, upcomingReservations, expireStaleHolds } = require('../services/bookings');
 
 const PAGE_SIZE = 12;
@@ -9,6 +10,7 @@ const SORTS = {
   price_desc: 'from_price DESC',
   capacity: 'v.max_pax DESC',
   newest: 'v.id DESC',
+  rating: 'rating IS NULL, rating DESC, review_count DESC',
 };
 
 /** Venue search across location, menu, price, capacity and date availability. */
@@ -58,6 +60,8 @@ function searchVenues(db, q) {
             r.name AS restaurant_name, r.area, r.city, r.cuisine,
             MIN(m.price_per_person) AS from_price, COUNT(DISTINCT m.id) AS menu_count,
             GROUP_CONCAT(DISTINCT m.name) AS menu_names,
+            (SELECT ROUND(AVG(rv.rating), 1) FROM reviews rv WHERE rv.restaurant_id = r.id AND rv.status = 'approved') AS rating,
+            (SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id AND rv.status = 'approved') AS review_count,
             (SELECT filename FROM venue_images vi WHERE vi.venue_id = v.id ORDER BY sort_order, id LIMIT 1) AS image
      ${base}
      GROUP BY v.id ORDER BY ${order}, v.id DESC LIMIT ? OFFSET ?`
@@ -96,11 +100,17 @@ module.exports = (db) => {
     }
     const images = db.prepare('SELECT * FROM venue_images WHERE venue_id = ? ORDER BY sort_order, id').all(venue.id);
     const menus = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? AND active = 1 ORDER BY price_per_person').all(venue.restaurant_id);
+    const addons = db.prepare(
+      `SELECT * FROM addons WHERE restaurant_id = ? AND active = 1
+       ORDER BY CASE category WHEN 'food' THEN 0 WHEN 'decor' THEN 1 WHEN 'service' THEN 2 ELSE 3 END, price`
+    ).all(venue.restaurant_id);
+    const picked = new Set([].concat(req.query.addon || []).map(String));
     const reservations = upcomingReservations(db, venue.id);
     const date = isValidDate(req.query.date) ? req.query.date : '';
     const taken = date ? blockingBooking(db, venue.id, date) : null;
     res.render('venue', {
-      title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, reservations,
+      title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, addons, picked, reservations,
+      rating: reviews.summary(db, venue.restaurant_id), reviewList: reviews.published(db, venue.restaurant_id, 20),
       form: { date, guests: req.query.guests || '', menu_id: req.query.menu || '', arrival_time: '18:00' },
       taken, today: todayISO(),
     });

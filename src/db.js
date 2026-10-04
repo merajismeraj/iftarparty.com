@@ -204,6 +204,60 @@ const MIGRATIONS = [
   `
   ALTER TABLE message_log ADD COLUMN kind TEXT NOT NULL DEFAULT 'invite' CHECK (kind IN ('invite', 'cancellation'));
   `,
+  // v4: menu packages & add-ons, and admin-moderated verified reviews.
+  `
+  CREATE TABLE addons (
+    id            INTEGER PRIMARY KEY,
+    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    description   TEXT NOT NULL DEFAULT '',
+    category      TEXT NOT NULL DEFAULT 'food' CHECK (category IN ('food', 'decor', 'service', 'other')),
+    pricing       TEXT NOT NULL CHECK (pricing IN ('per_guest', 'flat')),
+    price         INTEGER NOT NULL CHECK (price > 0),
+    active        INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX addons_restaurant ON addons (restaurant_id);
+
+  -- Snapshot of what was bought, so later price edits never change a paid booking.
+  CREATE TABLE booking_addons (
+    id         INTEGER PRIMARY KEY,
+    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    addon_id   INTEGER REFERENCES addons(id) ON DELETE SET NULL,
+    name       TEXT NOT NULL,
+    pricing    TEXT NOT NULL,
+    unit_price INTEGER NOT NULL,
+    quantity   INTEGER NOT NULL,
+    total      INTEGER NOT NULL
+  );
+  CREATE INDEX booking_addons_booking ON booking_addons (booking_id);
+  ALTER TABLE bookings ADD COLUMN addons_total INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE reviews (
+    id               INTEGER PRIMARY KEY,
+    booking_id       INTEGER NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+    restaurant_id    INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    venue_id         INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+    host_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rating           INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    food_rating      INTEGER CHECK (food_rating BETWEEN 1 AND 5),
+    service_rating   INTEGER CHECK (service_rating BETWEEN 1 AND 5),
+    ambience_rating  INTEGER CHECK (ambience_rating BETWEEN 1 AND 5),
+    title            TEXT NOT NULL DEFAULT '',
+    body             TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    moderation_note  TEXT NOT NULL DEFAULT '',
+    moderated_at     TEXT,
+    reply            TEXT NOT NULL DEFAULT '',
+    reply_status     TEXT NOT NULL DEFAULT 'none' CHECK (reply_status IN ('none', 'pending', 'approved', 'rejected')),
+    reply_note       TEXT NOT NULL DEFAULT '',
+    reply_at         TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX reviews_restaurant_status ON reviews (restaurant_id, status);
+  CREATE INDEX reviews_status ON reviews (status);
+  `,
 ];
 
 function migrate(db) {

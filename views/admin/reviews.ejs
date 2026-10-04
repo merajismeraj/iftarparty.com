@@ -1,0 +1,63 @@
+<%- include('_open') %>
+<h1>Reviews</h1>
+<p class="muted">Every review is from a verified host whose Iftar took place. Approve what’s genuine and on-topic. Reject spam, abuse, personal data or off-platform contact details (the author sees your reason and can resubmit).</p>
+<form class="admin-filters" method="get">
+  <select name="status">
+    <% [['pending', 'Needs moderation'], ['approved', 'Published'], ['rejected', 'Rejected'], ['all', 'All']].forEach(([v, l]) => { %><option value="<%= v %>" <%= q.status === v ? 'selected' : '' %>><%= l %></option><% }) %>
+  </select>
+  <input name="q" placeholder="Restaurant, host email or text" value="<%= q.q || '' %>">
+  <button class="btn btn-small">Filter</button>
+</form>
+<% if (!rows.length) { %><p class="muted">Nothing to moderate. ✓</p><% } %>
+<div class="mod-list">
+  <% rows.forEach(r => { const backTo = `/admin/reviews?status=${q.status}`; %>
+    <div class="card form-card mod-card">
+      <div class="mod-head">
+        <div>
+          <%- include('../partials/stars', { value: r.rating }) %> <strong><%= r.title %></strong> <%- include('_status', { s: r.status }) %>
+          <p class="small muted"><a href="/admin/restaurants/<%= r.restaurant_id %>"><%= r.restaurant_name %></a> · <%= r.venue_name %> ·
+            <a href="/admin/bookings/<%= r.booking_id %>">booking #<%= r.booking_id %></a> (<%= r.event_date %>) · by <%= r.host_name %> &lt;<%= r.host_email %>&gt; · <%= r.host_reviews %> review<%= r.host_reviews === 1 ? '' : 's' %> total · updated <%= r.updated_at %></p>
+        </div>
+      </div>
+      <p class="prewrap"><%= r.body %></p>
+      <p class="small muted"><%= [['Food', r.food_rating], ['Service', r.service_rating], ['Ambience', r.ambience_rating]].filter(([, x]) => x).map(([l, x]) => `${l} ${x}/5`).join(' · ') %></p>
+      <% if (r.moderation_note) { %><p class="small">Moderation note: <em><%= r.moderation_note %></em></p><% } %>
+      <div class="mod-actions">
+        <% if (r.status !== 'approved') { %>
+          <form method="post" action="/admin/reviews/<%= r.id %>/moderate" class="inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="back" value="<%= backTo %>"><input type="hidden" name="decision" value="approve">
+            <button class="btn btn-small">Approve &amp; publish</button>
+          </form>
+        <% } %>
+        <% if (r.status !== 'rejected') { %>
+          <form method="post" action="/admin/reviews/<%= r.id %>/moderate" class="mod-reject">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="back" value="<%= backTo %>"><input type="hidden" name="decision" value="reject">
+            <input name="note" required maxlength="300" placeholder="Reason shown to the host">
+            <button class="btn btn-small btn-ghost"><%= r.status === 'approved' ? 'Unpublish' : 'Reject' %></button>
+          </form>
+        <% } %>
+      </div>
+      <% if (r.reply_status !== 'none') { %>
+        <div class="review-reply">
+          <strong class="small">Restaurant reply</strong> <%- include('_status', { s: r.reply_status }) %>
+          <p class="prewrap small"><%= r.reply %></p>
+          <% if (r.reply_status === 'pending') { %>
+            <div class="mod-actions">
+              <form method="post" action="/admin/reviews/<%= r.id %>/reply-moderate" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="back" value="<%= backTo %>"><input type="hidden" name="decision" value="approve">
+                <button class="btn btn-small">Approve reply</button>
+              </form>
+              <form method="post" action="/admin/reviews/<%= r.id %>/reply-moderate" class="mod-reject">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="back" value="<%= backTo %>"><input type="hidden" name="decision" value="reject">
+                <input name="note" required maxlength="300" placeholder="Reason shown to the restaurant">
+                <button class="btn btn-small btn-ghost">Reject reply</button>
+              </form>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  <% }) %>
+</div>
+<%- include('_pager') %>
+<%- include('_close') %>

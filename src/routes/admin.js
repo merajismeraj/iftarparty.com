@@ -8,6 +8,7 @@ const invites = require('../services/invites');
 const settings = require('../services/settings');
 const audit = require('../services/audit');
 const money = require('../services/money');
+const reviews = require('../services/reviews');
 
 const PAGE_SIZE = 25;
 const RESTAURANT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
@@ -29,6 +30,7 @@ module.exports = (db) => {
   router.use((req, res, next) => {
     res.locals.adminSection = req.path.split('/')[1] || 'overview';
     res.locals.pendingCount = db.prepare(`SELECT COUNT(*) n FROM restaurants WHERE status = 'pending'`).get().n;
+    res.locals.reviewQueue = db.prepare(`SELECT COUNT(*) n FROM reviews WHERE status = 'pending' OR reply_status = 'pending'`).get().n;
     next();
   });
 
@@ -52,6 +54,7 @@ module.exports = (db) => {
          (SELECT COUNT(*) FROM payments WHERE refund_status = 'failed') AS refunds_failed,
          (SELECT COUNT(*) FROM restaurants WHERE status = 'pending') AS restaurants_pending,
          (SELECT COUNT(*) FROM restaurants WHERE status = 'approved') AS restaurants_live,
+         (SELECT COUNT(*) FROM reviews WHERE status = 'pending' OR reply_status = 'pending') AS reviews_pending,
          (SELECT COUNT(*) FROM users WHERE role = 'host') AS hosts,
          (SELECT COALESCE(SUM(total_amount - platform_fee), 0) FROM bookings
             WHERE status = 'confirmed' AND event_date < :today AND payout_status = 'unpaid') AS payouts_owed,
@@ -196,13 +199,13 @@ module.exports = (db) => {
     const f = bookingFilters(req.query);
     const rows = db.prepare(
       `SELECT b.id, b.title, b.event_date, b.status, u.name AS host, u.email AS host_email, r.name AS restaurant, v.name AS hall,
-              m.name AS menu, b.guest_count, b.food_total, b.hire_fee, b.platform_fee, b.total_amount, b.currency,
+              m.name AS menu, b.guest_count, b.food_total, b.hire_fee, b.addons_total, b.platform_fee, b.total_amount, b.currency,
               b.payment_ref, b.paid_at, b.payout_status, b.payout_ref, b.cancel_reason
        ${f.sql} ORDER BY b.id`
     ).all(...f.params);
     const cols = ['id', 'title', 'event_date', 'status', 'host', 'host_email', 'restaurant', 'hall', 'menu', 'guest_count',
-      'food_total', 'hire_fee', 'platform_fee', 'total_amount', 'currency', 'payment_ref', 'paid_at', 'payout_status', 'payout_ref', 'cancel_reason'];
-    const amount = new Set(['food_total', 'hire_fee', 'platform_fee', 'total_amount']);
+      'food_total', 'hire_fee', 'addons_total', 'platform_fee', 'total_amount', 'currency', 'payment_ref', 'paid_at', 'payout_status', 'payout_ref', 'cancel_reason'];
+    const amount = new Set(['food_total', 'hire_fee', 'addons_total', 'platform_fee', 'total_amount']);
     const lines = [cols.join(',')].concat(rows.map((r) => cols.map((c) => csvCell(amount.has(c) ? money.toMajor(r[c]).toFixed(2) : r[c])).join(',')));
     res.type('text/csv').attachment(`iftarparty-bookings-${svc.todayISO()}.csv`).send(`${lines.join('\n')}\n`);
   });
@@ -220,7 +223,7 @@ module.exports = (db) => {
        WHERE a.entity_type = 'booking' AND a.entity_id = ? ORDER BY a.id DESC`
     ).all(b.id);
     res.render('admin/booking', {
-      title: `Booking #${b.id}`, b, ledger, rsvp: svc.rsvpSummary(db, b.id), messages, log,
+      title: `Booking #${b.id}`, b, ledger, addons: svc.bookingAddons(db, b.id), rsvp: svc.rsvpSummary(db, b.id), messages, log,
       paid: checkout.bookingPayment(db, b), today: svc.todayISO(),
     });
   });
@@ -412,6 +415,55 @@ module.exports = (db) => {
       req.flash('success', `Invite re-sent to ${g.name}.`);
     }
     res.redirect(back(req, '/admin/messages?status=failed'));
+  });
+
+  // ---------- Reviews moderation ----------
+  router.get('/reviews', (req, res) => {
+    const q = req.query;
+    const status = ['pending', 'approved', 'rejected', 'all'].includes(q.status) ? q.status : 'pending';
+    const where = [];
+    const params = [];
+    if (status === 'pending') where.push(`(rv.status = 'pending' OR rv.reply_status = 'pending')`);
+    else if (status !== 'all') { where.push('rv.status = ?'); params.push(status); }
+    if (q.q?.trim()) {
+      where.push(`(r.name LIKE ? ESCAPE '\\' OR u.email LIKE ? ESCAPE '\\' OR rv.body LIKE ? ESCAPE '\\')`);
+      params.push(...Array(3).fill(like(q.q)));
+    }
+    const page = pageOf(q);
+    const base = `FROM reviews rv JOIN users u ON u.id = rv.host_id JOIN restaurants r ON r.id = rv.restaurant_id
+                  JOIN venues v ON v.id = rv.venue_id JOIN bookings b ON b.id = rv.booking_id
+                  ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`;
+    const total = db.prepare(`SELECT COUNT(*) n ${base}`).get(...params).n;
+    const rows = db.prepare(
+      `SELECT rv.*, u.name AS host_name, u.email AS host_email, r.name AS restaurant_name, v.name AS venue_name, b.event_date,
+              (SELECT COUNT(*) FROM reviews x WHERE x.host_id = rv.host_id) AS host_reviews
+       ${base} ORDER BY rv.updated_at ASC, rv.id ASC LIMIT ? OFFSET ?`
+    ).all(...params, PAGE_SIZE, (page - 1) * PAGE_SIZE);
+    res.render('admin/reviews', { title: 'Reviews', rows, q: { ...q, status }, page, pages: pages(total), total });
+  });
+
+  router.post('/reviews/:id/moderate', async (req, res) => {
+    try {
+      const status = await reviews.moderate(db, Number(req.params.id), { decision: req.body.decision, note: req.body.note });
+      audit.log(db, req.user.id, `review.${status}`, 'review', Number(req.params.id), req.body.note || '');
+      req.flash('success', `Review ${status}.`);
+    } catch (err) {
+      if (!(err instanceof reviews.ReviewError)) throw err;
+      req.flash('error', err.message);
+    }
+    res.redirect(back(req, '/admin/reviews'));
+  });
+
+  router.post('/reviews/:id/reply-moderate', async (req, res) => {
+    try {
+      const status = await reviews.moderateReply(db, Number(req.params.id), { decision: req.body.decision, note: req.body.note });
+      audit.log(db, req.user.id, `review_reply.${status}`, 'review', Number(req.params.id), req.body.note || '');
+      req.flash('success', `Reply ${status}.`);
+    } catch (err) {
+      if (!(err instanceof reviews.ReviewError)) throw err;
+      req.flash('error', err.message);
+    }
+    res.redirect(back(req, '/admin/reviews'));
   });
 
   // ---------- Settings & audit ----------

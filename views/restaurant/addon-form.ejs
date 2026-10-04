@@ -1,0 +1,33 @@
+<%- include('../partials/head') %>
+<% const editing = Boolean(addon.id); const price = rawPrice ? addon.price : (addon.price ? money.toMajor(addon.price) : ''); %>
+<section class="wrap narrow page-pad">
+  <p class="crumbs"><a href="/restaurant">Dashboard</a> › <%= editing ? 'Edit package' : 'New package' %></p>
+  <div class="card form-card">
+    <h1 class="h2"><%= editing ? `Edit ${addon.name}` : 'Add a package' %></h1>
+    <p class="muted">Optional extras hosts can add on top of any menu: live counters, dessert stations, décor, photography and more.</p>
+    <%- include('../partials/errors') %>
+    <form method="post" action="<%= editing ? `/restaurant/addons/${addon.id}` : '/restaurant/addons' %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field"><span>Package name</span><input name="name" required maxlength="120" value="<%= addon.name || '' %>" placeholder="Live Shawarma Counter"></label>
+      <div class="row-3">
+        <label class="field"><span>Type</span>
+          <select name="category">
+            <% [['food', 'Food & drinks'], ['decor', 'Décor'], ['service', 'Service'], ['other', 'Other']].forEach(([v, l]) => { %>
+              <option value="<%= v %>" <%= addon.category === v ? 'selected' : '' %>><%= l %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label class="field"><span>Charged</span>
+          <select name="pricing">
+            <option value="per_guest" <%= addon.pricing !== 'flat' ? 'selected' : '' %>>Per guest</option>
+            <option value="flat" <%= addon.pricing === 'flat' ? 'selected' : '' %>>Per event (flat)</option>
+          </select>
+        </label>
+        <label class="field"><span>Price (<%= currency %>)</span><input type="number" name="price" min="1" step="any" required value="<%= price %>"></label>
+      </div>
+      <label class="field"><span>What’s included</span><textarea name="description" rows="3" maxlength="500" placeholder="Chef-manned counter with chicken & falafel shawarma, garlic toum and pickles"><%= addon.description || '' %></textarea></label>
+      <button class="btn btn-gold btn-block"><%= editing ? 'Save package' : 'Add package' %></button>
+    </form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

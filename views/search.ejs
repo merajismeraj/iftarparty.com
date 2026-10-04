@@ -19,6 +19,7 @@
       <a class="chip <%= q.diet === 'non-veg' ? 'on' : '' %>" href="<%= withParam('diet', 'non-veg') %>">Non-veg</a>
       <span class="muted small sep">Sort:</span>
       <a class="chip <%= !q.sort || q.sort === 'price' ? 'on' : '' %>" href="<%= withParam('sort', '') %>">Lowest price</a>
+      <a class="chip <%= q.sort === 'rating' ? 'on' : '' %>" href="<%= withParam('sort', 'rating') %>">Top rated</a>
       <a class="chip <%= q.sort === 'capacity' ? 'on' : '' %>" href="<%= withParam('sort', 'capacity') %>">Largest</a>
       <a class="chip <%= q.sort === 'newest' ? 'on' : '' %>" href="<%= withParam('sort', 'newest') %>">Newest</a>
     </div>

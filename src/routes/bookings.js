@@ -9,6 +9,7 @@ const { normalizePhone } = require('../services/guestlist');
 const invites = require('../services/invites');
 const { parseGuestList } = require('../services/guestlist');
 const { transaction } = require('../db');
+const reviews = require('../services/reviews');
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -39,12 +40,14 @@ module.exports = (db) => {
       const id = svc.createHold(db, {
         venueId: Number(req.params.id), menuId: Number(req.body.menu_id), hostId: req.user.id,
         eventDate: req.body.date, guestCount: req.body.guests, arrivalTime: req.body.arrival_time,
+        addonIds: req.body.addon_ids,
       });
       res.redirect(`/bookings/${id}/checkout`);
     } catch (err) {
       if (!(err instanceof svc.BookingError)) throw err;
       req.flash('error', err.message);
       const qs = new URLSearchParams({ date: req.body.date || '', guests: req.body.guests || '', menu: req.body.menu_id || '' });
+      [].concat(req.body.addon_ids || []).forEach((id) => qs.append('addon', id));
       res.redirect(`/venues/${req.params.id}?${qs}#reserve`);
     }
   });
@@ -55,7 +58,7 @@ module.exports = (db) => {
     if (!b) return;
     if (b.status === 'confirmed') return res.redirect(`/bookings/${b.id}`);
     const expired = b.status !== 'pending_payment' || b.hold_expires_at <= new Date().toISOString();
-    res.render('host/checkout', { title: 'Review & pay', b, expired });
+    res.render('host/checkout', { title: 'Review & pay', b, expired, addons: svc.bookingAddons(db, b.id) });
   });
 
   router.post('/bookings/:id/pay', host, async (req, res) => {
@@ -174,7 +177,7 @@ module.exports = (db) => {
         `SELECT COUNT(DISTINCT ml.guest_id) AS n FROM message_log ml JOIN guests g ON g.id = ml.guest_id
          WHERE g.booking_id = ? AND ml.kind = 'cancellation'`
       ).get(b.id).n : 0;
-      return { ...b, rsvp: svc.rsvpSummary(db, b.id), payment: checkout.bookingPayment(db, b), notified };
+      return { ...b, rsvp: svc.rsvpSummary(db, b.id), payment: checkout.bookingPayment(db, b), notified, review: reviews.forBooking(db, b.id) };
     });
     res.render('host/parties', { title: 'My Iftar parties', parties, today: svc.todayISO() });
   });
@@ -189,7 +192,7 @@ module.exports = (db) => {
        ORDER BY CASE rsvp_status WHEN 'yes' THEN 0 WHEN 'maybe' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, name`
     ).all(b.id);
     res.render('host/party', {
-      title: b.title, b, guests, rsvp: svc.rsvpSummary(db, b.id), welcome: req.query.welcome === '1',
+      title: b.title, b, guests, addons: svc.bookingAddons(db, b.id), rsvp: svc.rsvpSummary(db, b.id), welcome: req.query.welcome === '1',
       preview: guests[0] ? invites.buildInvite(b, guests[0]) : invites.buildInvite(b, { name: 'Guest', rsvp_token: 'preview' }),
       past: b.event_date < svc.todayISO(),
     });
@@ -271,6 +274,34 @@ module.exports = (db) => {
     db.prepare('DELETE FROM guests WHERE id = ? AND booking_id = ?').run(req.params.guestId, b.id);
     req.flash('success', 'Guest removed.');
     res.redirect(`/bookings/${b.id}#guests`);
+  });
+
+  // ---- Verified review of the venue, after the Iftar ----
+  router.get('/bookings/:id/review', host, (req, res) => {
+    const b = ownBooking(req, res);
+    if (!b) return;
+    const reason = reviews.ineligibleReason(b, req.user.id);
+    if (reason) {
+      req.flash('info', reason);
+      return res.redirect('/my-parties');
+    }
+    const existing = reviews.forBooking(db, b.id);
+    res.render('host/review', { title: `Review ${b.restaurant_name}`, b, review: existing || {}, existing, errors: [] });
+  });
+
+  router.post('/bookings/:id/review', host, (req, res) => {
+    const b = ownBooking(req, res);
+    if (!b) return;
+    try {
+      const r = reviews.submit(db, b, req.user.id, req.body);
+      req.flash('success', r.wasPublished
+        ? 'Review updated. It will be published again after a quick check by our team.'
+        : 'Thank you! Your review will appear once our team has checked it (usually within a day).');
+      res.redirect('/my-parties');
+    } catch (err) {
+      if (!(err instanceof reviews.ReviewError)) throw err;
+      res.status(422).render('host/review', { title: `Review ${b.restaurant_name}`, b, review: req.body, existing: reviews.forBooking(db, b.id), errors: [err.message] });
+    }
   });
 
   router.get('/bookings/:id/guests.csv', host, (req, res) => {

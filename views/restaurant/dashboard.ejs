@@ -4,11 +4,12 @@
     <div>
       <p class="eyebrow dark">Restaurant dashboard</p>
       <h1><%= restaurant.name %></h1>
-      <p class="muted"><%= [restaurant.area, restaurant.city].filter(Boolean).join(', ') %> · <a href="/restaurant/profile">Edit profile</a></p>
+      <p class="muted"><%= [restaurant.area, restaurant.city].filter(Boolean).join(', ') %> · <a href="/restaurant/profile">Edit profile</a> · <a href="/restaurant/reviews">Reviews<%= rating.count ? ` (★ ${rating.avg})` : '' %></a></p>
     </div>
     <div class="btn-row">
       <a class="btn" href="/restaurant/venues/new">+ Add hall</a>
       <a class="btn btn-ghost" href="/restaurant/menus/new">+ Add menu</a>
+      <a class="btn btn-ghost" href="/restaurant/addons/new">+ Add package</a>
     </div>
   </div>
 
@@ -48,7 +49,7 @@
               <td><strong><%= fmt.shortDate(b.event_date) %></strong><br><span class="muted small"><%= fmt.time12(b.arrival_time) %></span></td>
               <td><%= b.title %><br><span class="muted small"><%= b.host_phone || b.host_email %></span></td>
               <td><%= b.venue_name %></td>
-              <td><%= b.menu_name %></td>
+              <td><%= b.menu_name %><% if (b.addons.length) { %><br><span class="muted small">+ <%= b.addons.map(a => a.name).join(', ') %></span><% } %></td>
               <td><%= b.guest_count %></td>
               <td><%= b.rsvp.yes %> (<%= b.rsvp.headcount %>)</td>
               <td><%= money.format(b.total_amount - b.platform_fee) %></td>
@@ -105,6 +106,29 @@
           </tr>
         <% }) %>
         <% if (!menus.length) { %><tr><td colspan="5" class="muted">No menus yet. <a href="/restaurant/menus/new">Add your first Iftar menu</a>.</td></tr><% } %>
+      </tbody>
+    </table>
+  </div>
+  <h2 class="h3" id="addons">Packages &amp; add-ons</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Package</th><th>Type</th><th>Price</th><th></th></tr></thead>
+      <tbody>
+        <% addons.forEach(a => { %>
+          <tr class="<%= a.active ? '' : 'inactive' %>">
+            <td><strong><%= a.name %></strong><% if (!a.active) { %> <span class="pill">Not offered</span><% } %><% if (a.description) { %><br><span class="muted small"><%= a.description %></span><% } %></td>
+            <td><%= a.category %></td>
+            <td class="nowrap"><%= money.format(a.price) %> <span class="muted small"><%= a.pricing === 'flat' ? 'per event' : 'per guest' %></span></td>
+            <td class="nowrap">
+              <a class="btn btn-small btn-ghost" href="/restaurant/addons/<%= a.id %>/edit">Edit</a>
+              <form method="post" action="/restaurant/addons/<%= a.id %>/toggle" class="inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btn-small btn-ghost"><%= a.active ? 'Withdraw' : 'Offer again' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+        <% if (!addons.length) { %><tr><td colspan="4" class="muted">No packages yet. Add extras like a live grill, dessert counter or décor to raise your average booking value. <a href="/restaurant/addons/new">Add a package</a>.</td></tr><% } %>
       </tbody>
     </table>
   </div>

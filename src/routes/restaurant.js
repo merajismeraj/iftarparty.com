@@ -3,7 +3,8 @@ const express = require('express');
 const money = require('../services/money');
 const { requireAuth } = require('../middleware/auth');
 const { images: imageUpload, removeUpload } = require('../middleware/uploads');
-const { todayISO, rsvpSummary } = require('../services/bookings');
+const { todayISO, rsvpSummary, bookingAddons } = require('../services/bookings');
+const reviews = require('../services/reviews');
 
 const DIETS = ['veg', 'non-veg', 'mixed'];
 const str = (v, max = 2000) => String(v ?? '').trim().slice(0, max);
@@ -20,6 +21,20 @@ function venueFromBody(b) {
   if (!(v.max_pax >= v.min_pax)) errors.push('Maximum guests must be at least the minimum.');
   if (!Number.isFinite(v.hire_fee)) errors.push('Hall hire fee must be a number (use 0 if included in the menu price).');
   return { v, errors };
+}
+
+const ADDON_CATEGORIES = ['food', 'decor', 'service', 'other'];
+
+function addonFromBody(b) {
+  const a = {
+    name: str(b.name, 120), description: str(b.description, 500),
+    category: ADDON_CATEGORIES.includes(b.category) ? b.category : 'other',
+    pricing: b.pricing === 'flat' ? 'flat' : 'per_guest', price: money.toMinor(b.price),
+  };
+  const errors = [];
+  if (!a.name) errors.push('Give the package a name, e.g. “Live Shawarma Counter”.');
+  if (!(a.price > 0)) errors.push('Enter a price.');
+  return { a, errors };
 }
 
 function menuFromBody(b) {
@@ -55,18 +70,19 @@ module.exports = (db) => {
        FROM venues v WHERE v.restaurant_id = ? ORDER BY v.active DESC, v.name`
     ).all(todayISO(), rid);
     const menus = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY active DESC, price_per_person').all(rid);
+    const addons = db.prepare('SELECT * FROM addons WHERE restaurant_id = ? ORDER BY active DESC, category, price').all(rid);
     const bookings = db.prepare(
       `SELECT b.*, v.name AS venue_name, m.name AS menu_name, u.name AS host_name, u.phone AS host_phone, u.email AS host_email
        FROM bookings b JOIN venues v ON v.id = b.venue_id JOIN menus m ON m.id = b.menu_id JOIN users u ON u.id = b.host_id
        WHERE v.restaurant_id = ? AND b.status = 'confirmed' AND b.event_date >= ?
        ORDER BY b.event_date LIMIT 50`
-    ).all(rid, todayISO()).map((b) => ({ ...b, rsvp: rsvpSummary(db, b.id) }));
+    ).all(rid, todayISO()).map((b) => ({ ...b, rsvp: rsvpSummary(db, b.id), addons: bookingAddons(db, b.id) }));
     const stats = db.prepare(
       `SELECT COUNT(*) AS bookings, COALESCE(SUM(b.total_amount - b.platform_fee), 0) AS revenue,
               COALESCE(SUM(CASE WHEN b.payout_status = 'paid' THEN b.total_amount - b.platform_fee END), 0) AS paid_out
        FROM bookings b JOIN venues v ON v.id = b.venue_id WHERE v.restaurant_id = ? AND b.status = 'confirmed'`
     ).get(rid);
-    res.render('restaurant/dashboard', { title: 'Restaurant dashboard', venues, menus, bookings, stats });
+    res.render('restaurant/dashboard', { title: 'Restaurant dashboard', venues, menus, addons, bookings, stats, rating: reviews.summary(db, rid) });
   });
 
   router.get('/profile', (req, res) => res.render('restaurant/profile', { title: 'Restaurant profile', form: req.restaurant, errors: [] }));
@@ -197,6 +213,66 @@ module.exports = (db) => {
     db.prepare('UPDATE menus SET active = 1 - active WHERE id = ?').run(menu.id);
     req.flash('success', menu.active ? `“${menu.name}” is no longer offered.` : `“${menu.name}” is offered again.`);
     res.redirect('/restaurant');
+  });
+
+  // ---- Reviews (published only; replies are moderated) ----
+  router.get('/reviews', (req, res) => {
+    res.render('restaurant/reviews', {
+      title: 'Reviews', summary: reviews.summary(db, req.restaurant.id), list: reviews.published(db, req.restaurant.id, 100),
+      pending: db.prepare(`SELECT COUNT(*) n FROM reviews WHERE restaurant_id = ? AND status = 'pending'`).get(req.restaurant.id).n,
+    });
+  });
+
+  router.post('/reviews/:id/reply', (req, res) => {
+    try {
+      reviews.submitReply(db, Number(req.params.id), req.restaurant.id, req.body.reply);
+      req.flash('success', 'Reply submitted. It will appear under the review once approved.');
+    } catch (err) {
+      if (!(err instanceof reviews.ReviewError)) throw err;
+      req.flash('error', err.message);
+    }
+    res.redirect(`/restaurant/reviews#review-${Number(req.params.id)}`);
+  });
+
+  // ---- Packages & add-ons ----
+  const ownAddon = (req) => db.prepare('SELECT * FROM addons WHERE id = ? AND restaurant_id = ?').get(req.params.id, req.restaurant.id);
+  const addonForm = (res, title, addon, errors, rawPrice = false, status = 200) =>
+    res.status(status).render('restaurant/addon-form', { title, addon, errors, rawPrice, categories: ADDON_CATEGORIES });
+
+  router.get('/addons/new', (req, res) => addonForm(res, 'Add a package', { pricing: 'per_guest', category: 'food' }, []));
+
+  router.post('/addons', (req, res) => {
+    const { a, errors } = addonFromBody(req.body);
+    if (errors.length) return addonForm(res, 'Add a package', req.body, errors, true, 422);
+    db.prepare('INSERT INTO addons (restaurant_id, name, description, category, pricing, price) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(req.restaurant.id, a.name, a.description, a.category, a.pricing, a.price);
+    req.flash('success', `Package “${a.name}” added. Hosts can add it to any booking.`);
+    res.redirect('/restaurant#addons');
+  });
+
+  router.get('/addons/:id/edit', (req, res) => {
+    const addon = ownAddon(req);
+    if (!addon) return notFound(res);
+    addonForm(res, `Edit ${addon.name}`, addon, []);
+  });
+
+  router.post('/addons/:id', (req, res) => {
+    const addon = ownAddon(req);
+    if (!addon) return notFound(res);
+    const { a, errors } = addonFromBody(req.body);
+    if (errors.length) return addonForm(res, `Edit ${addon.name}`, { ...req.body, id: addon.id }, errors, true, 422);
+    db.prepare('UPDATE addons SET name=?, description=?, category=?, pricing=?, price=? WHERE id=?')
+      .run(a.name, a.description, a.category, a.pricing, a.price, addon.id);
+    req.flash('success', 'Package updated. Existing bookings keep the price they paid.');
+    res.redirect('/restaurant#addons');
+  });
+
+  router.post('/addons/:id/toggle', (req, res) => {
+    const addon = ownAddon(req);
+    if (!addon) return notFound(res);
+    db.prepare('UPDATE addons SET active = 1 - active WHERE id = ?').run(addon.id);
+    req.flash('success', addon.active ? `“${addon.name}” is no longer offered.` : `“${addon.name}” is offered again.`);
+    res.redirect('/restaurant#addons');
   });
 
   return router;

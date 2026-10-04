@@ -1,0 +1,31 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <p class="crumbs"><a href="/my-parties">My parties</a> › Review</p>
+  <div class="card form-card">
+    <p class="pill pill-ok">Verified booking</p>
+    <h1 class="h2">How was your Iftar at <%= b.restaurant_name %>?</h1>
+    <p class="muted"><%= b.venue_name %> · <%= fmt.longDate(b.event_date) %> · <%= b.guest_count %> guests · <%= b.menu_name %></p>
+    <% if (existing) { %>
+      <div class="flash <%= existing.status === 'rejected' ? 'flash-error' : 'flash-info' %>">
+        <% if (existing.status === 'pending') { %>Your review is waiting for moderation. Editing it keeps it in the queue.
+        <% } else if (existing.status === 'approved') { %>Your review is published. Saving changes sends it back for a quick check before it reappears.
+        <% } else { %>Your review wasn’t published<%= existing.moderation_note ? `: ${existing.moderation_note}` : '' %>. Edit and resubmit below.<% } %>
+      </div>
+    <% } %>
+    <%- include('../partials/errors') %>
+    <form method="post" action="/bookings/<%= b.id %>/review">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <%- include('../partials/star-input', { name: 'rating', label: 'Overall', value: review.rating, required: true }) %>
+      <div class="row-3">
+        <%- include('../partials/star-input', { name: 'food_rating', label: 'Food', value: review.food_rating }) %>
+        <%- include('../partials/star-input', { name: 'service_rating', label: 'Service', value: review.service_rating }) %>
+        <%- include('../partials/star-input', { name: 'ambience_rating', label: 'Hall & ambience', value: review.ambience_rating }) %>
+      </div>
+      <label class="field"><span>Headline (optional)</span><input name="title" maxlength="120" value="<%= review.title || '' %>" placeholder="Perfect for a family Iftar"></label>
+      <label class="field"><span>Your review</span><textarea name="body" rows="6" minlength="20" maxlength="2000" required placeholder="How were the food, the hall and the staff? Was everything ready for Maghrib?"><%= review.body || '' %></textarea></label>
+      <p class="small muted">Reviews are checked by our team before they’re published. Only your first name and last initial are shown.</p>
+      <button class="btn btn-gold btn-block"><%= existing ? 'Update review' : 'Submit review' %></button>
+    </form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

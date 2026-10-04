@@ -332,3 +332,44 @@ blockquote cite { display: block; font: normal .9rem var(--sans); color: var(--m
 .cancel-note { margin: 4px 28px 8px; padding: 14px 16px; border-radius: 12px; background: var(--bad-bg); color: var(--bad); text-align: center; }
 .cancel-note p { margin: 0 0 6px; }
 .party-card.cancelled { opacity: .85; }
+.addon-list { display: grid; gap: 10px; }
+.addon-item { background: #fff; border-radius: var(--radius); padding: 14px 18px; box-shadow: var(--shadow); display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.addon-item h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.addon-item p { margin: 0; }
+
+/* Reviews */
+.stars { color: #d6d0c4; letter-spacing: 1px; white-space: nowrap; }
+.stars .on { color: var(--gold-2); }
+.star-one { color: var(--gold-2); }
+.card-rating { margin: -4px 0 6px; }
+.rating-line a { text-decoration: none; color: inherit; }
+.star-field { margin-bottom: 10px; }
+.star-input { display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; gap: 2px; }
+.star-input input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.star-input label { font-size: 1.9rem; line-height: 1; color: #d6d0c4; cursor: pointer; padding: 0 1px; }
+.star-input label:hover, .star-input label:hover ~ label, .star-input input:checked ~ label { color: var(--gold-2); }
+.star-input input:focus-visible + label { outline: 2px solid var(--night-2); border-radius: 4px; }
+.rating-summary { display: grid; grid-template-columns: auto 1fr auto; gap: 24px; align-items: center; background: #fff; border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 14px; }
+.rating-big { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.rating-big .stat-n { font-size: 2.4rem; }
+.rating-bar { display: grid; grid-template-columns: 28px 1fr 28px; gap: 8px; align-items: center; }
+.rating-bar meter { height: 8px; }
+.rating-subs { display: grid; gap: 4px; }
+.review-list { display: grid; gap: 12px; }
+.review { background: #fff; border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+.review header { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.review p { margin: 0 0 6px; }
+.verified { color: var(--ok); font-weight: 600; }
+.review-reply { margin-top: 10px; padding: 10px 14px; border-left: 3px solid var(--gold); background: var(--sand); border-radius: 0 8px 8px 0; }
+.review-reply p { margin: 4px 0 0; }
+.reply-form { display: flex; gap: 8px; align-items: flex-start; margin: -4px 0 8px; }
+.mod-list { display: grid; gap: 14px; }
+.mod-card p { margin: 0 0 8px; }
+.mod-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.mod-reject { display: flex; gap: 6px; }
+.mod-reject input { width: 260px; padding: .4em .6em; }
+@media (max-width: 640px) {
+  .rating-summary { grid-template-columns: 1fr; }
+  .reply-form, .mod-reject { flex-direction: column; }
+  .mod-reject input { width: 100%; }
+}

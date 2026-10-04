@@ -22,6 +22,7 @@
     <h2 class="h3">Money</h2>
     <div class="quote">
       <div><span><%= b.guest_count %> × <%= money.format(b.price_per_person, b.currency) %></span><span><%= money.format(b.food_total, b.currency) %></span></div>
+      <% addons.forEach(a => { %><div><span><%= a.name %><%= a.pricing === 'per_guest' ? ` (${a.quantity} × ${money.format(a.unit_price, b.currency)})` : '' %></span><span><%= money.format(a.total, b.currency) %></span></div><% }) %>
       <div><span>Hall fee</span><span><%= money.format(b.hire_fee, b.currency) %></span></div>
       <div><span>Platform fee</span><span><%= money.format(b.platform_fee, b.currency) %></span></div>
       <div class="total"><span>Total</span><span><%= money.format(b.total_amount, b.currency) %></span></div>

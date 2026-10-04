@@ -1,0 +1,17 @@
+<div class="rating-summary">
+  <div class="rating-big">
+    <span class="stat-n"><%= s.avg %></span>
+    <%- include('stars', { value: s.avg }) %>
+    <span class="muted small"><%= s.count %> verified review<%= s.count === 1 ? '' : 's' %></span>
+  </div>
+  <div class="rating-bars">
+    <% s.distribution.forEach(d => { %>
+      <div class="rating-bar"><span class="small"><%= d.stars %>★</span><meter min="0" max="<%= s.count %>" value="<%= d.count %>"></meter><span class="small muted"><%= d.count %></span></div>
+    <% }) %>
+  </div>
+  <div class="rating-subs small">
+    <% [['Food', s.food], ['Service', s.service], ['Hall & ambience', s.ambience]].filter(([, x]) => x).forEach(([l, x]) => { %>
+      <div><span class="muted"><%= l %></span> <strong><%= x %></strong></div>
+    <% }) %>
+  </div>
+</div>

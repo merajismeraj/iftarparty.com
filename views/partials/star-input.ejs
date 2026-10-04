@@ -1,0 +1,10 @@
+<% const cur = String(value || ''); %>
+<fieldset class="field star-field">
+  <legend><%= label %><%= locals.required ? '' : ' (optional)' %></legend>
+  <div class="star-input">
+    <% for (let i = 5; i >= 1; i--) { %>
+      <input type="radio" id="<%= name %>-<%= i %>" name="<%= name %>" value="<%= i %>" <%= cur === String(i) ? 'checked' : '' %> <%= locals.required ? 'required' : '' %>>
+      <label for="<%= name %>-<%= i %>" title="<%= i %> star<%= i === 1 ? '' : 's' %>">★</label>
+    <% } %>
+  </div>
+</fieldset>

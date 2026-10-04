@@ -40,6 +40,10 @@
             </div>
             <div class="btn-row">
               <a class="btn btn-small" href="/bookings/<%= p.id %>"><%= past ? 'View party' : p.rsvp.invited ? 'Manage guests & RSVPs' : 'Upload invite list' %></a>
+              <% if (past) { %>
+                <% if (!p.review) { %><a class="btn btn-small btn-gold" href="/bookings/<%= p.id %>/review">★ Review <%= p.restaurant_name %></a>
+                <% } else { %><a class="btn btn-small btn-ghost" href="/bookings/<%= p.id %>/review">Your review: <%= { pending: 'awaiting moderation', approved: 'published', rejected: 'needs changes' }[p.review.status] %></a><% } %>
+              <% } %>
             </div>
           <% } else { %>
             <div class="btn-row"><a class="btn btn-small btn-gold" href="/bookings/<%= p.id %>/checkout">Complete payment</a></div>

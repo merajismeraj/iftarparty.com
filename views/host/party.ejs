@@ -14,7 +14,7 @@
       <h1><%= b.title %></h1>
       <p class="lead"><%= fmt.longDate(b.event_date) %> · arrive <%= fmt.time12(b.arrival_time) %></p>
       <p class="muted"><strong><%= b.venue_name %></strong>, <%= b.restaurant_name %> · <%= [b.address, b.area, b.city].filter(Boolean).join(', ') %><br>
-        <%= b.guest_count %> guests booked · <%= b.menu_name %> · paid <%= money.format(b.total_amount, b.currency) %><% if (b.restaurant_phone) { %> · Restaurant: <%= b.restaurant_phone %><% } %></p>
+        <%= b.guest_count %> guests booked · <%= b.menu_name %><% if (addons.length) { %> + <%= addons.map(a => a.name).join(', ') %><% } %> · paid <%= money.format(b.total_amount, b.currency) %><% if (b.restaurant_phone) { %> · Restaurant: <%= b.restaurant_phone %><% } %></p>
     </div>
   </div>
 

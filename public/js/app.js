@@ -28,12 +28,18 @@
       if (!menu || !guests || problem) { box.hidden = true; return; }
       const price = Number(menu.dataset.price);
       const food = price * guests;
-      const fee = Math.round(((food + hireFee) * feePct) / 100);
+      let addons = 0;
+      form.querySelectorAll('input[name="addon_ids"]:checked').forEach((a) => {
+        addons += Number(a.dataset.addonPrice) * (a.dataset.addonPricing === 'per_guest' ? guests : 1);
+      });
+      const fee = Math.round(((food + hireFee + addons) * feePct) / 100);
       set('[data-q-food-label]', `${guests} × ${money(price, currency)}`);
       set('[data-q-food]', money(food, currency));
+      const addonsRow = form.querySelector('[data-q-addons-row]');
+      if (addonsRow) { addonsRow.hidden = !addons; set('[data-q-addons]', money(addons, currency)); }
       set('[data-q-hire]', money(hireFee, currency));
       set('[data-q-fee]', money(fee, currency));
-      set('[data-q-total]', money(food + hireFee + fee, currency));
+      set('[data-q-total]', money(food + hireFee + addons + fee, currency));
       box.hidden = false;
     }
     form.addEventListener('input', update);

@@ -60,7 +60,7 @@ function partyTitle(hostName) {
  * Validate a reservation request and place a time-limited hold on the venue.
  * Runs in a single synchronous transaction, so two hosts cannot hold the same night.
  */
-function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arrivalTime }) {
+function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arrivalTime, addonIds = [] }) {
   const guests = Number.parseInt(guestCount, 10);
   if (!isValidDate(eventDate)) throw new BookingError('Please choose a valid date.');
   if (eventDate < todayISO()) throw new BookingError('Please choose a date in the future.');
@@ -86,20 +86,35 @@ function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arriva
       throw new BookingError('Sorry, this venue is already reserved for that evening. Please pick another date.');
     }
 
+    const wanted = [...new Set([].concat(addonIds || []).map(Number).filter(Number.isInteger))];
+    const addons = wanted.length
+      ? db.prepare(`SELECT * FROM addons WHERE restaurant_id = ? AND active = 1 AND id IN (${wanted.map(() => '?').join(',')})`)
+        .all(venue.restaurant_id, ...wanted)
+      : [];
+    if (addons.length !== wanted.length) throw new BookingError('One of the selected packages is no longer offered. Please review your selection.');
+
     const host = db.prepare('SELECT name FROM users WHERE id = ?').get(hostId);
     const q = pricing.quote({
-      pricePerPerson: menu.price_per_person, guestCount: guests, hireFee: venue.hire_fee, feePercent: settings.feePercent(db),
+      pricePerPerson: menu.price_per_person, guestCount: guests, hireFee: venue.hire_fee, addons, feePercent: settings.feePercent(db),
     });
     const holdExpires = new Date(Date.now() + config.holdMinutes * 60_000).toISOString();
     const info = db
       .prepare(
         `INSERT INTO bookings (venue_id, menu_id, host_id, event_date, arrival_time, guest_count, title,
-           price_per_person, food_total, hire_fee, platform_fee, total_amount, currency, hold_expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           price_per_person, food_total, hire_fee, addons_total, platform_fee, total_amount, currency, hold_expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(venue.id, menu.id, hostId, eventDate, time, guests, partyTitle(host.name),
-        q.pricePerPerson, q.foodTotal, q.hireFee, q.platformFee, q.total, config.currency, holdExpires);
-    return Number(info.lastInsertRowid);
+        q.pricePerPerson, q.foodTotal, q.hireFee, q.addonsTotal, q.platformFee, q.total, config.currency, holdExpires);
+    const bookingId = Number(info.lastInsertRowid);
+    const insAddon = db.prepare(
+      'INSERT INTO booking_addons (booking_id, addon_id, name, pricing, unit_price, quantity, total) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    addons.forEach((a) => {
+      const line = pricing.addonLine(a, guests);
+      insAddon.run(bookingId, a.id, a.name, a.pricing, a.price, line.quantity, line.total);
+    });
+    return bookingId;
   });
 }
 
@@ -146,6 +161,10 @@ function getDetailed(db, bookingId) {
     .get(bookingId);
 }
 
+function bookingAddons(db, bookingId) {
+  return db.prepare('SELECT * FROM booking_addons WHERE booking_id = ? ORDER BY id').all(bookingId);
+}
+
 function rsvpSummary(db, bookingId) {
   const row = db
     .prepare(
@@ -163,5 +182,5 @@ function rsvpSummary(db, bookingId) {
 
 module.exports = {
   BookingError, todayISO, isValidDate, expireStaleHolds, blockingBooking, upcomingReservations,
-  partyTitle, createHold, confirmPayment, getDetailed, rsvpSummary,
+  partyTitle, createHold, confirmPayment, getDetailed, rsvpSummary, bookingAddons,
 };

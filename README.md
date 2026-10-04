@@ -7,14 +7,21 @@ Reserve private party halls at local restaurants for Iftar gatherings, pay onlin
 **Restaurants**
 - Sign up as a restaurant partner. Add halls with min/max guest count (pax), a hall hire fee and photos (JPG/PNG/WebP, up to 8).
 - Add Iftar menus with a per-guest price, minimum guests, veg/non-veg flag and the dishes included.
+- Add **packages & add-ons** such as a live grill, dessert counter, décor or photography. Each is priced **per guest** or **per event** and can be added to any menu.
+- Read published reviews and reply. Replies are moderated before they appear.
 - The dashboard shows upcoming parties, each host's contact details, the RSVP headcount and the payout.
 
 **Hosts**
 - Search by **location**, **date**, **guest count**, **menu or cuisine** (e.g. "haleem"), **max price per guest** and diet. You can sort by price, size or newest.
-- On a venue page, pick a date, guest count and menu, and the **full price shows live** (food + hall fee + service fee). The server recalculates it, so a client can't change the price.
+- On a venue page, pick a date, guest count, menu and any packages, and the **full price shows live** (food + packages + hall fee + service fee). Each package bought is saved with the booking at its quoted price, so later price edits never change what was paid. The server recalculates it, so a client can't change the price.
 - Reserving holds the hall for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
 - After payment you're sent straight to **upload your invite list** as a CSV or pasted rows with name, email and mobile. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
 - Guests reply Yes, Maybe or No with the number of people coming and a note. The host's dashboard shows **attending, total heads, maybe, declined and awaiting reply**, plus a bar comparing confirmed heads to guests booked. You can send reminders to anyone who hasn't replied and export the RSVPs to CSV.
+
+**Reviews (verified, moderated)**
+- Only the host of a **confirmed booking whose Iftar has taken place** can review the venue, once per booking. They give an overall rating plus optional food, service and ambience ratings.
+- Every review waits in the admin **moderation queue**. Editing a published review takes it offline until it's approved again. If a review is rejected, the host sees the reason and can resubmit.
+- Venue pages show the average rating, the star distribution, the sub-ratings and published reviews. Reviewers are shown as "First L." with a *Verified booking* badge. Search cards show the rating, and results can be sorted by **Top rated**.
 
 ## Run it
 
@@ -25,7 +32,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 42 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 57 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -81,6 +88,7 @@ npm run admin -- promote someone@example.com
 | **Overview** | GMV, platform revenue, refunds, live restaurants and upcoming RSVPs. A *Needs attention* queue lists pending approvals, payouts owed, failed or processing refunds, unrefunded payments and failed invites. |
 | **Restaurants** | Approve, reject, suspend or reinstate. New sign-ups stay **pending** and hidden from search until approved. Rejecting or suspending needs a reason, which the restaurant sees. Hide individual halls. View payout details. |
 | **Bookings** | Filter by status, refund state, event dates or free text, including the order id. Export to CSV for accounting. Each booking shows the event, RSVPs, the money breakdown and the full **payments ledger**. **Cancel with a full, partial or no refund** through Cashfree. The host is emailed, invited guests are told by WhatsApp and email (optional), their RSVP links show the cancellation, and the night becomes free again. Re-check stuck orders with the gateway and retry failed refunds. |
+| **Reviews** | Moderation queue for reviews and restaurant replies: approve, reject or unpublish, with a reason the author sees. Includes booking context and the reviewer's history. |
 | **Payouts** | Lists what each restaurant is owed (total minus platform fee) for Iftars that have already happened, with their UPI and bank details. Record the bank reference (UTR) to mark them paid; the payout history is kept. |
 | **Users** | Search, then suspend or reactivate hosts and restaurant owners. A suspended user is signed out immediately and can't sign back in. |
 | **Messages** | WhatsApp and email delivery rates for the last 7 days, failed sends with the error from the provider, and one-click resend. |
@@ -90,7 +98,7 @@ npm run admin -- promote someone@example.com
 ## Architecture
 
 - **Express 5 + EJS** server-rendered pages, with a small vanilla JS file for the live quote, availability check and hold countdown.
-- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version`, so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
+- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v4), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
 - **Double-booking protection:** the hold is taken inside a synchronous `BEGIN IMMEDIATE` transaction. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
 - **Security:** bcrypt passwords, signed httpOnly session cookies, CSRF tokens on every form, Helmet CSP, ownership checks on every restaurant and booking route, image-only uploads with size limits, rate-limited login, and spreadsheet-formula escaping in CSV exports.
 
@@ -98,7 +106,7 @@ npm run admin -- promote someone@example.com
 src/
   app.js, server.js, config.js, db.js
   routes/      public (search, venue) · auth · restaurant · bookings · rsvp · admin · webhooks
-  services/    bookings (holds/confirm) · checkout (ledger, refunds) · payments (Cashfree) · pricing · settings · audit · invites · notify · guestlist
+  services/    bookings (holds/confirm) · reviews · checkout (ledger, refunds) · payments (Cashfree) · pricing · settings · audit · invites · notify · guestlist
 views/         EJS pages + email template
 public/        CSS, JS
 scripts/seed.js, scripts/create-admin.js

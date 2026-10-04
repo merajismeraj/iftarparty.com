@@ -4,6 +4,7 @@
   <div class="venue-title">
     <div>
       <h1><%= venue.name %></h1>
+      <% if (rating.count) { %><p class="rating-line"><a href="#reviews"><%- include('partials/stars', { value: rating.avg }) %> <strong><%= rating.avg %></strong> <span class="muted">(<%= rating.count %> verified review<%= rating.count === 1 ? '' : 's' %>)</span></a></p><% } %>
       <p class="muted"><strong><%= venue.restaurant_name %></strong><%= venue.cuisine ? ` · ${venue.cuisine}` : '' %> · <%= [venue.address, venue.area, venue.city].filter(Boolean).join(', ') %></p>
     </div>
     <div class="pill-row">
@@ -44,7 +45,28 @@
         <% }) %>
       </div>
 
+      <% if (addons.length) { %>
+        <h2 class="h3" id="packages">Packages &amp; add-ons</h2>
+        <div class="addon-list">
+          <% addons.forEach(a => { %>
+            <article class="addon-item">
+              <div><h3><%= a.name %> <span class="pill pill-soft"><%= { food: 'Food', decor: 'Décor', service: 'Service', other: 'Extra' }[a.category] %></span></h3>
+                <% if (a.description) { %><p class="muted small"><%= a.description %></p><% } %></div>
+              <strong class="nowrap"><%= money.format(a.price) %><span class="muted small"><%= a.pricing === 'flat' ? ' /event' : ' /guest' %></span></strong>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+
       <% if (venue.restaurant_description) { %><h2 class="h3">About <%= venue.restaurant_name %></h2><p class="prewrap muted"><%= venue.restaurant_description %></p><% } %>
+
+      <h2 class="h3" id="reviews">Reviews</h2>
+      <% if (!rating.count) { %>
+        <p class="muted">No reviews yet. Reviews come only from hosts who held an Iftar here.</p>
+      <% } else { %>
+        <%- include('partials/rating-summary', { s: rating }) %>
+        <div class="review-list"><% reviewList.forEach(r => { %><%- include('partials/review-card', { r }) %><% }) %></div>
+      <% } %>
 
       <h2 class="h3">Reserved evenings</h2>
       <% if (!reservations.length) { %>
@@ -90,8 +112,21 @@
           <% }) %>
         </fieldset>
 
+        <% if (addons.length) { %>
+          <fieldset class="field">
+            <legend>Packages &amp; add-ons <span class="muted small">(optional)</span></legend>
+            <% addons.forEach(a => { %>
+              <label class="radio-card">
+                <input type="checkbox" name="addon_ids" value="<%= a.id %>" data-addon-price="<%= a.price %>" data-addon-pricing="<%= a.pricing %>" <%= picked.has(String(a.id)) ? 'checked' : '' %>>
+                <span><%= a.name %></span><strong class="small"><%= money.format(a.price) %><%= a.pricing === 'flat' ? '' : '/guest' %></strong>
+              </label>
+            <% }) %>
+          </fieldset>
+        <% } %>
+
         <div class="quote" data-quote-box hidden>
           <div><span data-q-food-label>Food</span><span data-q-food></span></div>
+          <div data-q-addons-row hidden><span>Packages</span><span data-q-addons></span></div>
           <div><span>Hall fee</span><span data-q-hire></span></div>
           <div><span>Service fee (<%= feePercent %>%)</span><span data-q-fee></span></div>
           <div class="total"><span>Total</span><span data-q-total></span></div>
