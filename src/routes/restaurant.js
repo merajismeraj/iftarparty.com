@@ -199,6 +199,7 @@ module.exports = (db) => {
   const menuForm = (req, res, { title, menu, def = {}, errors = [], rawPrice = false, status = 200 }) =>
     res.status(status).render('restaurant/menu-form', {
       title, menu, def, errors, rawPrice, courses: packages.COURSES, dishes: dishCatalog(req.restaurant.id),
+      minDishes: require('../services/settings').minPackageDishes(db),
     });
 
   /** Validate + persist a set menu or package in one transaction. Returns the menu id or null with errors rendered. */

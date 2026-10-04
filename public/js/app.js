@@ -59,6 +59,7 @@
           count.textContent = n;
           count.classList.toggle('done', n > 0);
         });
+        syncTotal(p);
       });
     }
 
@@ -98,6 +99,16 @@
         } catch { msg.textContent = ''; }
       });
     }
+  }
+
+  /** Running "N of min" dish counter; the server enforces the same minimum. */
+  function syncTotal(picker) {
+    const out = picker.querySelector('[data-picker-total]');
+    if (!out) return;
+    const min = Number(picker.dataset.minTotal || 0);
+    const n = picker.querySelectorAll('input[type=checkbox]:checked').length;
+    out.textContent = n >= min ? `${n} dishes selected ✓` : `${n} of ${min} minimum dishes selected – pick ${min - n} more`;
+    out.className = `small picker-total ${n >= min ? 'good' : 'bad'}`;
   }
 
   // Countdown for the payment hold.
@@ -140,14 +151,17 @@
 
     // Standalone dish picker (edit menu page): enforce per-course quotas.
     document.querySelectorAll('form[data-picker-form]').forEach((form) => {
-      const sync = () => form.querySelectorAll('[data-course]').forEach((c) => {
-        const boxes = [...c.querySelectorAll('input[type=checkbox]')];
-        const n = boxes.filter((b) => b.checked).length;
-        boxes.forEach((b) => { b.disabled = !b.checked && n >= Number(c.dataset.choose); });
-        const count = c.querySelector('[data-course-count]');
-        count.textContent = n;
-        count.classList.toggle('done', n > 0);
-      });
+      const sync = () => {
+        form.querySelectorAll('[data-course]').forEach((c) => {
+          const boxes = [...c.querySelectorAll('input[type=checkbox]')];
+          const n = boxes.filter((b) => b.checked).length;
+          boxes.forEach((b) => { b.disabled = !b.checked && n >= Number(c.dataset.choose); });
+          const count = c.querySelector('[data-course-count]');
+          count.textContent = n;
+          count.classList.toggle('done', n > 0);
+        });
+        form.querySelectorAll('[data-picker-for]').forEach(syncTotal);
+      };
       form.addEventListener('change', sync);
       sync();
     });

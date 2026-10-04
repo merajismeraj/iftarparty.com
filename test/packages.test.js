@@ -44,12 +44,22 @@ describe('budget / tier packages with dish choices', () => {
     assert.match(res.text, /tick at least 3 eligible dishes/);
   });
 
+  test('a package must allow at least the minimum number of dishes', async () => {
+    const token = await csrf(owner, '/restaurant/menus/new?kind=package');
+    const res = await owner.post('/restaurant/menus').type('form').send({
+      _csrf: token, kind: 'package', name: 'Mini', price_per_person: '500',
+      choose_starters: '2', dishes_starters: [dish('Chicken samosa'), dish('Paneer tikka')],
+      choose_desserts: '1', dishes_desserts: [dish('Phirni')],
+    }).expect(422);
+    assert.match(res.text, /at least 4 dishes in total, but this package only allows 3/);
+  });
+
   test('Silver and Gold tiers with different eligible dishes', async () => {
     let token = await csrf(owner, '/restaurant/menus/new?kind=package');
     await owner.post('/restaurant/menus').type('form').send({
       _csrf: token, kind: 'package', name: 'Silver Package', price_per_person: '700', min_pax: '10', diet: 'mixed',
       choose_starters: '2', dishes_starters: [dish('Chicken samosa'), dish('Paneer tikka'), dish('Chicken 65')],
-      choose_desserts: '1', dishes_desserts: [dish('Phirni'), dish('Kheer')],
+      choose_desserts: '2', dishes_desserts: [dish('Phirni'), dish('Kheer')],
       choose_mains: '0', dishes_mains: [dish('Mutton haleem')], // 0 = course not included
     }).expect(302);
     token = await csrf(owner, '/restaurant/menus/new?kind=package');
@@ -62,14 +72,15 @@ describe('budget / tier packages with dish choices', () => {
     silver = db.prepare(`SELECT * FROM menus WHERE name = 'Silver Package'`).get();
     gold = db.prepare(`SELECT * FROM menus WHERE name = 'Gold Package'`).get();
     assert.equal(silver.kind, 'package');
-    assert.deepEqual(db.prepare('SELECT course, choose FROM menu_rules WHERE menu_id = ? ORDER BY course').all(silver.id).map((r) => `${r.course}:${r.choose}`), ['desserts:1', 'starters:2']);
+    assert.deepEqual(db.prepare('SELECT course, choose FROM menu_rules WHERE menu_id = ? ORDER BY course').all(silver.id).map((r) => `${r.course}:${r.choose}`), ['desserts:2', 'starters:2']);
 
     const page = await request(app).get(`/venues/${fx.venueId}`).expect(200);
-    assert.match(page.text, /Choose 2 starters · 1 dessert/);
+    assert.match(page.text, /Choose 2 starters · 2 desserts/);
+    assert.match(page.text, /minimum 4 dishes/);
     assert.match(page.text, /Choose 3 starters · 1 main · 2 desserts/);
     assert.match(page.text, new RegExp(`data-picker-for="${gold.id}"`));
     const dash = await owner.get('/restaurant').expect(200);
-    assert.match(dash.text, /2 starters · 1 dessert/);
+    assert.match(dash.text, /2 starters · 2 desserts/);
   });
 
   async function reserve(menuId, dishIds, date) {
@@ -85,17 +96,21 @@ describe('budget / tier packages with dish choices', () => {
     let r = await reserve(silver.id, [dish('Chicken samosa'), dish('Paneer tikka'), dish('Chicken 65'), dish('Phirni')], date);
     assert.equal(r.id, null, 'three starters on a two-starter package');
     assert.match(r.location, /dish=/, 'picks are kept on the error redirect');
-    r = await reserve(silver.id, [dish('Galouti kebab'), dish('Phirni')], date);
+    r = await reserve(silver.id, [dish('Galouti kebab'), dish('Chicken samosa'), dish('Phirni'), dish('Kheer')], date);
     assert.equal(r.id, null, 'Gold-only dish on Silver');
-    r = await reserve(silver.id, [dish('Chicken samosa')], date);
+    r = await reserve(silver.id, [dish('Chicken samosa'), dish('Paneer tikka'), dish('Chicken 65')].slice(0, 2), date);
     assert.equal(r.id, null, 'dessert missing');
-
     r = await reserve(silver.id, [dish('Chicken samosa'), dish('Paneer tikka'), dish('Kheer')], date);
+    assert.equal(r.id, null, 'only 3 dishes – below the minimum of 4');
+    const flash = await host.get(r.location);
+    assert.match(flash.text, /pick at least 4 dishes in total/);
+
+    r = await reserve(silver.id, [dish('Chicken samosa'), dish('Paneer tikka'), dish('Kheer'), dish('Phirni')], date);
     assert.ok(r.id);
     const b = db.prepare('SELECT * FROM bookings WHERE id = ?').get(r.id);
     assert.equal(b.price_per_person, 70000);
     const picks = db.prepare('SELECT name, course FROM booking_dishes WHERE booking_id = ? ORDER BY course, name').all(r.id).map((x) => `${x.course}:${x.name}`);
-    assert.deepEqual(picks, ['desserts:Kheer', 'starters:Chicken samosa', 'starters:Paneer tikka']);
+    assert.deepEqual(picks, ['desserts:Kheer', 'desserts:Phirni', 'starters:Chicken samosa', 'starters:Paneer tikka']);
     const checkout = await host.get(`/bookings/${r.id}/checkout`).expect(200);
     assert.match(checkout.text, /Starters:<\/span> Chicken samosa, Paneer tikka/);
   });
@@ -170,5 +185,21 @@ describe('budget / tier packages with dish choices', () => {
     db.prepare(`INSERT INTO guests (booking_id, name, email, rsvp_token) VALUES (?, 'Guest', 'g@x.test', ?)`).run(bid, token);
     const page = await request(app).get(`/rsvp/${token}`).expect(200);
     assert.match(page.text, /Galouti kebab/);
+  });
+
+  test('admins can change the minimum; packages that can no longer reach it are hidden', async () => {
+    const { signinAdmin } = require('./helpers');
+    const admin = await signinAdmin(app, db);
+    let token = await csrf(admin, '/admin/settings');
+    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '0' }).expect(422);
+    token = await csrf(admin, '/admin/settings');
+    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '5' }).expect(302);
+    // Silver allows 2 + 2 = 4 picks → hidden; Gold allows 3 + 1 + 2 = 6 (one starter is unavailable → 3 starters still possible) → shown.
+    const page = await request(app).get(`/venues/${fx.venueId}`);
+    assert.doesNotMatch(page.text, /Silver Package/);
+    assert.match(page.text, /Gold Package/);
+    assert.match(page.text, /minimum 5 dishes/);
+    token = await csrf(admin, '/admin/settings');
+    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '4' }).expect(302);
   });
 });

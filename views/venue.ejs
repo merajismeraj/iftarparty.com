@@ -44,7 +44,7 @@
             <% if (m.fit) { %><p><span class="budget-badge <%= m.fit.fits ? 'budget-ok' : 'budget-over' %>"><%= m.fit.fits ? 'Within budget' : `Over budget by ${money.format(m.fit.over)}` %></span><% if (budget.type === 'total') { %> <span class="small muted">est. <%= money.format(m.fit.estimate) %></span><% } %></p><% } %>
             <% if (m.description) { %><p class="muted"><%= m.description %></p><% } %>
             <% if (m.kind === 'package') { %>
-              <p class="small"><strong>Choose <%= packages.summary(m.rules) %></strong></p>
+              <p class="small"><strong>Choose <%= packages.summary(m.rules) %></strong> <span class="muted">· minimum <%= minDishes %> dishes</span></p>
               <div class="package-courses">
                 <% m.rules.forEach(r => { %>
                   <div class="course-line"><span class="muted"><%= r.label %> (pick <%= r.choose %>):</span> <%= r.dishes.map(d => d.name).join(' · ') %></div>
@@ -123,8 +123,8 @@
               <span><%= m.name %><% if (m.fit && !m.fit.fits) { %> <span class="budget-badge budget-over">over</span><% } %></span><strong><%= money.format(m.price_per_person) %></strong>
             </label>
             <% if (m.kind === 'package') { %>
-              <div class="picker" data-picker-for="<%= m.id %>">
-                <p class="small muted">Pick your dishes (you can change them until <%= packages.EDIT_CUTOFF_DAYS %> days before the Iftar):</p>
+              <div class="picker" data-picker-for="<%= m.id %>" data-min-total="<%= minDishes %>">
+                <p class="small muted">Pick at least <%= minDishes %> dishes in total (you can change them until <%= packages.EDIT_CUTOFF_DAYS %> days before the Iftar):</p>
                 <% m.rules.forEach(r => { %>
                   <div class="course-block" data-course data-choose="<%= r.choose %>">
                     <div class="course-head"><strong><%= r.label %></strong><span class="small">choose up to <%= r.choose %> · <span class="count" data-course-count>0</span>/<%= r.choose %></span></div>
@@ -135,6 +135,7 @@
                     </div>
                   </div>
                 <% }) %>
+                <p class="small picker-total" data-picker-total></p>
               </div>
             <% } %>
           <% }) %>

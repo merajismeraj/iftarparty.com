@@ -11,6 +11,7 @@ const { parseGuestList } = require('../services/guestlist');
 const { transaction } = require('../db');
 const reviews = require('../services/reviews');
 const packages = require('../services/packages');
+const settings = require('../services/settings');
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -295,7 +296,7 @@ module.exports = (db) => {
     const b = menuEditGuard(req, res);
     if (!b) return;
     const picked = new Set(db.prepare('SELECT dish_id FROM booking_dishes WHERE booking_id = ?').all(b.id).map((r) => String(r.dish_id)));
-    res.render('host/menu-edit', { title: 'Your menu', b, rules: packages.load(db, b.menu_id), picked, error: null });
+    res.render('host/menu-edit', { title: 'Your menu', b, rules: packages.load(db, b.menu_id), picked, error: null, minDishes: settings.minPackageDishes(db) });
   });
 
   router.post('/bookings/:id/menu', host, (req, res) => {
@@ -311,6 +312,7 @@ module.exports = (db) => {
       if (!(err instanceof svc.BookingError)) throw err;
       res.status(422).render('host/menu-edit', {
         title: 'Your menu', b, rules: packages.load(db, b.menu_id), picked: new Set([].concat(req.body.dish_ids || []).map(String)), error: err.message,
+        minDishes: settings.minPackageDishes(db),
       });
     }
   });

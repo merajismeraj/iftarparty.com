@@ -6,6 +6,7 @@
  * simply by leaving them out of the cheaper packages.
  */
 const { BookingError, todayISO } = require('./bookings');
+const settings = require('./settings');
 
 const COURSES = [
   ['openers', 'Iftar openers'],
@@ -41,6 +42,11 @@ function load(db, menuId) {
     .filter((r) => r.dishes.length);
 }
 
+/** Most dishes a host can pick in this package right now (quota capped by available dishes). */
+function maxPicks(rules) {
+  return rules.reduce((sum, r) => sum + Math.min(r.choose, r.dishes.length), 0);
+}
+
 /** "Choose 3 starters · 2 mains & curries · 1 dessert" */
 function summary(rules) {
   return rules.map((r) => countOf(r.course, r.choose)).join(' · ');
@@ -56,6 +62,10 @@ function validateSelection(db, menu, rawIds) {
   const eligible = new Map(rules.flatMap((r) => r.dishes.map((d) => [d.id, d])));
   const picked = ids.map((id) => eligible.get(id));
   if (picked.some((d) => !d)) throw new BookingError(`One of the dishes you picked isn’t part of the ${menu.name} package any more. Please review your selection.`);
+  const min = settings.minPackageDishes(db);
+  if (picked.length < min) {
+    throw new BookingError(`Please pick at least ${min} dishes in total for the ${menu.name} – you picked ${picked.length}.`);
+  }
   for (const r of rules) {
     const n = picked.filter((d) => d.course === r.course).length;
     if (n === 0) throw new BookingError(`Please choose your ${r.label.toLowerCase()} for the ${menu.name} (up to ${r.choose}).`);
@@ -103,6 +113,11 @@ function parseDefinition(db, restaurantId, body) {
     dishIds.push(...ids);
   }
   if (!rules.length) errors.push('Set how many dishes guests choose in at least one course (e.g. 3 starters).');
+  const min = settings.minPackageDishes(db);
+  const total = rules.reduce((sum, r) => sum + r.choose, 0);
+  if (rules.length && total < min) {
+    errors.push(`Hosts must pick at least ${min} dishes in total, but this package only allows ${total}. Raise the course limits.`);
+  }
   return { rules, dishIds, errors };
 }
 
@@ -125,6 +140,6 @@ function definitionForForm(db, menuId) {
 }
 
 module.exports = {
-  COURSES, COURSE_KEYS, courseLabel, countOf, EDIT_CUTOFF_DAYS, load, summary, validateSelection, saveSelection,
+  COURSES, COURSE_KEYS, courseLabel, countOf, EDIT_CUTOFF_DAYS, load, maxPicks, summary, validateSelection, saveSelection,
   bookingSelection, canEditSelection, parseDefinition, saveDefinition, definitionForForm,
 };

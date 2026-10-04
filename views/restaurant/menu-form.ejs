@@ -39,7 +39,7 @@
         <% if (!dishes.length) { %>
           <div class="flash flash-info">Add dishes to your <a href="/restaurant/dishes">dish catalogue</a> first, then tick which ones this package offers.</div>
         <% } %>
-        <p class="small muted">For each course, set how many dishes the host chooses (0 = not included) and tick the dishes eligible at this price. Leave premium dishes out of cheaper tiers.</p>
+        <p class="small muted">For each course, set how many dishes the host chooses (0 = not included) and tick the dishes eligible at this price. Leave premium dishes out of cheaper tiers. Hosts must pick at least <%= minDishes %> dishes in total, so the course limits need to add up to <%= minDishes %> or more.</p>
         <% courses.forEach(([course, label]) => { const list = dishes.filter(d => d.course === course); if (!list.length) return; const sel = picked(course); %>
           <div class="course-block">
             <div class="course-head">

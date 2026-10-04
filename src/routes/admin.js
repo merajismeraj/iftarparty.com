@@ -468,17 +468,26 @@ module.exports = (db) => {
 
   // ---------- Settings & audit ----------
   router.get('/settings', (req, res) => {
-    res.render('admin/settings', { title: 'Settings', fee: settings.feePercent(db), live: payments.isLive(), errors: [] });
+    res.render('admin/settings', { title: 'Settings', fee: settings.feePercent(db), minDishes: settings.minPackageDishes(db), live: payments.isLive(), errors: [] });
   });
 
   router.post('/settings', (req, res) => {
     const fee = Number(req.body.platform_fee_percent);
-    if (!Number.isFinite(fee) || fee < 0 || fee > 30) {
-      return res.status(422).render('admin/settings', { title: 'Settings', fee: req.body.platform_fee_percent, live: payments.isLive(), errors: ['Platform fee must be between 0 and 30%.'] });
+    // Each field is optional so older forms/scripts can update one setting at a time.
+    const minDishes = req.body.min_package_dishes === undefined ? settings.minPackageDishes(db) : Number(req.body.min_package_dishes);
+    const errors = [];
+    if (!Number.isFinite(fee) || fee < 0 || fee > 30) errors.push('Platform fee must be between 0 and 30%.');
+    if (!Number.isInteger(minDishes) || minDishes < 1 || minDishes > 30) errors.push('Minimum dishes per package must be a whole number from 1 to 30.');
+    if (errors.length) {
+      return res.status(422).render('admin/settings', {
+        title: 'Settings', fee: req.body.platform_fee_percent, minDishes: req.body.min_package_dishes, live: payments.isLive(), errors,
+      });
     }
-    const before = settings.feePercent(db);
+    const before = { fee: settings.feePercent(db), min: settings.minPackageDishes(db) };
     settings.set(db, 'platform_fee_percent', Math.round(fee * 100) / 100);
-    audit.log(db, req.user.id, 'settings.update', 'settings', null, `platform_fee_percent ${before} → ${fee}`);
+    settings.set(db, 'min_package_dishes', minDishes);
+    audit.log(db, req.user.id, 'settings.update', 'settings', null,
+      `platform_fee_percent ${before.fee} → ${fee}; min_package_dishes ${before.min} → ${minDishes}`);
     req.flash('success', 'Settings saved. New bookings use the updated fee; existing bookings keep theirs.');
     res.redirect('/admin/settings');
   });

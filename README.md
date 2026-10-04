@@ -15,7 +15,7 @@ Reserve private party halls at local restaurants for Iftar gatherings, pay onlin
 
 **Hosts**
 - Search by **location**, **date**, **guest count**, **menu, dish or cuisine** (dish names inside packages match too), **budget** and diet. The budget can be **per guest** or a **total for the event**: food + hall + service fee for your guest count, before extras. Cards show a *Fits budget* estimate. Sort by price, top rated, size or newest.
-- On a venue page, every menu and package is marked **Within budget** or **Over budget by ₹X**. Pick a date, guest count and menu or package, choose dishes per course (the picker stops at each course's limit) and any extras. The **full price shows live**, along with how much of your budget is left.
+- On a venue page, every menu and package is marked **Within budget** or **Over budget by ₹X**. Pick a date, guest count and menu or package, choose dishes per course (the picker stops at each course's limit) and any extras. Hosts must pick **at least 4 dishes in total** (at least one from every course in the package). The minimum is an admin setting, and packages that can't reach it are hidden. The **full price shows live**, along with how much of your budget is left.
 - Dish picks and extras are saved with the booking at their quoted prices. Hosts can **change dishes until 2 days before the Iftar**; after that the menu is final for the kitchen. Picks appear on the checkout page, the host's party page, the restaurant dashboard, the admin booking page and the guests' invitations. The server recalculates it, so a client can't change the price.
 - Reserving holds the hall for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
 - After payment you're sent straight to **upload your invite list** as a CSV or pasted rows with name, email and mobile. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
@@ -35,7 +35,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 67 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 69 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -95,7 +95,7 @@ npm run admin -- promote someone@example.com
 | **Payouts** | Lists what each restaurant is owed (total minus platform fee) for Iftars that have already happened, with their UPI and bank details. Record the bank reference (UTR) to mark them paid; the payout history is kept. |
 | **Users** | Search, then suspend or reactivate hosts and restaurant owners. A suspended user is signed out immediately and can't sign back in. |
 | **Messages** | WhatsApp and email delivery rates for the last 7 days, failed sends with the error from the provider, and one-click resend. |
-| **Settings** | The platform fee percentage. It applies only to new bookings; each booking keeps the fee it was quoted. |
+| **Settings** | The platform fee percentage, which applies only to new bookings (each booking keeps the fee it was quoted), and the **minimum dishes per package**, default 4. |
 | **Audit log** | Every admin action, with who did it, when, and the details. |
 
 ## Architecture

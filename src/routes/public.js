@@ -113,13 +113,15 @@ module.exports = (db) => {
     const budget = pricing.parseBudget(req.query, money.toMinor);
     const guestsQ = Number.parseInt(req.query.guests, 10) || 0;
     const feePct = settings.feePercent(db);
+    const minDishes = settings.minPackageDishes(db);
     const menus = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? AND active = 1 ORDER BY price_per_person').all(venue.restaurant_id)
       .map((m) => {
         const rules = m.kind === 'package' ? packages.load(db, m.id) : null;
         const fit = pricing.budgetFit(budget, { pricePerPerson: m.price_per_person, guestCount: guestsQ, hireFee: venue.hire_fee, feePercent: feePct });
         return { ...m, rules, fit };
       })
-      .filter((m) => m.kind === 'set' || m.rules.length); // a package with no available dishes can't be booked
+      // A package whose available dishes can't reach the platform minimum can't be booked.
+      .filter((m) => m.kind === 'set' || packages.maxPicks(m.rules) >= minDishes);
     const pickedDishes = new Set([].concat(req.query.dish || []).map(String));
     const addons = db.prepare(
       `SELECT * FROM addons WHERE restaurant_id = ? AND active = 1
@@ -130,7 +132,7 @@ module.exports = (db) => {
     const date = isValidDate(req.query.date) ? req.query.date : '';
     const taken = date ? blockingBooking(db, venue.id, date) : null;
     res.render('venue', {
-      title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, addons, picked, pickedDishes, reservations, budget,
+      title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, addons, picked, pickedDishes, reservations, budget, minDishes,
       rating: reviews.summary(db, venue.restaurant_id), reviewList: reviews.published(db, venue.restaurant_id, 20),
       form: { date, guests: req.query.guests || '', menu_id: req.query.menu || '', arrival_time: '18:00' },
       taken, today: todayISO(),

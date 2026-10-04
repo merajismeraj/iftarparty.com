@@ -7,7 +7,8 @@
     <% if (error) { %><div class="flash flash-error" role="alert"><%= error %></div><% } %>
     <form method="post" action="/bookings/<%= b.id %>/menu" data-picker-form>
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <div class="picker" data-picker-for="edit">
+      <p class="small muted">Pick at least <%= minDishes %> dishes in total.</p>
+      <div class="picker" data-picker-for="edit" data-min-total="<%= minDishes %>">
         <% rules.forEach(r => { %>
           <div class="course-block" data-course data-choose="<%= r.choose %>">
             <div class="course-head"><strong><%= r.label %></strong><span class="small">choose up to <%= r.choose %> · <span class="count" data-course-count>0</span>/<%= r.choose %></span></div>
@@ -18,6 +19,7 @@
             </div>
           </div>
         <% }) %>
+        <p class="small picker-total" data-picker-total></p>
       </div>
       <button class="btn btn-gold btn-block">Save menu</button>
     </form>
