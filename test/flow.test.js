@@ -1,7 +1,7 @@
 'use strict';
 const { test, describe, before } = require('node:test');
 const assert = require('node:assert/strict');
-const { makeApp, csrf, futureDate, signupRestaurant, signupHost, PNG, request } = require('./helpers');
+const { makeApp, csrf, futureDate, signupRestaurant, signupHost, signinAdmin, PNG, request } = require('./helpers');
 
 describe('end-to-end: list → search → reserve → pay → invite → RSVP', () => {
   const { db, app } = makeApp();
@@ -36,6 +36,18 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     const res = await restaurant.post(`/restaurant/venues?_csrf=${token}`)
       .field('name', 'No Photo Hall').field('min_pax', '10').field('max_pax', '20').expect(422);
     assert.match(res.text, /at least one photo/);
+  });
+
+  test('new restaurants stay hidden until an admin approves them', async () => {
+    assert.equal(db.prepare('SELECT status FROM restaurants').get().status, 'pending');
+    assert.ok(!(await request(app).get('/search?location=bandra')).text.includes('Shahi Darbar'));
+    await request(app).get(`/venues/${venueId}`).expect(404);
+    await restaurant.get(`/venues/${venueId}`).expect(200); // owner can preview
+    const admin = await signinAdmin(app, db);
+    const token = await csrf(admin, '/admin/restaurants');
+    const rid = db.prepare('SELECT id FROM restaurants').get().id;
+    await admin.post(`/admin/restaurants/${rid}/status`).type('form').send({ _csrf: token, status: 'approved' }).expect(302);
+    assert.equal(db.prepare('SELECT status FROM restaurants').get().status, 'approved');
   });
 
   test('search finds the hall by location, menu, price and capacity', async () => {
@@ -83,9 +95,14 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
   test('host pays and the venue shows "Iftar Party by <name>"', async () => {
     let token = await csrf(host, `/bookings/${bookingId}/checkout`);
     const pay = await host.post(`/bookings/${bookingId}/pay`).type('form').send({ _csrf: token }).expect(303);
-    assert.equal(pay.headers.location, `/bookings/${bookingId}/demo-pay`);
+    const orderId = new URL(pay.headers.location, 'http://x').searchParams.get('order');
+    assert.match(orderId, new RegExp(`^IP-${bookingId}-`));
+    assert.equal(db.prepare('SELECT status FROM payments WHERE order_id = ?').get(orderId).status, 'created');
     token = await csrf(host, pay.headers.location);
-    const done = await host.post(`/bookings/${bookingId}/demo-pay`).type('form').send({ _csrf: token }).expect(302);
+    await host.post(`/bookings/${bookingId}/demo-pay`).type('form').send({ _csrf: token, order_id: 'IP-999-forged' }).expect(302);
+    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(bookingId).status, 'pending_payment', 'forged order ignored');
+    const done = await host.post(`/bookings/${bookingId}/demo-pay`).type('form').send({ _csrf: token, order_id: orderId }).expect(302);
+    assert.equal(db.prepare('SELECT payment_ref FROM bookings WHERE id = ?').get(bookingId).payment_ref, orderId);
     assert.match(done.headers.location, new RegExp(`/bookings/${bookingId}\\?welcome=1`));
     assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(bookingId).status, 'confirmed');
 

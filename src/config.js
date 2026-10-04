@@ -16,9 +16,11 @@ const config = {
   platformFeePercent: Number(env.PLATFORM_FEE_PERCENT ?? 5),
   holdMinutes: Number(env.BOOKING_HOLD_MINUTES || 30),
   defaultCountryCode: String(env.DEFAULT_COUNTRY_CODE || '91'),
-  stripe: {
-    secretKey: env.STRIPE_SECRET_KEY || '',
-    webhookSecret: env.STRIPE_WEBHOOK_SECRET || '',
+  cashfree: {
+    appId: env.CASHFREE_APP_ID || '',
+    secretKey: env.CASHFREE_SECRET_KEY || '',
+    env: env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox',
+    apiVersion: env.CASHFREE_API_VERSION || '2023-08-01',
   },
   smtp: {
     host: env.SMTP_HOST || '',

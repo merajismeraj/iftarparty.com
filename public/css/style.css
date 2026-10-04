@@ -288,3 +288,44 @@ blockquote cite { display: block; font: normal .9rem var(--sans); color: var(--m
   .form-card { padding: 20px; }
   .nav-links { gap: 12px; }
 }
+
+/* Admin portal */
+.admin-shell { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 64px); }
+.admin-nav { background: #fff; border-right: 1px solid var(--line); padding: 24px 16px; }
+.admin-nav nav { display: flex; flex-direction: column; gap: 2px; }
+.admin-nav a { padding: 8px 12px; border-radius: 8px; text-decoration: none; color: var(--ink); font-weight: 500; font-size: .95rem; }
+.admin-nav a:hover { background: var(--sand); }
+.admin-nav a.on { background: var(--night); color: #fff; }
+.admin-nav .count { background: var(--gold); color: var(--night); border-radius: 999px; padding: 0 .5em; font-size: .75rem; font-weight: 700; margin-left: 4px; }
+.admin-main { padding: 28px 32px 48px; min-width: 0; }
+.admin-main .flash-stack { width: auto; }
+.admin-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+.admin-filters input:not([type=date]), .admin-filters select { width: auto; min-width: 180px; padding: .45em .7em; }
+.admin-filters input[type=date] { width: auto; padding: .4em .6em; }
+.pill-bad { background: var(--bad-bg); color: var(--bad); }
+.todo { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 6px; }
+.todo li a { display: block; padding: 10px 14px; background: var(--warn-bg); color: var(--warn); border-radius: 10px; text-decoration: none; font-weight: 600; }
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; margin: 0; font-size: .93rem; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.thumb { width: 64px; height: 44px; object-fit: cover; border-radius: 6px; }
+.timeline { list-style: none; padding: 0; display: grid; gap: 6px; font-size: .9rem; }
+.btn-danger { background: var(--bad); border-color: var(--bad); }
+.btn-danger:hover { background: #8f1c13; }
+.narrow-form { max-width: 560px; }
+.inline-input { width: 120px; display: inline-block; padding: .3em .5em; }
+.payout-list { display: grid; gap: 12px; }
+.payout-card { display: grid; grid-template-columns: 1fr auto 340px; gap: 20px; align-items: center; }
+.payout-card h3 { margin: 0 0 4px; }
+.payout-card p { margin: 0 0 4px; }
+.payout-form { display: flex; gap: 8px; }
+.payout-form .btn { white-space: nowrap; }
+@media (max-width: 960px) {
+  .admin-shell { grid-template-columns: 1fr; }
+  .admin-nav { border-right: 0; border-bottom: 1px solid var(--line); padding: 12px 16px; }
+  .admin-nav .eyebrow { display: none; }
+  .admin-nav nav { flex-direction: row; overflow-x: auto; }
+  .admin-nav a { white-space: nowrap; }
+  .admin-main { padding: 20px 16px 40px; }
+  .payout-card { grid-template-columns: 1fr; }
+}

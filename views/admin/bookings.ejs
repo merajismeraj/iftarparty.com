@@ -1,0 +1,32 @@
+<%- include('_open') %>
+<div class="section-head"><h1>Bookings</h1>
+  <a class="btn btn-small btn-ghost" href="/admin/bookings.csv?<%= new URLSearchParams(Object.entries(q).filter(([k, v]) => v && k !== 'page' && typeof v === 'string')) %>">Export CSV</a>
+</div>
+<form class="admin-filters" method="get">
+  <input name="q" placeholder="#id, host email/phone, restaurant, order id" value="<%= q.q || '' %>">
+  <select name="status"><option value="">All statuses</option><% statuses.forEach(s => { %><option value="<%= s %>" <%= q.status === s ? 'selected' : '' %>><%= s.replace('_', ' ') %></option><% }) %></select>
+  <select name="refund"><option value="">Any refund state</option>
+    <% [['pending', 'Refund processing'], ['failed', 'Refund failed'], ['orphan', 'Unrefunded orphan payment']].forEach(([v, l]) => { %><option value="<%= v %>" <%= q.refund === v ? 'selected' : '' %>><%= l %></option><% }) %>
+  </select>
+  <label class="small">Event from <input type="date" name="from" value="<%= q.from || '' %>"></label>
+  <label class="small">to <input type="date" name="to" value="<%= q.to || '' %>"></label>
+  <button class="btn btn-small">Filter</button>
+</form>
+<p class="small muted"><%= total %> booking<%= total === 1 ? '' : 's' %> · confirmed GMV <strong><%= money.format(sums.gmv) %></strong> · platform fees <strong><%= money.format(sums.fees) %></strong></p>
+<div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Party</th><th>Event</th><th>Venue</th><th>Guests</th><th>RSVP yes</th><th>Status</th><th>Total</th></tr></thead>
+  <tbody><% rows.forEach(b => { %>
+    <tr>
+      <td><a href="/admin/bookings/<%= b.id %>">#<%= b.id %></a></td>
+      <td><%= b.title %><br><span class="muted small"><%= b.host_email %></span></td>
+      <td class="nowrap"><%= b.event_date %></td>
+      <td class="small"><%= b.venue_name %><br><span class="muted"><%= b.restaurant_name %></span></td>
+      <td><%= b.guest_count %></td><td><%= b.yes %>/<%= b.invited %></td>
+      <td><%- include('_status', { s: b.status }) %></td>
+      <td class="nowrap"><%= money.format(b.total_amount, b.currency) %></td>
+    </tr>
+  <% }) %>
+  <% if (!rows.length) { %><tr><td colspan="8" class="muted">No bookings match.</td></tr><% } %></tbody>
+</table></div>
+<%- include('_pager') %>
+<%- include('_close') %>

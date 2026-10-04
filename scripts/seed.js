@@ -32,6 +32,12 @@ function placeholder(label, hue) {
 const hash = bcrypt.hashSync('password123', 10);
 const restaurants = [
   {
+    owner: ['Sameer Patel', 'owner@zaffran.test', '+919811055555'], status: 'pending',
+    r: { name: 'Zaffran Courtyard', cuisine: 'Mughlai, Kebabs', area: 'Koregaon Park', city: 'Pune', address: 'Lane 6', description: 'New listing awaiting approval.' },
+    venues: [{ name: 'Courtyard Pavilion', min: 20, max: 80, fee: 500000, amen: 'Open air, Prayer area', desc: 'Lantern-lit courtyard.' }],
+    menus: [{ name: 'Kebab Iftar', price: 90000, diet: 'non-veg', min: 20, items: 'Dates\nSeekh kebab\nChicken tikka\nBiryani\nKheer' }],
+  },
+  {
     owner: ['Imran Qureshi', 'owner@noor.test', '+919820011111'],
     r: { name: 'Noor Mahal Kitchen', cuisine: 'Mughlai, Awadhi', area: 'Bandra West', city: 'Mumbai', address: '14 Hill Road', description: 'Family-run Mughlai restaurant serving Lucknowi classics since 1986.' },
     venues: [
@@ -73,12 +79,14 @@ transaction(db, () => {
   const venueIds = [];
   restaurants.forEach((spec, ri) => {
     const ownerId = Number(insUser.run(...spec.owner.slice(0, 3), hash, 'restaurant').lastInsertRowid);
-    const rid = Number(db.prepare('INSERT INTO restaurants (owner_id, name, cuisine, area, city, address, description, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(ownerId, spec.r.name, spec.r.cuisine, spec.r.area, spec.r.city, spec.r.address, spec.r.description, spec.owner[2]).lastInsertRowid);
+    const rid = Number(db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, area, city, address, description, phone, status, payout_name, payout_upi)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(ownerId, spec.r.name, spec.r.cuisine, spec.r.area, spec.r.city, spec.r.address, spec.r.description, spec.owner[2],
+        spec.status || 'approved', spec.status ? '' : spec.r.name, spec.status ? '' : `${spec.r.name.split(' ')[0].toLowerCase()}@okhdfc`).lastInsertRowid);
     spec.venues.forEach((v, vi) => {
       const vid = Number(db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee) VALUES (?, ?, ?, ?, ?, ?, ?)')
         .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee).lastInsertRowid);
-      venueIds.push({ vid, rid, v });
+      venueIds.push({ vid, rid, v, pending: Boolean(spec.status) });
       ['', ' – Seating', ' – Décor'].forEach((suffix, i) => {
         db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, placeholder(`${v.name}${suffix}`, 210 + ri * 40 + vi * 15 + i * 10), i);
       });
@@ -87,8 +95,10 @@ transaction(db, () => {
       .run(rid, m.name, m.items, m.diet, m.price, m.min));
   });
 
+  insUser.run('Platform Admin', 'admin@demo.test', null, hash, 'admin');
   const hostId = Number(insUser.run('Meraj Ahmed', 'host@demo.test', '+919800044444', hash, 'host').lastInsertRowid);
-  const { vid, rid } = venueIds[0];
+  const live = venueIds.filter((x) => !x.pending);
+  const { vid, rid } = live[0];
   const menu = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY id LIMIT 1').get(rid);
   const venue = db.prepare('SELECT * FROM venues WHERE id = ?').get(vid);
   const d = new Date(); d.setDate(d.getDate() + 21);
@@ -99,6 +109,21 @@ transaction(db, () => {
       VALUES (?, ?, ?, ?, '18:15', 60, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed', datetime('now'))`)
     .run(vid, menu.id, hostId, date, partyTitle('Meraj Ahmed'), 'Join our family to break the fast together this Ramadan.',
       q.pricePerPerson, q.foodTotal, q.hireFee, q.platformFee, q.total, config.currency, new Date().toISOString()).lastInsertRowid);
+  db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed', ?, ?, 'paid', datetime('now'))`)
+    .run(bid, q.total, config.currency);
+
+  // A completed Iftar from last week, so the payouts queue has something to settle.
+  const past = new Date(); past.setDate(past.getDate() - 7);
+  const v2 = db.prepare('SELECT * FROM venues WHERE id = ?').get(live[1].vid);
+  const q2 = pricing.quote({ pricePerPerson: menu.price_per_person, guestCount: 25, hireFee: v2.hire_fee });
+  const pastId = Number(db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, guest_count, title, price_per_person, food_total, hire_fee,
+      platform_fee, total_amount, currency, status, hold_expires_at, payment_provider, payment_ref, paid_at)
+      VALUES (?, ?, ?, ?, 25, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed_past', datetime('now', '-20 days'))`)
+    .run(v2.id, menu.id, hostId, past.toISOString().slice(0, 10), partyTitle('Meraj Ahmed'), q2.pricePerPerson, q2.foodTotal, q2.hireFee,
+      q2.platformFee, q2.total, config.currency, new Date().toISOString()).lastInsertRowid);
+  db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed_past', ?, ?, 'paid', datetime('now', '-20 days'))`)
+    .run(pastId, q2.total, config.currency);
+
   const guests = [
     ['Aisha Khan', 'aisha@example.com', '+919876543210', 'yes', 3],
     ['Omar Siddiqui', null, '+919876501234', 'yes', 2],
@@ -112,5 +137,6 @@ transaction(db, () => {
 });
 
 console.log(`Seeded demo data.
+  Admin login:       admin@demo.test / password123
   Host login:        host@demo.test / password123
-  Restaurant logins: owner@noor.test, owner@charminar.test, owner@arabian.test / password123`);
+  Restaurant logins: owner@noor.test, owner@charminar.test, owner@arabian.test, owner@zaffran.test (pending) / password123`);

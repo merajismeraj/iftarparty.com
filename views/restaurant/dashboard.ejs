@@ -12,11 +12,20 @@
     </div>
   </div>
 
+  <% if (restaurant.status === 'pending') { %>
+    <div class="flash flash-info"><strong>Your listing is under review.</strong> Add your halls, menus and payout details now – hosts will see you as soon as our team approves your restaurant.</div>
+  <% } else if (restaurant.status !== 'approved') { %>
+    <div class="flash flash-error"><strong>Your listing is <%= restaurant.status %>.</strong> Hosts can’t find or book your halls.<%= restaurant.status_note ? ` Reason: ${restaurant.status_note}` : '' %> Contact support@iftarparty.com.</div>
+  <% } %>
+  <% if (!restaurant.payout_upi && !restaurant.payout_account) { %>
+    <div class="flash flash-info">Add your <a href="/restaurant/profile#payout">payout details</a> (UPI or bank account) so we can transfer your earnings after each Iftar.</div>
+  <% } %>
   <div class="stats">
     <div class="stat"><span class="stat-n"><%= venues.filter(v => v.active).length %></span><span class="muted">Live halls</span></div>
     <div class="stat"><span class="stat-n"><%= menus.filter(m => m.active).length %></span><span class="muted">Menus offered</span></div>
     <div class="stat"><span class="stat-n"><%= bookings.length %></span><span class="muted">Upcoming parties</span></div>
     <div class="stat"><span class="stat-n"><%= money.format(stats.revenue) %></span><span class="muted">Booked revenue</span></div>
+    <div class="stat"><span class="stat-n"><%= money.format(stats.paid_out) %></span><span class="muted">Paid out to you</span></div>
   </div>
 
   <% if (!venues.length || !menus.length) { %>

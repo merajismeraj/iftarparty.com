@@ -14,7 +14,7 @@
       <label class="field"><span>Your full name</span><input name="name" required autocomplete="name" value="<%= form.name || '' %>"></label>
       <div class="row-2">
         <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email" value="<%= form.email || '' %>"></label>
-        <label class="field"><span>Mobile <%= role === 'host' ? '(optional)' : '' %></span><input type="tel" name="phone" autocomplete="tel" <%= role === 'restaurant' ? 'required' : '' %> value="<%= form.phone || '' %>"></label>
+        <label class="field"><span>Mobile</span><input type="tel" name="phone" autocomplete="tel" required value="<%= form.phone || '' %>"></label>
       </div>
       <label class="field"><span>Password</span><input type="password" name="password" required minlength="8" autocomplete="new-password"><small class="muted">At least 8 characters.</small></label>
       <% if (role === 'restaurant') { %>

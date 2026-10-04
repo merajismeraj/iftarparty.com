@@ -1,0 +1,13 @@
+<%- include('_open') %>
+<h1>Audit log</h1>
+<div class="table-wrap"><table>
+  <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+  <tbody><% rows.forEach(a => { const href = a.entity_type === 'booking' ? `/admin/bookings/${a.entity_id}` : a.entity_type === 'restaurant' ? `/admin/restaurants/${a.entity_id}` : null; %>
+    <tr><td class="small nowrap"><%= a.created_at %></td><td><%= a.admin_name || '—' %></td><td><code><%= a.action %></code></td>
+      <td><% if (href) { %><a href="<%= href %>"><%= a.entity_type %> #<%= a.entity_id %></a><% } else { %><%= a.entity_type %><%= a.entity_id ? ` #${a.entity_id}` : '' %><% } %></td>
+      <td class="small"><%= a.detail %></td></tr>
+  <% }) %>
+  <% if (!rows.length) { %><tr><td colspan="5" class="muted">No admin actions yet.</td></tr><% } %></tbody>
+</table></div>
+<%- include('_pager') %>
+<%- include('_close') %>

@@ -1,0 +1,82 @@
+<%- include('_open') %>
+<p class="crumbs"><a href="/admin/bookings">Bookings</a> › #<%= b.id %></p>
+<div class="section-head">
+  <div><h1><%= b.title %> <%- include('_status', { s: b.status }) %></h1>
+    <p class="muted">#<%= b.id %> · booked <%= b.created_at %> · <a href="/admin/restaurants/<%= b.restaurant_id %>"><%= b.restaurant_name %></a></p></div>
+</div>
+
+<div class="two-col">
+  <div class="card form-card">
+    <h2 class="h3">Event</h2>
+    <dl class="kv">
+      <dt>Date</dt><dd><%= fmt.longDate(b.event_date) %>, <%= fmt.time12(b.arrival_time) %></dd>
+      <dt>Hall</dt><dd><%= b.venue_name %>, <%= b.restaurant_name %> (<%= b.city %>)</dd>
+      <dt>Menu</dt><dd><%= b.menu_name %> · <%= b.guest_count %> guests</dd>
+      <dt>Host</dt><dd><%= b.host_name %><br><%= b.host_email %> · <%= b.host_phone || '—' %></dd>
+      <dt>RSVPs</dt><dd><%= rsvp.yes %> yes (<%= rsvp.headcount %> heads) · <%= rsvp.maybe %> maybe · <%= rsvp.no %> no · <%= rsvp.pending %> awaiting · <%= rsvp.invited %> invited</dd>
+      <dt>Messages</dt><dd><%= messages.length ? messages.map(x => `${x.channel} ${x.status}: ${x.n}`).join(' · ') : 'none sent' %></dd>
+      <% if (b.status === 'cancelled') { %><dt>Cancelled</dt><dd><%= b.cancelled_at || '' %> <%= b.cancel_reason %></dd><% } %>
+    </dl>
+  </div>
+  <div class="card form-card">
+    <h2 class="h3">Money</h2>
+    <div class="quote">
+      <div><span><%= b.guest_count %> × <%= money.format(b.price_per_person, b.currency) %></span><span><%= money.format(b.food_total, b.currency) %></span></div>
+      <div><span>Hall fee</span><span><%= money.format(b.hire_fee, b.currency) %></span></div>
+      <div><span>Platform fee</span><span><%= money.format(b.platform_fee, b.currency) %></span></div>
+      <div class="total"><span>Total</span><span><%= money.format(b.total_amount, b.currency) %></span></div>
+    </div>
+    <dl class="kv">
+      <dt>Restaurant share</dt><dd><%= money.format(b.total_amount - b.platform_fee, b.currency) %></dd>
+      <dt>Payout</dt><dd><% if (b.status === 'confirmed') { %><%- include('_status', { s: b.payout_status }) %> <%= b.payout_ref ? `ref ${b.payout_ref}` : '' %><% } else { %>— (no payout for <%= b.status.replace('_', ' ') %> bookings)<% } %></dd>
+    </dl>
+  </div>
+</div>
+
+<h2 class="h3">Payments ledger</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Order</th><th>Provider</th><th>Amount</th><th>Status</th><th>Refund</th><th></th></tr></thead>
+  <tbody><% ledger.forEach(p => { const isMain = paid && paid.id === p.id; %>
+    <tr>
+      <td class="small"><code><%= p.order_id %></code><%= isMain ? ' · pays this booking' : '' %><br><span class="muted"><%= p.created_at %><%= p.provider_ref ? ` · cf ${p.provider_ref}` : '' %></span></td>
+      <td><%= p.provider %></td>
+      <td class="nowrap"><%= money.format(p.amount, p.currency) %></td>
+      <td><%- include('_status', { s: p.status }) %></td>
+      <td><% if (p.refund_status !== 'none') { %><%- include('_status', { s: p.refund_status }) %> <%= money.format(p.refund_amount, p.currency) %><br><span class="muted small"><%= p.refund_reason %></span><% } else { %>—<% } %></td>
+      <td class="nowrap">
+        <% if (p.refund_status === 'pending' && p.provider === 'cashfree') { %>
+          <form method="post" action="/admin/payments/<%= p.id %>/refund-refresh" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small btn-ghost">Check status</button></form>
+        <% } %>
+        <% if (p.status === 'paid' && (p.refund_status === 'failed' || (p.refund_status === 'none' && !isMain))) { %>
+          <form method="post" action="/admin/payments/<%= p.id %>/refund-retry" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small" data-confirm="Refund <%= money.format(p.refund_amount || p.amount, p.currency) %> to the payer?"><%= p.refund_status === 'failed' ? 'Retry refund' : 'Refund' %></button></form>
+        <% } %>
+      </td>
+    </tr>
+  <% }) %>
+  <% if (!ledger.length) { %><tr><td colspan="6" class="muted">No payment attempts.</td></tr><% } %></tbody>
+</table></div>
+<% if (b.status === 'pending_payment' || ledger.some(p => p.status === 'created')) { %>
+  <form method="post" action="/admin/bookings/<%= b.id %>/verify" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small btn-ghost">Re-check open orders with gateway</button></form>
+<% } %>
+
+<% if (['confirmed', 'pending_payment'].includes(b.status)) { %>
+  <h2 class="h3" id="cancel">Cancel booking</h2>
+  <form class="card form-card narrow-form" method="post" action="/admin/bookings/<%= b.id %>/cancel">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label class="field"><span>Reason (emailed to the host)</span><input name="reason" required maxlength="500" placeholder="Restaurant closed for renovation on this date"></label>
+    <% if (b.status === 'confirmed') { %>
+      <fieldset class="field"><legend>Refund</legend>
+        <label class="check"><input type="radio" name="refund" value="full" checked> Full refund – <%= money.format(b.total_amount, b.currency) %></label>
+        <label class="check"><input type="radio" name="refund" value="partial"> Partial refund of <input class="inline-input" type="number" name="amount" min="1" step="any" max="<%= money.toMajor(b.total_amount) %>" placeholder="0"> <%= b.currency %></label>
+        <label class="check"><input type="radio" name="refund" value="none"> No refund</label>
+      </fieldset>
+    <% } %>
+    <button class="btn btn-danger" data-confirm="Cancel this booking<%= b.status === 'confirmed' ? ' and process the refund' : '' %>? This frees the venue and emails the host.">Cancel booking</button>
+  </form>
+<% } %>
+
+<% if (log.length) { %>
+  <h2 class="h3">History</h2>
+  <ul class="timeline"><% log.forEach(a => { %><li><span class="muted small"><%= a.created_at %></span> <strong><%= a.admin_name %></strong> <%= a.action %> <span class="muted"><%= a.detail %></span></li><% }) %></ul>
+<% } %>
+<%- include('_close') %>

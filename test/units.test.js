@@ -58,3 +58,9 @@ test('past dates and invalid dates are refused', () => {
   assert.throws(() => svc.createHold(db, { venueId: 1, menuId: 1, hostId: 1, eventDate: '2000-01-01', guestCount: 5 }), /future/);
   assert.throws(() => svc.createHold(db, { venueId: 1, menuId: 1, hostId: 1, eventDate: '2099-02-30', guestCount: 5 }), /valid date/);
 });
+
+test('refunds never silently succeed for providers we cannot refund through', async () => {
+  const payments = require('../src/services/payments');
+  assert.deepEqual(await payments.createRefund({ provider: 'demo', orderId: 'x', refundId: 'r', amount: 1 }), { status: 'success' });
+  await assert.rejects(payments.createRefund({ provider: 'legacy', orderId: 'x', refundId: 'r', amount: 1 }), /refunded manually/);
+});

@@ -74,12 +74,24 @@
     tick();
   }
 
+  // Hand off to Cashfree's hosted checkout (SDK loaded only on this page).
+  function initCashfree(el) {
+    const fail = () => { el.querySelector('[data-cashfree-error]').hidden = false; };
+    if (typeof window.Cashfree !== 'function') return fail();
+    try {
+      const cashfree = window.Cashfree({ mode: el.dataset.cashfreeMode });
+      Promise.resolve(cashfree.checkout({ paymentSessionId: el.dataset.cashfreeSession, redirectTarget: '_self' }))
+        .then((r) => { if (r && r.error) fail(); }, fail);
+    } catch { fail(); }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-cashfree-session]').forEach(initCashfree);
     document.querySelectorAll('form[data-quote]').forEach(initQuote);
     document.querySelectorAll('[data-countdown]').forEach(initCountdown);
     document.addEventListener('click', (e) => {
       const el = e.target.closest('[data-confirm]');
-      if (el && !window.confirm(el.dataset.confirm)) e.preventDefault();
+      if (el && el.dataset.confirm && !window.confirm(el.dataset.confirm)) e.preventDefault();
     });
   });
 })();

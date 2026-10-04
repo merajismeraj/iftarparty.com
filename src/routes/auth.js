@@ -25,7 +25,7 @@ function safeReturn(url, fallback) {
 }
 
 function homeFor(user) {
-  return user.role === 'restaurant' ? '/restaurant' : '/my-parties';
+  return { restaurant: '/restaurant', admin: '/admin' }[user.role] || '/my-parties';
 }
 
 module.exports = (db) => {
@@ -46,7 +46,7 @@ module.exports = (db) => {
     const phone = b.phone ? normalizePhone(b.phone) : null;
     if (name.length < 2) errors.push('Please enter your full name.');
     if (!email) errors.push('Please enter a valid email address.');
-    if (b.phone && !phone) errors.push('Please enter a valid mobile number.');
+    if (!phone) errors.push('Please enter a valid mobile number – we use it for payment receipts and WhatsApp updates.');
     if (String(b.password || '').length < 8) errors.push('Password must be at least 8 characters.');
     if (role === 'restaurant') {
       if (!String(b.restaurant_name || '').trim()) errors.push('Please enter your restaurant name.');
@@ -62,7 +62,7 @@ module.exports = (db) => {
       const id = Number(db.prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)')
         .run(name, email, phone, hash, role).lastInsertRowid);
       if (role === 'restaurant') {
-        db.prepare('INSERT INTO restaurants (owner_id, name, cuisine, address, area, city, phone) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, address, area, city, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`)
           .run(id, b.restaurant_name.trim(), String(b.cuisine || '').trim(), String(b.address || '').trim(),
             String(b.area || '').trim(), b.city.trim(), phone || '');
       }
@@ -70,7 +70,7 @@ module.exports = (db) => {
     });
     req.session.userId = userId;
     req.flash('success', role === 'restaurant'
-      ? 'Welcome aboard! Add your first party hall and menu to start receiving bookings.'
+      ? 'Welcome aboard! Add your halls and menus now – your listing goes live once our team approves it (usually within 24 hours).'
       : `Welcome, ${name.split(' ')[0]}! Find the perfect venue for your Iftar.`);
     res.redirect(role === 'restaurant' ? '/restaurant' : safeReturn(req.session.returnTo, '/search'));
   });
@@ -85,6 +85,9 @@ module.exports = (db) => {
     const user = email && db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     const ok = user && (await bcrypt.compare(String(req.body.password || ''), user.password_hash));
     if (!ok) return res.status(401).render('auth/login', { title: 'Sign in', form: { email }, error: 'Incorrect email or password.' });
+    if (user.status !== 'active') {
+      return res.status(403).render('auth/login', { title: 'Sign in', form: { email }, error: 'This account has been suspended. Please contact support@iftarparty.com.' });
+    }
     const returnTo = req.session.returnTo;
     req.session.returnTo = null;
     req.session.userId = user.id;

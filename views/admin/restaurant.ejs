@@ -1,0 +1,75 @@
+<%- include('_open') %>
+<p class="crumbs"><a href="/admin/restaurants">Restaurants</a> › <%= r.name %></p>
+<div class="section-head">
+  <div><h1><%= r.name %> <%- include('_status', { s: r.status }) %></h1>
+    <p class="muted"><%= r.cuisine %> · <%= [r.address, r.area, r.city].filter(Boolean).join(', ') %> · joined <%= r.created_at.slice(0, 10) %></p></div>
+</div>
+
+<div class="two-col">
+  <div class="card form-card">
+    <h2 class="h3">Listing status</h2>
+    <% if (r.status_note) { %><p class="small">Current note: <em><%= r.status_note %></em></p><% } %>
+    <% if (upcoming && r.status === 'approved') { %><p class="small bad">Has <%= upcoming %> upcoming confirmed booking<%= upcoming === 1 ? '' : 's' %>. Suspending hides the listing but does not cancel them – cancel individually if needed.</p><% } %>
+    <form method="post" action="/admin/restaurants/<%= r.id %>/status">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field"><span>Set status</span>
+        <select name="status"><% statuses.forEach(s => { %><option <%= r.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
+      </label>
+      <label class="field"><span>Reason (required to reject or suspend; shown to the restaurant)</span><input name="note" maxlength="300"></label>
+      <button class="btn btn-block">Update status</button>
+    </form>
+  </div>
+  <div class="card form-card">
+    <h2 class="h3">Owner & payouts</h2>
+    <p><strong><%= r.owner_name %></strong> <%- include('_status', { s: r.owner_status }) %><br><%= r.owner_email %> · <%= r.owner_phone || r.phone %></p>
+    <dl class="kv">
+      <dt>Payee</dt><dd><%= r.payout_name || '—' %></dd>
+      <dt>UPI</dt><dd><%= r.payout_upi || '—' %></dd>
+      <dt>Account</dt><dd><%= r.payout_account || '—' %></dd>
+      <dt>IFSC</dt><dd><%= r.payout_ifsc || '—' %></dd>
+    </dl>
+    <% if (r.description) { %><p class="small muted prewrap"><%= r.description %></p><% } %>
+  </div>
+</div>
+
+<h2 class="h3">Halls</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th></th><th>Hall</th><th>Capacity</th><th>Hall fee</th><th>Photos</th><th>Visible</th><th></th></tr></thead>
+  <tbody><% venues.forEach(v => { %>
+    <tr class="<%= v.active ? '' : 'inactive' %>">
+      <td><% if (v.image) { %><img class="thumb" src="/uploads/<%= v.image %>" alt=""><% } %></td>
+      <td><a href="/venues/<%= v.id %>"><strong><%= v.name %></strong></a><br><span class="muted small"><%= v.amenities %></span></td>
+      <td><%= v.min_pax %>–<%= v.max_pax %></td><td><%= money.format(v.hire_fee) %></td><td><%= v.photos %></td>
+      <td><%= v.active ? 'Yes' : 'Hidden' %></td>
+      <td><form method="post" action="/admin/venues/<%= v.id %>/toggle" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small btn-ghost"><%= v.active ? 'Hide' : 'Show' %></button></form></td>
+    </tr>
+  <% }) %>
+  <% if (!venues.length) { %><tr><td colspan="7" class="muted">No halls added yet.</td></tr><% } %></tbody>
+</table></div>
+
+<h2 class="h3">Menus</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Menu</th><th>Type</th><th>Price / guest</th><th>Min</th><th>Offered</th></tr></thead>
+  <tbody><% menus.forEach(m => { %>
+    <tr class="<%= m.active ? '' : 'inactive' %>"><td><strong><%= m.name %></strong><br><span class="muted small"><%= m.items.split(/\r?\n/).filter(Boolean).join(' · ') %></span></td>
+      <td><span class="diet diet-<%= m.diet %>"><%= m.diet %></span></td><td><%= money.format(m.price_per_person) %></td><td><%= m.min_pax %></td><td><%= m.active ? 'Yes' : 'No' %></td></tr>
+  <% }) %>
+  <% if (!menus.length) { %><tr><td colspan="5" class="muted">No menus yet.</td></tr><% } %></tbody>
+</table></div>
+
+<h2 class="h3">Bookings</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>Party</th><th>Date</th><th>Hall</th><th>Status</th><th>Total</th><th>Payout</th></tr></thead>
+  <tbody><% bookings.forEach(b => { %>
+    <tr><td><a href="/admin/bookings/<%= b.id %>">#<%= b.id %></a></td><td><%= b.title %></td><td class="nowrap"><%= b.event_date %></td><td><%= b.venue_name %></td>
+      <td><%- include('_status', { s: b.status }) %></td><td class="nowrap"><%= money.format(b.total_amount, b.currency) %></td>
+      <td><%= b.status === 'confirmed' ? b.payout_status : '—' %></td></tr>
+  <% }) %>
+  <% if (!bookings.length) { %><tr><td colspan="7" class="muted">No bookings yet.</td></tr><% } %></tbody>
+</table></div>
+
+<% if (log.length) { %>
+<h2 class="h3">History</h2>
+<ul class="timeline"><% log.forEach(a => { %><li><span class="muted small"><%= a.created_at %></span> <strong><%= a.admin_name %></strong> <%= a.action %> <span class="muted"><%= a.detail %></span></li><% }) %></ul>
+<% } %>
+<%- include('_close') %>

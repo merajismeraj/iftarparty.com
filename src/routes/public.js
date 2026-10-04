@@ -13,7 +13,7 @@ const SORTS = {
 
 /** Venue search across location, menu, price, capacity and date availability. */
 function searchVenues(db, q) {
-  const where = ['v.active = 1', 'm.active = 1'];
+  const where = ['v.active = 1', 'm.active = 1', `r.status = 'approved'`];
   const params = [];
   const like = (s) => `%${String(s).trim().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
 
@@ -73,7 +73,7 @@ module.exports = (db) => {
     const featured = searchVenues(db, { sort: 'newest' }).rows.slice(0, 6);
     const cities = db.prepare(
       `SELECT r.city, COUNT(*) AS n FROM venues v JOIN restaurants r ON r.id = v.restaurant_id
-       WHERE v.active = 1 AND r.city <> '' GROUP BY r.city ORDER BY n DESC LIMIT 8`
+       WHERE v.active = 1 AND r.status = 'approved' AND r.city <> '' GROUP BY r.city ORDER BY n DESC LIMIT 8`
     ).all();
     res.render('home', { featured, cities, today: todayISO() });
   });
@@ -86,11 +86,12 @@ module.exports = (db) => {
 
   router.get('/venues/:id', (req, res) => {
     const venue = db.prepare(
-      `SELECT v.*, r.name AS restaurant_name, r.description AS restaurant_description, r.cuisine,
+      `SELECT v.*, r.name AS restaurant_name, r.description AS restaurant_description, r.cuisine, r.status AS restaurant_status,
               r.address, r.area, r.city, r.phone AS restaurant_phone
        FROM venues v JOIN restaurants r ON r.id = v.restaurant_id WHERE v.id = ?`
     ).get(req.params.id);
-    if (!venue || (!venue.active && venue.restaurant_id !== req.restaurant?.id)) {
+    const privileged = venue && (venue.restaurant_id === req.restaurant?.id || req.user?.role === 'admin');
+    if (!venue || (!privileged && (!venue.active || venue.restaurant_status !== 'approved'))) {
       return res.status(404).render('error', { title: 'Venue not found', message: 'This venue is not listed any more.' });
     }
     const images = db.prepare('SELECT * FROM venue_images WHERE venue_id = ? ORDER BY sort_order, id').all(venue.id);

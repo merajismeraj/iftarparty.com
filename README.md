@@ -25,10 +25,10 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 23 integration + unit tests
+npm test                  # 42 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
-Demo logins (password `password123`): host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`.
+Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
 
 ## Integrations
 
@@ -36,9 +36,19 @@ Each integration runs in **demo mode** until you add its keys, so you can use th
 
 | Feature | Demo mode | Production |
 |---|---|---|
-| Payments | Built-in simulated checkout | `STRIPE_SECRET_KEY` turns on Stripe Checkout. Point a webhook at `POST /webhooks/stripe` (event `checkout.session.completed`) and set `STRIPE_WEBHOOK_SECRET` |
+| Payments | Simulated checkout. Refunds succeed instantly | **Cashfree Payment Gateway**: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox\|production` |
 | Email | Printed to the server log | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (any SMTP provider, e.g. SES, Postmark, SendGrid) |
 | WhatsApp | Printed to the server log | Meta WhatsApp Cloud API: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` |
+
+### Cashfree
+
+1. **Create the order on the server.** We call `POST /pg/orders` with API version `2023-08-01`. Cashfree returns a `payment_session_id`, which the Cashfree JS SDK uses to open its hosted checkout. The host pays there by UPI, card, netbanking or wallet.
+2. **Confirm the payment two ways.** Cashfree sends the host back to `/bookings/:id/payment-return`, and it also sends a signed webhook to **`<BASE_URL>/webhooks/cashfree`**. Add that URL in *Cashfree Dashboard → Developers → Webhooks* and subscribe to **Payment success** and **Refund status**. In both cases we re-fetch the order from Cashfree and only confirm the booking if `order_status = PAID` and the amount matches.
+3. **Check the webhook signature.** Each webhook must carry a valid `x-webhook-signature`: an HMAC-SHA256 of the timestamp plus the raw body, signed with your secret key. Webhooks older than 10 minutes are rejected.
+4. **Record every attempt in a ledger.** Each order and refund is stored in the `payments` table. If money arrives that can't buy a booking, it is **refunded automatically** through `POST /pg/orders/{id}/refunds`. That covers three cases: a second payment for a booking that's already paid, a late payment after someone else took the night, and a payment for a booking that was cancelled in the meantime.
+5. **Order ids look like `IP-<bookingId>-<random>`**, so a webhook can always be matched to its booking.
+
+Test it with Cashfree **sandbox** keys and their test UPI ID or cards before switching `CASHFREE_ENV=production`.
 
 **WhatsApp template.** WhatsApp only lets businesses start a conversation with an approved template. Create a *Utility* template (default name `iftar_invite`) with 5 body variables:
 
@@ -49,23 +59,43 @@ Where: {{4}}
 Please RSVP here: {{5}}
 ```
 
-Every delivery attempt is recorded in the `message_log` table, and the guest list shows the WhatsApp and email status for each guest.
+Every delivery attempt is recorded in the `message_log` table and shown in the admin portal.
+
+## Admin portal (`/admin`)
+
+Admin accounts can't be created from the website. Use the command line:
+
+```bash
+npm run admin -- create ops@iftarparty.com "Ops Team"   # asks for a password (12+ chars), or set ADMIN_PASSWORD
+npm run admin -- promote someone@example.com
+```
+
+| Section | What it does |
+|---|---|
+| **Overview** | GMV, platform revenue, refunds, live restaurants and upcoming RSVPs. A *Needs attention* queue lists pending approvals, payouts owed, failed or processing refunds, unrefunded payments and failed invites. |
+| **Restaurants** | Approve, reject, suspend or reinstate. New sign-ups stay **pending** and hidden from search until approved. Rejecting or suspending needs a reason, which the restaurant sees. Hide individual halls. View payout details. |
+| **Bookings** | Filter by status, refund state, event dates or free text, including the order id. Export to CSV for accounting. Each booking shows the event, RSVPs, the money breakdown and the full **payments ledger**. **Cancel with a full, partial or no refund** through Cashfree; the host is emailed and the night becomes free again. Re-check stuck orders with the gateway and retry failed refunds. |
+| **Payouts** | Lists what each restaurant is owed (total minus platform fee) for Iftars that have already happened, with their UPI and bank details. Record the bank reference (UTR) to mark them paid; the payout history is kept. |
+| **Users** | Search, then suspend or reactivate hosts and restaurant owners. A suspended user is signed out immediately and can't sign back in. |
+| **Messages** | WhatsApp and email delivery rates for the last 7 days, failed sends with the error from the provider, and one-click resend. |
+| **Settings** | The platform fee percentage. It applies only to new bookings; each booking keeps the fee it was quoted. |
+| **Audit log** | Every admin action, with who did it, when, and the details. |
 
 ## Architecture
 
 - **Express 5 + EJS** server-rendered pages, with a small vanilla JS file for the live quote, availability check and hold countdown.
-- **SQLite** through `node:sqlite` (`src/db.js`). Money is stored as integer minor units (paise).
+- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version`, so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
 - **Double-booking protection:** the hold is taken inside a synchronous `BEGIN IMMEDIATE` transaction. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
 - **Security:** bcrypt passwords, signed httpOnly session cookies, CSRF tokens on every form, Helmet CSP, ownership checks on every restaurant and booking route, image-only uploads with size limits, rate-limited login, and spreadsheet-formula escaping in CSV exports.
 
 ```
 src/
   app.js, server.js, config.js, db.js
-  routes/      public (search, venue) · auth · restaurant · bookings · rsvp · webhooks
-  services/    bookings (holds/confirm) · pricing · payments · invites · notify · guestlist
+  routes/      public (search, venue) · auth · restaurant · bookings · rsvp · admin · webhooks
+  services/    bookings (holds/confirm) · checkout (ledger, refunds) · payments (Cashfree) · pricing · settings · audit · invites · notify · guestlist
 views/         EJS pages + email template
 public/        CSS, JS
-scripts/seed.js
+scripts/seed.js, scripts/create-admin.js
 test/
 ```
 

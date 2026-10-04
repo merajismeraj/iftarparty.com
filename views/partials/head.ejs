@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/static/css/style.css">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <% if (locals.mode && locals.sessionId) { %><script src="https://sdk.cashfree.com/js/v3/cashfree.js" defer></script><% } %>
   <script src="/static/js/app.js" defer></script>
 </head>
 <body>
@@ -23,6 +24,9 @@
         <a href="/signup?role=restaurant">For restaurants</a>
         <a href="/login">Sign in</a>
         <a class="btn btn-small" href="/signup">Host an Iftar</a>
+      <% } else if (user.role === 'admin') { %>
+        <a href="/admin" class="<%= path.startsWith('/admin') ? 'active' : '' %>">Admin</a>
+        <form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link">Sign out</button></form>
       <% } else if (user.role === 'restaurant') { %>
         <a href="/restaurant" class="<%= path.startsWith('/restaurant') ? 'active' : '' %>">Dashboard</a>
         <form method="post" action="/logout" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link">Sign out</button></form>

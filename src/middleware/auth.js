@@ -5,8 +5,8 @@ function loadUser(db) {
   return (req, res, next) => {
     const id = req.session?.userId;
     if (id) {
-      req.user = db.prepare('SELECT id, name, email, phone, role FROM users WHERE id = ?').get(id) || null;
-      if (!req.user) req.session = null;
+      req.user = db.prepare(`SELECT id, name, email, phone, role FROM users WHERE id = ? AND status = 'active'`).get(id) || null;
+      if (!req.user) req.session.userId = null; // deleted or suspended: sign out everywhere
       else if (req.user.role === 'restaurant') {
         req.restaurant = db.prepare('SELECT * FROM restaurants WHERE owner_id = ?').get(req.user.id) || null;
       }
@@ -35,9 +35,12 @@ function requireAuth(role) {
       return res.redirect('/login');
     }
     if (role && req.user.role !== role) {
-      return res.status(403).render('error', { title: 'Not allowed', message: role === 'host'
-        ? 'This page is for party hosts. Restaurant accounts can’t book venues – sign in with a host account.'
-        : 'This page is for restaurant partners.' });
+      const message = {
+        host: 'This page is for party hosts. Restaurant and admin accounts can’t book venues – sign in with a host account.',
+        restaurant: 'This page is for restaurant partners.',
+        admin: 'This page is for IftarParty administrators.',
+      }[role];
+      return res.status(403).render('error', { title: 'Not allowed', message });
     }
     next();
   };

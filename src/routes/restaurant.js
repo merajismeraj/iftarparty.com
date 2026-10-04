@@ -62,7 +62,8 @@ module.exports = (db) => {
        ORDER BY b.event_date LIMIT 50`
     ).all(rid, todayISO()).map((b) => ({ ...b, rsvp: rsvpSummary(db, b.id) }));
     const stats = db.prepare(
-      `SELECT COUNT(*) AS bookings, COALESCE(SUM(b.total_amount - b.platform_fee), 0) AS revenue
+      `SELECT COUNT(*) AS bookings, COALESCE(SUM(b.total_amount - b.platform_fee), 0) AS revenue,
+              COALESCE(SUM(CASE WHEN b.payout_status = 'paid' THEN b.total_amount - b.platform_fee END), 0) AS paid_out
        FROM bookings b JOIN venues v ON v.id = b.venue_id WHERE v.restaurant_id = ? AND b.status = 'confirmed'`
     ).get(rid);
     res.render('restaurant/dashboard', { title: 'Restaurant dashboard', venues, menus, bookings, stats });
@@ -74,13 +75,20 @@ module.exports = (db) => {
     const form = {
       name: str(b.name, 120), description: str(b.description), cuisine: str(b.cuisine, 200),
       address: str(b.address, 300), area: str(b.area, 120), city: str(b.city, 120), phone: str(b.phone, 30),
+      payout_name: str(b.payout_name, 120), payout_upi: str(b.payout_upi, 120),
+      payout_account: str(b.payout_account, 34).replace(/\s/g, ''), payout_ifsc: str(b.payout_ifsc, 11).toUpperCase(),
     };
     const errors = [];
     if (!form.name) errors.push('Restaurant name is required.');
     if (!form.city) errors.push('City is required so hosts can find you.');
+    if (form.payout_upi && !/^[\w.-]{2,}@[a-zA-Z]{2,}$/.test(form.payout_upi)) errors.push('UPI ID looks invalid (e.g. noormahal@okhdfc).');
+    if (form.payout_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(form.payout_ifsc)) errors.push('IFSC code looks invalid (e.g. HDFC0001234).');
+    if (form.payout_account && !/^\d{9,18}$/.test(form.payout_account)) errors.push('Bank account number should be 9–18 digits.');
     if (errors.length) return res.status(422).render('restaurant/profile', { title: 'Restaurant profile', form, errors });
-    db.prepare('UPDATE restaurants SET name=?, description=?, cuisine=?, address=?, area=?, city=?, phone=? WHERE id=?')
-      .run(form.name, form.description, form.cuisine, form.address, form.area, form.city, form.phone, req.restaurant.id);
+    db.prepare(`UPDATE restaurants SET name=?, description=?, cuisine=?, address=?, area=?, city=?, phone=?,
+                payout_name=?, payout_upi=?, payout_account=?, payout_ifsc=? WHERE id=?`)
+      .run(form.name, form.description, form.cuisine, form.address, form.area, form.city, form.phone,
+        form.payout_name, form.payout_upi, form.payout_account, form.payout_ifsc, req.restaurant.id);
     req.flash('success', 'Profile updated.');
     res.redirect('/restaurant');
   });

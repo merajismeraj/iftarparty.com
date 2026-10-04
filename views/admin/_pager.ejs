@@ -1,0 +1,8 @@
+<% if (pages > 1) {
+  const link = (p) => { const s = new URLSearchParams(Object.entries(q).filter(([k, v]) => v && k !== 'page' && typeof v === 'string')); s.set('page', p); return `?${s}`; }; %>
+  <nav class="pager">
+    <% if (page > 1) { %><a class="btn btn-ghost btn-small" href="<%= link(page - 1) %>">← Previous</a><% } %>
+    <span class="muted small">Page <%= page %> of <%= pages %> · <%= total %> total</span>
+    <% if (page < pages) { %><a class="btn btn-ghost btn-small" href="<%= link(page + 1) %>">Next →</a><% } %>
+  </nav>
+<% } %>

@@ -7,6 +7,7 @@ const config = require('./config');
 const money = require('./services/money');
 const fmt = require('./services/format');
 const payments = require('./services/payments');
+const settings = require('./services/settings');
 const { loadUser } = require('./middleware/auth');
 const { flash, csrf } = require('./middleware/session-helpers');
 
@@ -20,17 +21,20 @@ function createApp(db) {
     contentSecurityPolicy: {
       directives: {
         'default-src': ["'self'"],
+        'script-src': ["'self'", 'https://sdk.cashfree.com'],
+        'connect-src': ["'self'", 'https://sdk.cashfree.com', 'https://*.cashfree.com'],
+        'frame-src': ['https://*.cashfree.com'],
         'img-src': ["'self'", 'data:'],
         'style-src': ["'self'", 'https://fonts.googleapis.com'],
         'font-src': ["'self'", 'https://fonts.gstatic.com'],
-        // Chrome applies form-action to the redirect that follows a POST, so allow Stripe Checkout.
-        'form-action': ["'self'", 'https://checkout.stripe.com'],
+        // The Cashfree SDK hands off to its hosted checkout via a form post.
+        'form-action': ["'self'", 'https://*.cashfree.com'],
         'upgrade-insecure-requests': config.isProduction ? [] : null,
       },
     },
   }));
 
-  // Stripe needs the raw body to verify signatures, so mount before body parsers.
+  // Payment webhooks need the raw body to verify signatures, so mount before body parsers.
   app.use('/webhooks', require('./routes/webhooks')(db));
 
   app.use('/static', express.static(path.join(config.root, 'public'), { maxAge: config.isProduction ? '7d' : 0 }));
@@ -48,7 +52,7 @@ function createApp(db) {
   app.use((req, res, next) => {
     Object.assign(res.locals, {
       money, fmt, path: req.path, query: req.query,
-      currency: config.currency, feePercent: config.platformFeePercent, holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
+      currency: config.currency, feePercent: settings.feePercent(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
       paymentsLive: payments.isLive(), title: null, user: null, restaurant: null, csrfToken: '',
     });
     next();
@@ -59,6 +63,7 @@ function createApp(db) {
   app.use(require('./routes/public')(db));
   app.use(require('./routes/auth')(db));
   app.use('/restaurant', require('./routes/restaurant')(db));
+  app.use('/admin', require('./routes/admin')(db));
   app.use(require('./routes/bookings')(db));
   app.use(require('./routes/rsvp')(db));
 

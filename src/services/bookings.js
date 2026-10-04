@@ -2,6 +2,7 @@
 const config = require('../config');
 const { transaction } = require('../db');
 const pricing = require('./pricing');
+const settings = require('./settings');
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -68,7 +69,10 @@ function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arriva
 
   return transaction(db, () => {
     expireStaleHolds(db);
-    const venue = db.prepare('SELECT * FROM venues WHERE id = ? AND active = 1').get(venueId);
+    const venue = db.prepare(
+      `SELECT v.* FROM venues v JOIN restaurants r ON r.id = v.restaurant_id
+       WHERE v.id = ? AND v.active = 1 AND r.status = 'approved'`
+    ).get(venueId);
     if (!venue) throw new BookingError('This venue is no longer available.');
     const menu = db
       .prepare('SELECT * FROM menus WHERE id = ? AND restaurant_id = ? AND active = 1')
@@ -83,7 +87,9 @@ function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arriva
     }
 
     const host = db.prepare('SELECT name FROM users WHERE id = ?').get(hostId);
-    const q = pricing.quote({ pricePerPerson: menu.price_per_person, guestCount: guests, hireFee: venue.hire_fee });
+    const q = pricing.quote({
+      pricePerPerson: menu.price_per_person, guestCount: guests, hireFee: venue.hire_fee, feePercent: settings.feePercent(db),
+    });
     const holdExpires = new Date(Date.now() + config.holdMinutes * 60_000).toISOString();
     const info = db
       .prepare(

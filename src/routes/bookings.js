@@ -4,6 +4,8 @@ const { requireAuth } = require('../middleware/auth');
 const { guestList: guestListUpload } = require('../middleware/uploads');
 const svc = require('../services/bookings');
 const payments = require('../services/payments');
+const checkout = require('../services/checkout');
+const { normalizePhone } = require('../services/guestlist');
 const invites = require('../services/invites');
 const { parseGuestList } = require('../services/guestlist');
 const { transaction } = require('../db');
@@ -64,48 +66,88 @@ module.exports = (db) => {
       req.flash('error', 'Your hold on this venue expired. Please reserve again.');
       return res.redirect(`/venues/${b.venue_id}?date=${b.event_date}&guests=${b.guest_count}&menu=${b.menu_id}`);
     }
-    res.redirect(303, await payments.startCheckout(b));
+    // The gateway needs a mobile number; collect it once for accounts created without one.
+    if (!req.user.phone) {
+      const phone = normalizePhone(req.body.phone);
+      if (!phone) {
+        req.flash('error', 'Please enter a valid mobile number to continue to payment.');
+        return res.redirect(`/bookings/${b.id}/checkout`);
+      }
+      db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, req.user.id);
+      req.user.phone = phone;
+    }
+    let start;
+    try {
+      start = await checkout.startPayment(db, b, req.user);
+    } catch (err) {
+      if (!(err instanceof payments.PaymentError)) throw err;
+      console.error(`[payment] create order for booking ${b.id} failed:`, err.message);
+      req.flash('error', 'We couldn’t reach the payment gateway. Please try again in a moment.');
+      return res.redirect(`/bookings/${b.id}/checkout`);
+    }
+    if (start.demo) return res.redirect(303, `/bookings/${b.id}/demo-pay?order=${encodeURIComponent(start.orderId)}`);
+    res.render('host/cashfree', { title: 'Redirecting to payment', b, sessionId: start.sessionId, mode: payments.sdkMode() });
   });
 
+  // Cashfree sends the host back here; the order is re-fetched server-side, never trusted from the URL.
   router.get('/bookings/:id/payment-return', host, async (req, res) => {
     const b = ownBooking(req, res);
     if (!b) return;
-    const paid = await payments.verifySession(req.query.session_id, b.id);
-    if (!paid) {
-      req.flash('error', 'We couldn’t confirm your payment yet. If you were charged, it will appear here within a minute.');
+    const orderId = String(req.query.order_id || '');
+    if (payments.bookingIdFromOrder(orderId) !== b.id) return res.redirect(`/bookings/${b.id}/checkout`);
+    let result;
+    try {
+      result = await checkout.settleOrder(db, orderId);
+    } catch (err) {
+      if (!(err instanceof payments.PaymentError)) throw err;
+      req.flash('info', 'We’re confirming your payment with the bank. This page will update shortly – please don’t pay again.');
       return res.redirect(`/bookings/${b.id}/checkout`);
     }
-    return finishPayment(req, res, b, paid);
+    return afterSettle(req, res, b, result);
   });
 
-  // Built-in payment simulator, available only when Stripe is not configured.
+  // Built-in payment simulator, available only when Cashfree is not configured.
   router.get('/bookings/:id/demo-pay', host, (req, res) => {
     if (payments.isLive()) return res.redirect(`/bookings/${req.params.id}/checkout`);
     const b = ownBooking(req, res);
     if (!b) return;
     if (b.status === 'confirmed') return res.redirect(`/bookings/${b.id}`);
-    res.render('host/demo-pay', { title: 'Payment', b });
+    res.render('host/demo-pay', { title: 'Payment', b, orderId: String(req.query.order || '') });
   });
 
-  router.post('/bookings/:id/demo-pay', host, (req, res) => {
+  router.post('/bookings/:id/demo-pay', host, async (req, res) => {
     if (payments.isLive()) return res.status(404).end();
     const b = ownBooking(req, res);
     if (!b) return;
-    return finishPayment(req, res, b, { provider: 'demo', ref: `demo_${Date.now()}` });
+    const p = db.prepare(`SELECT * FROM payments WHERE order_id = ? AND booking_id = ? AND provider = 'demo'`).get(String(req.body.order_id || ''), b.id);
+    if (!p) {
+      req.flash('error', 'Payment session not found. Please start payment again.');
+      return res.redirect(`/bookings/${b.id}/checkout`);
+    }
+    return afterSettle(req, res, b, await checkout.settleOrder(db, p.order_id));
   });
 
-  function finishPayment(req, res, b, paid) {
-    const r = svc.confirmPayment(db, b.id, paid);
-    if (r.conflict) {
-      req.flash('error', 'Payment received, but the venue was taken after your hold expired. A full refund is being issued.');
-      return res.redirect('/my-parties');
+  function afterSettle(req, res, b, result) {
+    switch (result.state) {
+      case 'confirmed':
+        req.flash('success', `Reserved! ${b.venue_name} now shows “${b.title}” on ${b.event_date}. Next: add your guest list.`);
+        return res.redirect(`/bookings/${b.id}?welcome=1#guests`);
+      case 'unpaid':
+        req.flash('error', 'Payment was not completed. You can try again while your hold lasts.');
+        return res.redirect(`/bookings/${b.id}/checkout`);
+      case 'duplicate_refunded':
+        req.flash('info', 'This booking was already paid, so your second payment is being refunded in full.');
+        return res.redirect(`/bookings/${b.id}`);
+      case 'conflict_refunded':
+        req.flash('error', 'Payment received, but the venue was taken after your hold expired. A full refund has been initiated.');
+        return res.redirect('/my-parties');
+      case 'cancelled_refunded':
+        req.flash('error', 'This reservation was cancelled before payment completed. A full refund has been initiated.');
+        return res.redirect('/my-parties');
+      default:
+        req.flash('error', 'We couldn’t verify this payment. Our team has been alerted – please contact support before paying again.');
+        return res.redirect(`/bookings/${b.id}/checkout`);
     }
-    if (!r.ok) {
-      req.flash('error', 'This booking was cancelled.');
-      return res.redirect('/my-parties');
-    }
-    req.flash('success', `Reserved! ${b.venue_name} now shows “${b.title}” on ${b.event_date}. Next: add your guest list.`);
-    res.redirect(`/bookings/${b.id}?welcome=1#guests`);
   }
 
   router.post('/bookings/:id/cancel', host, (req, res) => {
