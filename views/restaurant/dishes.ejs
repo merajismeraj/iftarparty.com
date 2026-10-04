@@ -1,0 +1,42 @@
+<%- include('../partials/head') %>
+<section class="wrap section">
+  <p class="crumbs"><a href="/restaurant">Dashboard</a> › Dish catalogue</p>
+  <div class="section-head">
+    <div><h1>Dish catalogue</h1>
+      <p class="muted">List every dish you can serve. Then build packages (e.g. Silver, Gold, Platinum) that let hosts pick a set number of dishes per course. Marking a dish unavailable removes it from every package instantly.</p></div>
+    <a class="btn" href="/restaurant/menus/new?kind=package">+ Build a package</a>
+  </div>
+
+  <form class="card form-card dish-add" method="post" action="/restaurant/dishes">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label class="field"><span>Dish</span><input name="name" required maxlength="120" placeholder="Mutton seekh kebab"></label>
+    <label class="field"><span>Course</span><select name="course" required><% courses.forEach(([k, l]) => { %><option value="<%= k %>"><%= l %></option><% }) %></select></label>
+    <label class="field"><span>Type</span><select name="diet"><option value="non-veg">Non-veg</option><option value="veg">Veg</option></select></label>
+    <label class="field"><span>Note (optional)</span><input name="description" maxlength="300" placeholder="Chef’s special"></label>
+    <button class="btn btn-gold">Add dish</button>
+  </form>
+
+  <% groups.forEach(g => { %>
+    <h2 class="h3" id="<%= g.course %>"><%= g.label %> <span class="muted small">(<%= g.dishes.filter(d => d.active).length %>)</span></h2>
+    <% if (!g.dishes.length) { %><p class="muted small">No dishes yet.</p><% } else { %>
+    <div class="table-wrap"><table>
+      <tbody><% g.dishes.forEach(d => { %>
+        <tr class="<%= d.active ? '' : 'inactive' %>">
+          <td>
+            <form method="post" action="/restaurant/dishes/<%= d.id %>" class="dish-edit">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <input name="name" value="<%= d.name %>" required maxlength="120" aria-label="Dish name">
+              <select name="course" aria-label="Course"><% courses.forEach(([k, l]) => { %><option value="<%= k %>" <%= d.course === k ? 'selected' : '' %>><%= l %></option><% }) %></select>
+              <select name="diet" aria-label="Type"><option value="non-veg" <%= d.diet === 'non-veg' ? 'selected' : '' %>>Non-veg</option><option value="veg" <%= d.diet === 'veg' ? 'selected' : '' %>>Veg</option></select>
+              <input name="description" value="<%= d.description %>" maxlength="300" placeholder="Note" aria-label="Note">
+              <button class="btn btn-small btn-ghost">Save</button>
+            </form>
+          </td>
+          <td class="nowrap"><form method="post" action="/restaurant/dishes/<%= d.id %>/toggle" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small btn-ghost"><%= d.active ? 'Mark unavailable' : 'Make available' %></button></form></td>
+        </tr>
+      <% }) %></tbody>
+    </table></div>
+    <% } %>
+  <% }) %>
+</section>
+<%- include('../partials/foot') %>

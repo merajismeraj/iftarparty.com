@@ -223,7 +223,7 @@ module.exports = (db) => {
        WHERE a.entity_type = 'booking' AND a.entity_id = ? ORDER BY a.id DESC`
     ).all(b.id);
     res.render('admin/booking', {
-      title: `Booking #${b.id}`, b, ledger, addons: svc.bookingAddons(db, b.id), rsvp: svc.rsvpSummary(db, b.id), messages, log,
+      title: `Booking #${b.id}`, b, ledger, addons: svc.bookingAddons(db, b.id), dishes: require('../services/packages').bookingSelection(db, b.id), rsvp: svc.rsvpSummary(db, b.id), messages, log,
       paid: checkout.bookingPayment(db, b), today: svc.todayISO(),
     });
   });

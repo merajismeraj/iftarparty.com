@@ -8,6 +8,7 @@ const money = require('./services/money');
 const fmt = require('./services/format');
 const payments = require('./services/payments');
 const settings = require('./services/settings');
+const packages = require('./services/packages');
 const { loadUser } = require('./middleware/auth');
 const { flash, csrf } = require('./middleware/session-helpers');
 
@@ -51,7 +52,7 @@ function createApp(db) {
   app.use(flash);
   app.use((req, res, next) => {
     Object.assign(res.locals, {
-      money, fmt, path: req.path, query: req.query,
+      money, fmt, packages, path: req.path, query: req.query,
       currency: config.currency, feePercent: settings.feePercent(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
       paymentsLive: payments.isLive(), title: null, user: null, restaurant: null, csrfToken: '',
     });

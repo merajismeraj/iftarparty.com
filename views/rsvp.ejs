@@ -11,7 +11,7 @@
     <dl class="invite-details">
       <div><dt>When</dt><dd><%= fmt.longDate(booking.event_date) %><br><%= fmt.time12(booking.arrival_time) %> — before Maghrib</dd></div>
       <div><dt>Where</dt><dd><strong><%= booking.venue_name %></strong><br><%= booking.restaurant_name %><br><%= [booking.address, booking.area, booking.city].filter(Boolean).join(', ') %></dd></div>
-      <div><dt>Menu</dt><dd><%= booking.menu_name %></dd></div>
+      <div><dt>Menu</dt><dd><%= booking.menu_name %><% if (dishes.length) { %><span class="menu-selection small"><% dishes.forEach(g => { %><span><%= g.dishes.map(d => d.name).join(' · ') %></span><% }) %></span><% } %></dd></div>
     </dl>
     <%- include('partials/flash') %>
     <% if (cancelled) { %>

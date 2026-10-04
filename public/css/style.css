@@ -373,3 +373,35 @@ blockquote cite { display: block; font: normal .9rem var(--sans); color: var(--m
   .reply-form, .mod-reject { flex-direction: column; }
   .mod-reject input { width: 100%; }
 }
+
+/* Packages */
+.kind-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.course-block { border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.course-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.dish-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.dish-pill { display: inline-flex; align-items: center; gap: 6px; padding: .35em .75em; border: 1.5px solid var(--line); border-radius: 999px; font-size: .9rem; cursor: pointer; background: #fff; }
+.dish-pill:has(input:checked) { border-color: var(--night); background: #f4f6fb; }
+.dish-pill:has(input:disabled) { opacity: .45; cursor: not-allowed; }
+.diet-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; border: 1.5px solid currentColor; }
+.diet-dot.diet-veg { color: var(--ok); background: transparent; }
+.diet-dot.diet-non-veg { color: var(--bad); background: transparent; }
+.dish-add { display: grid; grid-template-columns: 2fr 1.2fr 1fr 2fr auto; gap: 10px; align-items: end; margin-bottom: 20px; }
+.dish-add .field { margin: 0; }
+.dish-edit { display: grid; grid-template-columns: 2fr 1.2fr 1fr 2fr auto; gap: 6px; }
+.dish-edit input, .dish-edit select { padding: .35em .5em; font-size: .9rem; }
+.package-courses { margin: 6px 0 0; display: grid; gap: 6px; }
+.package-courses .course-line { font-size: .92rem; }
+.picker { border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: -2px 0 10px; }
+.picker .course-head { margin-bottom: 4px; font-size: .9rem; }
+.picker .count { font-weight: 700; }
+.picker .count.done { color: var(--ok); }
+.budget-badge { display: inline-block; padding: .15em .6em; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+.budget-ok { background: var(--ok-bg); color: var(--ok); }
+.budget-over { background: var(--bad-bg); color: var(--bad); }
+.menu-selection { display: grid; gap: 4px; margin: 6px 0; font-size: .93rem; }
+@media (max-width: 760px) {
+  .dish-add, .dish-edit, .kind-choice { grid-template-columns: 1fr; }
+}
+.budget-inputs { display: flex; gap: 4px; }
+.budget-inputs input { min-width: 0; }
+.budget-inputs select { width: auto; padding-inline: .4em; }

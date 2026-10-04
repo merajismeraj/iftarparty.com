@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const svc = require('../services/bookings');
+const packages = require('../services/packages');
 
 const MAX_PARTY = 10;
 
@@ -22,7 +23,7 @@ module.exports = (db) => {
     const ctx = load(req.params.token);
     if (!ctx) return gone(res);
     res.set('Referrer-Policy', 'no-referrer');
-    res.render('rsvp', { title: ctx.booking.title, ...ctx, cancelled: ctx.booking.status === 'cancelled', closed: ctx.booking.event_date < svc.todayISO(), maxParty: MAX_PARTY, bare: true });
+    res.render('rsvp', { title: ctx.booking.title, ...ctx, dishes: packages.bookingSelection(db, ctx.booking.id), cancelled: ctx.booking.status === 'cancelled', closed: ctx.booking.event_date < svc.todayISO(), maxParty: MAX_PARTY, bare: true });
   });
 
   router.post('/rsvp/:token', (req, res) => {

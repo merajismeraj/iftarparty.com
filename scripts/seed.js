@@ -49,6 +49,29 @@ const restaurants = [
       { name: 'Royal Awadhi Feast', price: 165000, diet: 'non-veg', min: 30, items: 'Dates & fresh juices\nGalouti kebab\nNihari with sheermal\nMutton dum biryani\nShahi tukda\nKahwa' },
       { name: 'Vegetarian Iftar', price: 75000, diet: 'veg', min: 15, items: 'Dates & lemonade\nDahi vada\nPaneer tikka\nVeg biryani\nKheer' },
     ],
+    dishes: {
+      openers: [['Dates & Rooh Afza', 'veg'], ['Fruit chaat', 'veg'], ['Dahi phulki', 'veg']],
+      starters: [['Chicken samosa', 'non-veg'], ['Veg samosa', 'veg'], ['Paneer tikka', 'veg'], ['Chicken 65', 'non-veg'], ['Seekh kebab', 'non-veg'], ['Galouti kebab', 'non-veg']],
+      mains: [['Chicken haleem', 'non-veg'], ['Butter chicken', 'non-veg'], ['Dal makhani', 'veg'], ['Paneer lababdar', 'veg'], ['Mutton haleem', 'non-veg'], ['Nihari', 'non-veg']],
+      rice: [['Chicken biryani', 'non-veg'], ['Veg biryani', 'veg'], ['Mutton dum biryani', 'non-veg']],
+      breads: [['Khamiri roti', 'veg'], ['Rumali roti', 'veg'], ['Sheermal', 'veg']],
+      desserts: [['Phirni', 'veg'], ['Kheer', 'veg'], ['Gulab jamun', 'veg'], ['Shahi tukda', 'veg']],
+      beverages: [['Rose milk', 'veg'], ['Kahwa', 'veg']],
+    },
+    packages: [
+      { name: 'Silver Iftar Package', price: 69900, min: 25, diet: 'mixed', description: 'Great value for large family gatherings.',
+        rules: { openers: [2, 'Dates & Rooh Afza', 'Fruit chaat', 'Dahi phulki'], starters: [2, 'Chicken samosa', 'Veg samosa', 'Paneer tikka', 'Chicken 65'],
+          mains: [1, 'Chicken haleem', 'Butter chicken', 'Dal makhani', 'Paneer lababdar'], rice: [1, 'Chicken biryani', 'Veg biryani'],
+          breads: [1, 'Khamiri roti', 'Rumali roti'], desserts: [1, 'Phirni', 'Kheer', 'Gulab jamun'] } },
+      { name: 'Gold Iftar Package', price: 99900, min: 25, diet: 'mixed', description: 'Our most popular tier – adds mutton haleem and seekh kebab.',
+        rules: { openers: [2, 'Dates & Rooh Afza', 'Fruit chaat', 'Dahi phulki'], starters: [3, 'Chicken samosa', 'Veg samosa', 'Paneer tikka', 'Chicken 65', 'Seekh kebab'],
+          mains: [2, 'Chicken haleem', 'Butter chicken', 'Dal makhani', 'Paneer lababdar', 'Mutton haleem'], rice: [1, 'Chicken biryani', 'Veg biryani', 'Mutton dum biryani'],
+          breads: [2, 'Khamiri roti', 'Rumali roti', 'Sheermal'], desserts: [2, 'Phirni', 'Kheer', 'Gulab jamun'], beverages: [1, 'Rose milk', 'Kahwa'] } },
+      { name: 'Platinum Awadhi Package', price: 149900, min: 20, diet: 'mixed', description: 'The full Lucknowi spread with galouti, nihari and shahi tukda.',
+        rules: { openers: [3, 'Dates & Rooh Afza', 'Fruit chaat', 'Dahi phulki'], starters: [4, 'Chicken samosa', 'Veg samosa', 'Paneer tikka', 'Chicken 65', 'Seekh kebab', 'Galouti kebab'],
+          mains: [3, 'Chicken haleem', 'Butter chicken', 'Dal makhani', 'Paneer lababdar', 'Mutton haleem', 'Nihari'], rice: [2, 'Chicken biryani', 'Veg biryani', 'Mutton dum biryani'],
+          breads: [2, 'Khamiri roti', 'Rumali roti', 'Sheermal'], desserts: [2, 'Phirni', 'Kheer', 'Gulab jamun', 'Shahi tukda'], beverages: [2, 'Rose milk', 'Kahwa'] } },
+    ],
     addons: [
       { name: 'Live Kebab Grill', category: 'food', pricing: 'per_guest', price: 18000, description: 'Chef-manned grill with seekh, boti and malai tikka served hot.' },
       { name: 'Sheer Khurma & Dessert Counter', category: 'food', pricing: 'per_guest', price: 12000, description: 'Sheer khurma, phirni, kunafa and seasonal fruit.' },
@@ -99,6 +122,18 @@ transaction(db, () => {
       venueIds.push({ vid, rid, v, pending: Boolean(spec.status) });
       ['', ' – Seating', ' – Décor'].forEach((suffix, i) => {
         db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, placeholder(`${v.name}${suffix}`, 210 + ri * 40 + vi * 15 + i * 10), i);
+      });
+    });
+    const dishIds = {};
+    Object.entries(spec.dishes || {}).forEach(([course, list]) => list.forEach(([name, diet]) => {
+      dishIds[name] = Number(db.prepare('INSERT INTO dishes (restaurant_id, name, course, diet) VALUES (?, ?, ?, ?)').run(rid, name, course, diet).lastInsertRowid);
+    }));
+    (spec.packages || []).forEach((pk) => {
+      const mid = Number(db.prepare(`INSERT INTO menus (restaurant_id, kind, name, description, items, diet, price_per_person, min_pax) VALUES (?, 'package', ?, ?, '', ?, ?, ?)`)
+        .run(rid, pk.name, pk.description, pk.diet, pk.price, pk.min).lastInsertRowid);
+      Object.entries(pk.rules).forEach(([course, [choose, ...names]]) => {
+        db.prepare('INSERT INTO menu_rules (menu_id, course, choose) VALUES (?, ?, ?)').run(mid, course, choose);
+        names.forEach((n) => db.prepare('INSERT INTO menu_dishes (menu_id, dish_id) VALUES (?, ?)').run(mid, dishIds[n]));
       });
     });
     (spec.addons || []).forEach((a) => db.prepare('INSERT INTO addons (restaurant_id, name, description, category, pricing, price) VALUES (?, ?, ?, ?, ?, ?)')

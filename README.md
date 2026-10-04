@@ -7,13 +7,16 @@ Reserve private party halls at local restaurants for Iftar gatherings, pay onlin
 **Restaurants**
 - Sign up as a restaurant partner. Add halls with min/max guest count (pax), a hall hire fee and photos (JPG/PNG/WebP, up to 8).
 - Add Iftar menus with a per-guest price, minimum guests, veg/non-veg flag and the dishes included.
-- Add **packages & add-ons** such as a live grill, dessert counter, décor or photography. Each is priced **per guest** or **per event** and can be added to any menu.
+- Build a **dish catalogue** (openers, starters, mains, biryani & rice, breads, desserts, beverages; veg or non-veg).
+- Offer **set menus** (a fixed list of dishes) and/or **packages**: budget tiers like *Silver ₹699 · Gold ₹999 · Platinum ₹1,499* per guest. Each package sets how many dishes the host chooses per course (e.g. *3 starters · 2 mains · 2 desserts*) and which dishes are eligible, so premium dishes can be kept for higher tiers. Marking a dish unavailable removes it from every package at once.
+- Add **extras** such as a live grill, dessert counter, décor or photography, priced **per guest** or **per event**.
 - Read published reviews and reply. Replies are moderated before they appear.
 - The dashboard shows upcoming parties, each host's contact details, the RSVP headcount and the payout.
 
 **Hosts**
-- Search by **location**, **date**, **guest count**, **menu or cuisine** (e.g. "haleem"), **max price per guest** and diet. You can sort by price, size or newest.
-- On a venue page, pick a date, guest count, menu and any packages, and the **full price shows live** (food + packages + hall fee + service fee). Each package bought is saved with the booking at its quoted price, so later price edits never change what was paid. The server recalculates it, so a client can't change the price.
+- Search by **location**, **date**, **guest count**, **menu, dish or cuisine** (dish names inside packages match too), **budget** and diet. The budget can be **per guest** or a **total for the event**: food + hall + service fee for your guest count, before extras. Cards show a *Fits budget* estimate. Sort by price, top rated, size or newest.
+- On a venue page, every menu and package is marked **Within budget** or **Over budget by ₹X**. Pick a date, guest count and menu or package, choose dishes per course (the picker stops at each course's limit) and any extras. The **full price shows live**, along with how much of your budget is left.
+- Dish picks and extras are saved with the booking at their quoted prices. Hosts can **change dishes until 2 days before the Iftar**; after that the menu is final for the kitchen. Picks appear on the checkout page, the host's party page, the restaurant dashboard, the admin booking page and the guests' invitations. The server recalculates it, so a client can't change the price.
 - Reserving holds the hall for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
 - After payment you're sent straight to **upload your invite list** as a CSV or pasted rows with name, email and mobile. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
 - Guests reply Yes, Maybe or No with the number of people coming and a note. The host's dashboard shows **attending, total heads, maybe, declined and awaiting reply**, plus a bar comparing confirmed heads to guests booked. You can send reminders to anyone who hasn't replied and export the RSVPs to CSV.
@@ -32,7 +35,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 57 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 67 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -98,7 +101,7 @@ npm run admin -- promote someone@example.com
 ## Architecture
 
 - **Express 5 + EJS** server-rendered pages, with a small vanilla JS file for the live quote, availability check and hold countdown.
-- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v4), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
+- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v5), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
 - **Double-booking protection:** the hold is taken inside a synchronous `BEGIN IMMEDIATE` transaction. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
 - **Security:** bcrypt passwords, signed httpOnly session cookies, CSRF tokens on every form, Helmet CSP, ownership checks on every restaurant and booking route, image-only uploads with size limits, rate-limited login, and spreadsheet-formula escaping in CSV exports.
 
@@ -106,7 +109,7 @@ npm run admin -- promote someone@example.com
 src/
   app.js, server.js, config.js, db.js
   routes/      public (search, venue) · auth · restaurant · bookings · rsvp · admin · webhooks
-  services/    bookings (holds/confirm) · reviews · checkout (ledger, refunds) · payments (Cashfree) · pricing · settings · audit · invites · notify · guestlist
+  services/    bookings (holds/confirm) · packages · reviews · checkout (ledger, refunds) · payments (Cashfree) · pricing · settings · audit · invites · notify · guestlist
 views/         EJS pages + email template
 public/        CSS, JS
 scripts/seed.js, scripts/create-admin.js

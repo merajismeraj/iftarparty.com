@@ -3,7 +3,7 @@ const { test, describe, before } = require('node:test');
 const assert = require('node:assert/strict');
 const { makeApp, csrf, futureDate, seedMarketplace, signin, request } = require('./helpers');
 
-describe('menu packages & add-ons', () => {
+describe('extras & add-ons', () => {
   const { db, app } = makeApp();
   let fx;
   let owner;
@@ -19,7 +19,7 @@ describe('menu packages & add-ons', () => {
     host = await signin(app, 'host@fixture.test');
   });
 
-  test('restaurant creates per-guest and flat packages; bad input is rejected', async () => {
+  test('restaurant creates per-guest and flat extras; bad input is rejected', async () => {
     let token = await csrf(owner, '/restaurant/addons/new');
     await owner.post('/restaurant/addons').type('form').send({ _csrf: token, name: 'Free?', pricing: 'flat', price: '0' }).expect(422);
     token = await csrf(owner, '/restaurant/addons/new');
@@ -34,13 +34,13 @@ describe('menu packages & add-ons', () => {
     assert.match(dash.text, /Live Kebab Grill/);
   });
 
-  test('venue page offers packages with data for the live quote', async () => {
+  test('venue page offers extras with data for the live quote', async () => {
     const page = await request(app).get(`/venues/${fx.venueId}`).expect(200);
-    assert.match(page.text, /Packages &amp; add-ons/);
+    assert.match(page.text, /Extras &amp; add-ons/);
     assert.match(page.text, new RegExp(`name="addon_ids" value="${grill.id}" data-addon-price="15000" data-addon-pricing="per_guest"`));
   });
 
-  test('reserving with packages prices them server-side and snapshots each line', async () => {
+  test('reserving with extras prices them server-side and snapshots each line', async () => {
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
       .send({ _csrf: token, date: futureDate(15), guests: '40', menu_id: fx.menuId, addon_ids: [String(grill.id), String(decor.id)] }).expect(302);
@@ -61,7 +61,7 @@ describe('menu packages & add-ons', () => {
     assert.equal(db.prepare('SELECT addons_total FROM bookings WHERE id = ?').get(id).addons_total, 1100000);
   });
 
-  test('packages from another restaurant or withdrawn ones are refused', async () => {
+  test('extras from another restaurant or withdrawn ones are refused', async () => {
     const other = seedMarketplace(db, { hostEmail: 'host@fixture.test' });
     const foreign = db.prepare(`INSERT INTO addons (restaurant_id, name, pricing, price) VALUES (?, 'Elsewhere', 'flat', 100)`).run(other.restaurantId).lastInsertRowid;
     let token = await csrf(host, `/venues/${fx.venueId}`);
@@ -80,7 +80,7 @@ describe('menu packages & add-ons', () => {
     assert.doesNotMatch((await request(app).get(`/venues/${fx.venueId}`)).text, /Ramadan Décor/);
   });
 
-  test('a restaurant cannot edit another restaurant’s package', async () => {
+  test('a restaurant cannot edit another restaurant’s extra', async () => {
     const foreign = db.prepare(`SELECT id FROM addons WHERE name = 'Elsewhere'`).get().id;
     await owner.get(`/restaurant/addons/${foreign}/edit`).expect(404);
     const token = await csrf(owner, '/restaurant');

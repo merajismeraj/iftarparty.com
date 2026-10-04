@@ -1,0 +1,26 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <p class="crumbs"><a href="/my-parties">My parties</a> › <a href="/bookings/<%= b.id %>"><%= b.title %></a> › Menu</p>
+  <div class="card form-card">
+    <h1 class="h2">Your <%= b.menu_name %> dishes</h1>
+    <p class="muted"><%= b.guest_count %> guests · <%= fmt.longDate(b.event_date) %>. Your price stays the same – you can change dishes until <%= packages.EDIT_CUTOFF_DAYS %> days before the Iftar.</p>
+    <% if (error) { %><div class="flash flash-error" role="alert"><%= error %></div><% } %>
+    <form method="post" action="/bookings/<%= b.id %>/menu" data-picker-form>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="picker" data-picker-for="edit">
+        <% rules.forEach(r => { %>
+          <div class="course-block" data-course data-choose="<%= r.choose %>">
+            <div class="course-head"><strong><%= r.label %></strong><span class="small">choose up to <%= r.choose %> · <span class="count" data-course-count>0</span>/<%= r.choose %></span></div>
+            <div class="dish-pills">
+              <% r.dishes.forEach(d => { %>
+                <label class="dish-pill"><input type="checkbox" name="dish_ids" value="<%= d.id %>" <%= picked.has(String(d.id)) ? 'checked' : '' %>> <span class="diet-dot diet-<%= d.diet %>"></span><%= d.name %></label>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <button class="btn btn-gold btn-block">Save menu</button>
+    </form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

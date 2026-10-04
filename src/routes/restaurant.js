@@ -5,6 +5,8 @@ const { requireAuth } = require('../middleware/auth');
 const { images: imageUpload, removeUpload } = require('../middleware/uploads');
 const { todayISO, rsvpSummary, bookingAddons } = require('../services/bookings');
 const reviews = require('../services/reviews');
+const packages = require('../services/packages');
+const { transaction } = require('../db');
 
 const DIETS = ['veg', 'non-veg', 'mixed'];
 const str = (v, max = 2000) => String(v ?? '').trim().slice(0, max);
@@ -32,22 +34,36 @@ function addonFromBody(b) {
     pricing: b.pricing === 'flat' ? 'flat' : 'per_guest', price: money.toMinor(b.price),
   };
   const errors = [];
-  if (!a.name) errors.push('Give the package a name, e.g. “Live Shawarma Counter”.');
+  if (!a.name) errors.push('Give the extra a name, e.g. “Live Shawarma Counter”.');
   if (!(a.price > 0)) errors.push('Enter a price.');
   return { a, errors };
 }
 
 function menuFromBody(b) {
   const m = {
+    kind: b.kind === 'package' ? 'package' : 'set',
     name: str(b.name, 120), description: str(b.description, 1000), items: str(b.items, 4000),
     diet: DIETS.includes(b.diet) ? b.diet : 'non-veg', price_per_person: money.toMinor(b.price_per_person),
     min_pax: int(b.min_pax) || 1,
   };
   const errors = [];
-  if (!m.name) errors.push('Give the menu a name, e.g. “Royal Iftar Platter”.');
+  if (!m.name) errors.push(m.kind === 'package' ? 'Give the package a name, e.g. “Gold Iftar Package”.' : 'Give the menu a name, e.g. “Royal Iftar Platter”.');
   if (!(m.price_per_person > 0)) errors.push('Enter the price per person.');
-  if (!m.items) errors.push('List the dishes included in this menu.');
+  if (m.kind === 'set' && !m.items) errors.push('List the dishes included in this menu.');
+  if (m.kind === 'package') m.items = '';
   return { m, errors };
+}
+
+const DISH_DIETS = ['veg', 'non-veg'];
+function dishFromBody(b) {
+  const d = {
+    name: str(b.name, 120), description: str(b.description, 300),
+    course: packages.COURSE_KEYS.includes(b.course) ? b.course : null, diet: DISH_DIETS.includes(b.diet) ? b.diet : 'non-veg',
+  };
+  const errors = [];
+  if (!d.name) errors.push('Enter the dish name.');
+  if (!d.course) errors.push('Choose a course.');
+  return { d, errors };
 }
 
 module.exports = (db) => {
@@ -69,14 +85,15 @@ module.exports = (db) => {
               (SELECT COUNT(*) FROM bookings b WHERE b.venue_id = v.id AND b.status = 'confirmed' AND b.event_date >= ?) AS upcoming
        FROM venues v WHERE v.restaurant_id = ? ORDER BY v.active DESC, v.name`
     ).all(todayISO(), rid);
-    const menus = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY active DESC, price_per_person').all(rid);
+    const menus = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY active DESC, price_per_person').all(rid)
+      .map((m) => (m.kind === 'package' ? { ...m, rules: packages.summary(packages.load(db, m.id)) } : m));
     const addons = db.prepare('SELECT * FROM addons WHERE restaurant_id = ? ORDER BY active DESC, category, price').all(rid);
     const bookings = db.prepare(
       `SELECT b.*, v.name AS venue_name, m.name AS menu_name, u.name AS host_name, u.phone AS host_phone, u.email AS host_email
        FROM bookings b JOIN venues v ON v.id = b.venue_id JOIN menus m ON m.id = b.menu_id JOIN users u ON u.id = b.host_id
        WHERE v.restaurant_id = ? AND b.status = 'confirmed' AND b.event_date >= ?
        ORDER BY b.event_date LIMIT 50`
-    ).all(rid, todayISO()).map((b) => ({ ...b, rsvp: rsvpSummary(db, b.id), addons: bookingAddons(db, b.id) }));
+    ).all(rid, todayISO()).map((b) => ({ ...b, rsvp: rsvpSummary(db, b.id), addons: bookingAddons(db, b.id), dishes: packages.bookingSelection(db, b.id) }));
     const stats = db.prepare(
       `SELECT COUNT(*) AS bookings, COALESCE(SUM(b.total_amount - b.platform_fee), 0) AS revenue,
               COALESCE(SUM(CASE WHEN b.payout_status = 'paid' THEN b.total_amount - b.platform_fee END), 0) AS paid_out
@@ -178,33 +195,105 @@ module.exports = (db) => {
   });
 
   // ---- Menus ----
-  router.get('/menus/new', (req, res) => res.render('restaurant/menu-form', { title: 'Add an Iftar menu', menu: { diet: 'non-veg', min_pax: 1 }, errors: [] }));
+  const dishCatalog = (rid) => db.prepare('SELECT * FROM dishes WHERE restaurant_id = ? AND active = 1 ORDER BY name').all(rid);
+  const menuForm = (req, res, { title, menu, def = {}, errors = [], rawPrice = false, status = 200 }) =>
+    res.status(status).render('restaurant/menu-form', {
+      title, menu, def, errors, rawPrice, courses: packages.COURSES, dishes: dishCatalog(req.restaurant.id),
+    });
+
+  /** Validate + persist a set menu or package in one transaction. Returns the menu id or null with errors rendered. */
+  function saveMenu(req, res, existing) {
+    const { m, errors } = menuFromBody(req.body);
+    const def = m.kind === 'package' ? packages.parseDefinition(db, req.restaurant.id, req.body) : null;
+    if (def) errors.push(...def.errors);
+    if (errors.length) {
+      menuForm(req, res, {
+        title: existing ? `Edit ${existing.name}` : 'Add a menu or package', menu: { ...req.body, id: existing?.id },
+        def: req.body, errors, rawPrice: true, status: 422,
+      });
+      return null;
+    }
+    return transaction(db, () => {
+      let id = existing?.id;
+      if (existing) {
+        // Existing bookings keep the price and dishes they were quoted (stored on the booking).
+        db.prepare('UPDATE menus SET kind=?, name=?, description=?, items=?, diet=?, price_per_person=?, min_pax=? WHERE id=?')
+          .run(m.kind, m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax, id);
+      } else {
+        id = Number(db.prepare('INSERT INTO menus (restaurant_id, kind, name, description, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(req.restaurant.id, m.kind, m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax).lastInsertRowid);
+      }
+      packages.saveDefinition(db, id, def || { rules: [], dishIds: [] });
+      return id;
+    });
+  }
+
+  router.get('/menus/new', (req, res) => {
+    const kind = req.query.kind === 'package' ? 'package' : 'set';
+    menuForm(req, res, { title: kind === 'package' ? 'Add a package' : 'Add an Iftar menu', menu: { kind, diet: 'non-veg', min_pax: 1 } });
+  });
 
   router.post('/menus', (req, res) => {
-    const { m, errors } = menuFromBody(req.body);
-    if (errors.length) return res.status(422).render('restaurant/menu-form', { title: 'Add an Iftar menu', menu: req.body, errors, rawPrice: true });
-    db.prepare('INSERT INTO menus (restaurant_id, name, description, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(req.restaurant.id, m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax);
-    req.flash('success', `Menu “${m.name}” added.`);
-    res.redirect('/restaurant');
+    const id = saveMenu(req, res, null);
+    if (!id) return;
+    req.flash('success', `${req.body.kind === 'package' ? 'Package' : 'Menu'} “${str(req.body.name, 120)}” added.`);
+    res.redirect('/restaurant#menus');
   });
 
   router.get('/menus/:id/edit', (req, res) => {
     const menu = ownMenu(req);
     if (!menu) return notFound(res);
-    res.render('restaurant/menu-form', { title: `Edit ${menu.name}`, menu, errors: [] });
+    menuForm(req, res, { title: `Edit ${menu.name}`, menu, def: packages.definitionForForm(db, menu.id) });
   });
 
   router.post('/menus/:id', (req, res) => {
     const menu = ownMenu(req);
     if (!menu) return notFound(res);
-    const { m, errors } = menuFromBody(req.body);
-    if (errors.length) return res.status(422).render('restaurant/menu-form', { title: `Edit ${menu.name}`, menu: { ...req.body, id: menu.id }, errors, rawPrice: true });
-    // Existing bookings keep the price they were quoted (stored on the booking).
-    db.prepare('UPDATE menus SET name=?, description=?, items=?, diet=?, price_per_person=?, min_pax=? WHERE id=?')
-      .run(m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax, menu.id);
-    req.flash('success', 'Menu updated. Existing bookings keep their original price.');
-    res.redirect('/restaurant');
+    if (!saveMenu(req, res, menu)) return;
+    req.flash('success', 'Saved. Existing bookings keep their original price and dishes.');
+    res.redirect('/restaurant#menus');
+  });
+
+  // ---- Dish catalogue (used to build packages) ----
+  router.get('/dishes', (req, res) => {
+    const all = db.prepare('SELECT * FROM dishes WHERE restaurant_id = ? ORDER BY active DESC, name').all(req.restaurant.id);
+    const groups = packages.COURSES.map(([course, label]) => ({ course, label, dishes: all.filter((d) => d.course === course) }));
+    res.render('restaurant/dishes', { title: 'Dish catalogue', groups, courses: packages.COURSES, form: {}, errors: [], editing: null });
+  });
+
+  router.post('/dishes', (req, res) => {
+    const { d, errors } = dishFromBody(req.body);
+    if (errors.length) {
+      req.flash('error', errors.join(' '));
+      return res.redirect('/restaurant/dishes');
+    }
+    db.prepare('INSERT INTO dishes (restaurant_id, name, course, diet, description) VALUES (?, ?, ?, ?, ?)')
+      .run(req.restaurant.id, d.name, d.course, d.diet, d.description);
+    req.flash('success', `${d.name} added to ${packages.courseLabel(d.course).toLowerCase()}.`);
+    res.redirect(`/restaurant/dishes#${d.course}`);
+  });
+
+  const ownDish = (req) => db.prepare('SELECT * FROM dishes WHERE id = ? AND restaurant_id = ?').get(req.params.id, req.restaurant.id);
+
+  router.post('/dishes/:id', (req, res) => {
+    const dish = ownDish(req);
+    if (!dish) return notFound(res);
+    const { d, errors } = dishFromBody(req.body);
+    if (errors.length) req.flash('error', errors.join(' '));
+    else {
+      db.prepare('UPDATE dishes SET name=?, course=?, diet=?, description=? WHERE id=?').run(d.name, d.course, d.diet, d.description, dish.id);
+      if (d.course !== dish.course) db.prepare('DELETE FROM menu_dishes WHERE dish_id = ?').run(dish.id); // no longer eligible in its old course
+      req.flash('success', 'Dish updated.');
+    }
+    res.redirect(`/restaurant/dishes#${d.course || dish.course}`);
+  });
+
+  router.post('/dishes/:id/toggle', (req, res) => {
+    const dish = ownDish(req);
+    if (!dish) return notFound(res);
+    db.prepare('UPDATE dishes SET active = 1 - active WHERE id = ?').run(dish.id);
+    req.flash('success', dish.active ? `${dish.name} is unavailable – hidden from all packages.` : `${dish.name} is available again.`);
+    res.redirect(`/restaurant/dishes#${dish.course}`);
   });
 
   router.post('/menus/:id/toggle', (req, res) => {
@@ -239,14 +328,14 @@ module.exports = (db) => {
   const addonForm = (res, title, addon, errors, rawPrice = false, status = 200) =>
     res.status(status).render('restaurant/addon-form', { title, addon, errors, rawPrice, categories: ADDON_CATEGORIES });
 
-  router.get('/addons/new', (req, res) => addonForm(res, 'Add a package', { pricing: 'per_guest', category: 'food' }, []));
+  router.get('/addons/new', (req, res) => addonForm(res, 'Add an extra', { pricing: 'per_guest', category: 'food' }, []));
 
   router.post('/addons', (req, res) => {
     const { a, errors } = addonFromBody(req.body);
-    if (errors.length) return addonForm(res, 'Add a package', req.body, errors, true, 422);
+    if (errors.length) return addonForm(res, 'Add an extra', req.body, errors, true, 422);
     db.prepare('INSERT INTO addons (restaurant_id, name, description, category, pricing, price) VALUES (?, ?, ?, ?, ?, ?)')
       .run(req.restaurant.id, a.name, a.description, a.category, a.pricing, a.price);
-    req.flash('success', `Package “${a.name}” added. Hosts can add it to any booking.`);
+    req.flash('success', `Extra “${a.name}” added. Hosts can add it to any booking.`);
     res.redirect('/restaurant#addons');
   });
 
@@ -263,7 +352,7 @@ module.exports = (db) => {
     if (errors.length) return addonForm(res, `Edit ${addon.name}`, { ...req.body, id: addon.id }, errors, true, 422);
     db.prepare('UPDATE addons SET name=?, description=?, category=?, pricing=?, price=? WHERE id=?')
       .run(a.name, a.description, a.category, a.pricing, a.price, addon.id);
-    req.flash('success', 'Package updated. Existing bookings keep the price they paid.');
+    req.flash('success', 'Extra updated. Existing bookings keep the price they paid.');
     res.redirect('/restaurant#addons');
   });
 

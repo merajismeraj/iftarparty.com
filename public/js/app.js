@@ -25,7 +25,7 @@
       else if (menu && guests && guests < Number(menu.dataset.min)) problem = `This menu needs at least ${menu.dataset.min} guests.`;
       err.hidden = !problem;
       err.textContent = problem;
-      if (!menu || !guests || problem) { box.hidden = true; return; }
+      if (!menu || !guests || problem) { box.hidden = true; syncBudget(0, menu ? Number(menu.dataset.price) : 0); return; }
       const price = Number(menu.dataset.price);
       const food = price * guests;
       let addons = 0;
@@ -40,10 +40,45 @@
       set('[data-q-hire]', money(hireFee, currency));
       set('[data-q-fee]', money(fee, currency));
       set('[data-q-total]', money(food + hireFee + addons + fee, currency));
+      syncBudget(food + hireFee + addons + fee, price);
       box.hidden = false;
     }
-    form.addEventListener('input', update);
-    form.addEventListener('change', update);
+    // Package dish pickers: only the selected package's picker is shown and submitted,
+    // and each course stops accepting picks once its quota is reached.
+    function syncPickers() {
+      const menu = form.querySelector('input[name="menu_id"]:checked');
+      form.querySelectorAll('[data-picker-for]').forEach((p) => {
+        const active = menu && p.dataset.pickerFor === menu.value;
+        p.hidden = !active;
+        p.querySelectorAll('[data-course]').forEach((c) => {
+          const boxes = [...c.querySelectorAll('input[type=checkbox]')];
+          const n = boxes.filter((b) => b.checked).length;
+          const max = Number(c.dataset.choose);
+          boxes.forEach((b) => { b.disabled = !active || (!b.checked && n >= max); });
+          const count = c.querySelector('[data-course-count]');
+          count.textContent = n;
+          count.classList.toggle('done', n > 0);
+        });
+      });
+    }
+
+    const budgetMsg = form.querySelector('[data-budget-msg]');
+    function syncBudget(total, perGuest) {
+      if (!budgetMsg || !form.dataset.budget) return;
+      const budget = Number(form.dataset.budget);
+      const spend = form.dataset.budgetType === 'total' ? total : perGuest;
+      if (!spend) { budgetMsg.hidden = true; return; }
+      const left = budget - spend;
+      budgetMsg.hidden = false;
+      budgetMsg.className = `small ${left >= 0 ? 'good' : 'bad'}`;
+      budgetMsg.textContent = left >= 0
+        ? `Within your budget ✓ (${money(left, currency)} to spare${form.dataset.budgetType === 'total' ? '' : ' per guest'})`
+        : `Over your budget by ${money(-left, currency)}${form.dataset.budgetType === 'total' ? '' : ' per guest'}`;
+    }
+
+    form.addEventListener('input', () => { syncPickers(); update(); });
+    form.addEventListener('change', () => { syncPickers(); update(); });
+    syncPickers();
     update();
 
     const date = form.querySelector('[data-availability]');
@@ -93,6 +128,29 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-cashfree-session]').forEach(initCashfree);
+    // Restaurant menu form: show the set-menu or package section for the chosen type.
+    document.querySelectorAll('form[data-menu-form]').forEach((form) => {
+      const sync = () => {
+        const kind = form.querySelector('input[name="kind"]:checked')?.value || 'set';
+        form.querySelectorAll('[data-kind-section]').forEach((sec) => { sec.hidden = sec.dataset.kindSection !== kind; });
+      };
+      form.addEventListener('change', (e) => { if (e.target.name === 'kind') sync(); });
+      sync();
+    });
+
+    // Standalone dish picker (edit menu page): enforce per-course quotas.
+    document.querySelectorAll('form[data-picker-form]').forEach((form) => {
+      const sync = () => form.querySelectorAll('[data-course]').forEach((c) => {
+        const boxes = [...c.querySelectorAll('input[type=checkbox]')];
+        const n = boxes.filter((b) => b.checked).length;
+        boxes.forEach((b) => { b.disabled = !b.checked && n >= Number(c.dataset.choose); });
+        const count = c.querySelector('[data-course-count]');
+        count.textContent = n;
+        count.classList.toggle('done', n > 0);
+      });
+      form.addEventListener('change', sync);
+      sync();
+    });
     document.querySelectorAll('form[data-quote]').forEach(initQuote);
     document.querySelectorAll('[data-countdown]').forEach(initCountdown);
     document.addEventListener('click', (e) => {

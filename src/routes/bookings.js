@@ -10,6 +10,7 @@ const invites = require('../services/invites');
 const { parseGuestList } = require('../services/guestlist');
 const { transaction } = require('../db');
 const reviews = require('../services/reviews');
+const packages = require('../services/packages');
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -40,7 +41,7 @@ module.exports = (db) => {
       const id = svc.createHold(db, {
         venueId: Number(req.params.id), menuId: Number(req.body.menu_id), hostId: req.user.id,
         eventDate: req.body.date, guestCount: req.body.guests, arrivalTime: req.body.arrival_time,
-        addonIds: req.body.addon_ids,
+        addonIds: req.body.addon_ids, dishIds: req.body.dish_ids,
       });
       res.redirect(`/bookings/${id}/checkout`);
     } catch (err) {
@@ -48,6 +49,7 @@ module.exports = (db) => {
       req.flash('error', err.message);
       const qs = new URLSearchParams({ date: req.body.date || '', guests: req.body.guests || '', menu: req.body.menu_id || '' });
       [].concat(req.body.addon_ids || []).forEach((id) => qs.append('addon', id));
+      [].concat(req.body.dish_ids || []).forEach((id) => qs.append('dish', id));
       res.redirect(`/venues/${req.params.id}?${qs}#reserve`);
     }
   });
@@ -58,7 +60,7 @@ module.exports = (db) => {
     if (!b) return;
     if (b.status === 'confirmed') return res.redirect(`/bookings/${b.id}`);
     const expired = b.status !== 'pending_payment' || b.hold_expires_at <= new Date().toISOString();
-    res.render('host/checkout', { title: 'Review & pay', b, expired, addons: svc.bookingAddons(db, b.id) });
+    res.render('host/checkout', { title: 'Review & pay', b, expired, addons: svc.bookingAddons(db, b.id), dishes: packages.bookingSelection(db, b.id) });
   });
 
   router.post('/bookings/:id/pay', host, async (req, res) => {
@@ -192,7 +194,8 @@ module.exports = (db) => {
        ORDER BY CASE rsvp_status WHEN 'yes' THEN 0 WHEN 'maybe' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, name`
     ).all(b.id);
     res.render('host/party', {
-      title: b.title, b, guests, addons: svc.bookingAddons(db, b.id), rsvp: svc.rsvpSummary(db, b.id), welcome: req.query.welcome === '1',
+      title: b.title, b, guests, addons: svc.bookingAddons(db, b.id),
+      dishes: packages.bookingSelection(db, b.id), canEditMenu: b.menu_kind === 'package' && packages.canEditSelection(b), rsvp: svc.rsvpSummary(db, b.id), welcome: req.query.welcome === '1',
       preview: guests[0] ? invites.buildInvite(b, guests[0]) : invites.buildInvite(b, { name: 'Guest', rsvp_token: 'preview' }),
       past: b.event_date < svc.todayISO(),
     });
@@ -274,6 +277,42 @@ module.exports = (db) => {
     db.prepare('DELETE FROM guests WHERE id = ? AND booking_id = ?').run(req.params.guestId, b.id);
     req.flash('success', 'Guest removed.');
     res.redirect(`/bookings/${b.id}#guests`);
+  });
+
+  // ---- Change package dish picks (until the cutoff before the Iftar) ----
+  function menuEditGuard(req, res) {
+    const b = ownBooking(req, res);
+    if (!b) return null;
+    if (b.menu_kind !== 'package' || !packages.canEditSelection(b)) {
+      req.flash('info', `Dish selections are final ${packages.EDIT_CUTOFF_DAYS} days before the Iftar. Please call the restaurant for any changes.`);
+      res.redirect(`/bookings/${b.id}`);
+      return null;
+    }
+    return b;
+  }
+
+  router.get('/bookings/:id/menu', host, (req, res) => {
+    const b = menuEditGuard(req, res);
+    if (!b) return;
+    const picked = new Set(db.prepare('SELECT dish_id FROM booking_dishes WHERE booking_id = ?').all(b.id).map((r) => String(r.dish_id)));
+    res.render('host/menu-edit', { title: 'Your menu', b, rules: packages.load(db, b.menu_id), picked, error: null });
+  });
+
+  router.post('/bookings/:id/menu', host, (req, res) => {
+    const b = menuEditGuard(req, res);
+    if (!b) return;
+    const menu = db.prepare('SELECT * FROM menus WHERE id = ?').get(b.menu_id);
+    try {
+      const dishes = packages.validateSelection(db, menu, req.body.dish_ids);
+      transaction(db, () => packages.saveSelection(db, b.id, dishes));
+      req.flash('success', 'Menu updated. The restaurant sees your new selection.');
+      res.redirect(`/bookings/${b.id}#menu`);
+    } catch (err) {
+      if (!(err instanceof svc.BookingError)) throw err;
+      res.status(422).render('host/menu-edit', {
+        title: 'Your menu', b, rules: packages.load(db, b.menu_id), picked: new Set([].concat(req.body.dish_ids || []).map(String)), error: err.message,
+      });
+    }
   });
 
   // ---- Verified review of the venue, after the Iftar ----

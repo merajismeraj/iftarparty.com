@@ -3,7 +3,7 @@
   <ol class="progress-steps"><li class="done">Choose hall</li><li class="on">Pay</li><li>Invite guests</li></ol>
   <div class="card form-card">
     <h1 class="h2">Review &amp; pay</h1>
-    <%- include('../partials/booking-summary', { b, addons }) %>
+    <%- include('../partials/booking-summary', { b, addons, dishes }) %>
     <% if (expired) { %>
       <div class="flash flash-error">Your <%= holdMinutes %>-minute hold has expired. The evening may still be free — <a href="/venues/<%= b.venue_id %>?date=<%= b.event_date %>&guests=<%= b.guest_count %>&menu=<%= b.menu_id %>">reserve again</a>.</div>
     <% } else { %>

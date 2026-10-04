@@ -18,6 +18,15 @@
     </div>
   </div>
 
+  <% if (dishes.length) { %>
+    <div class="card form-card" id="menu">
+      <div class="section-head"><h2 class="h3">Your menu · <%= b.menu_name %></h2>
+        <% if (canEditMenu) { %><a class="btn btn-small btn-ghost" href="/bookings/<%= b.id %>/menu">Change dishes</a><% } else { %><span class="small muted">Final – call the restaurant for changes</span><% } %>
+      </div>
+      <div class="menu-selection"><% dishes.forEach(g => { %><div><span class="muted"><%= g.label %>:</span> <%= g.dishes.map(d => d.name).join(', ') %></div><% }) %></div>
+    </div>
+  <% } %>
+
   <h2 class="h3">RSVPs</h2>
   <div class="stats">
     <div class="stat stat-ok"><span class="stat-n"><%= rsvp.yes %></span><span class="muted">Attending</span></div>

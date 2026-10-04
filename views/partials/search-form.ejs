@@ -15,9 +15,15 @@
     <span>Menu / cuisine</span>
     <input name="menu" placeholder="Haleem, Biryani, Arabic…" value="<%= q.menu || '' %>">
   </label>
-  <label class="field">
-    <span>Max price / guest</span>
-    <input type="number" name="max_price" min="0" step="50" placeholder="Any" value="<%= q.max_price || '' %>">
-  </label>
+  <div class="field budget-field">
+    <span>Budget</span>
+    <div class="budget-inputs">
+      <input type="number" name="budget" min="0" step="100" placeholder="Any" aria-label="Budget amount" value="<%= q.budget || q.max_price || '' %>">
+      <select name="budget_type" aria-label="Budget type">
+        <option value="guest" <%= q.budget_type !== 'total' ? 'selected' : '' %>>/guest</option>
+        <option value="total" <%= q.budget_type === 'total' ? 'selected' : '' %>>total</option>
+      </select>
+    </div>
+  </div>
   <button class="btn btn-gold">Search</button>
 </form>

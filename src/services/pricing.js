@@ -20,4 +20,28 @@ function quote({ pricePerPerson, guestCount, hireFee, addons = [], feePercent = 
   return { pricePerPerson, guestCount, foodTotal, hireFee, addonsTotal, platformFee, total: subtotal + platformFee, feePercent };
 }
 
-module.exports = { quote, addonLine };
+/**
+ * Interpret a host's budget. type 'guest' compares the per-guest menu price; type 'total'
+ * compares the full estimate (food + hall + platform fee, before optional extras) and needs a guest count.
+ * Returns null when no usable budget was given.
+ */
+function parseBudget(query, toMinor) {
+  const raw = query.budget ?? query.max_price; // max_price kept for old links
+  const amount = toMinor(raw);
+  if (!raw || !(amount > 0)) return null;
+  const type = query.budget_type === 'total' && query.budget !== undefined ? 'total' : 'guest';
+  return { amount, type };
+}
+
+/** Does a menu at this venue fit the budget? Returns { fits, estimate, over }. */
+function budgetFit(budget, { pricePerPerson, guestCount, hireFee, feePercent }) {
+  if (!budget) return null;
+  if (budget.type === 'guest') {
+    return { fits: pricePerPerson <= budget.amount, estimate: pricePerPerson, over: Math.max(0, pricePerPerson - budget.amount) };
+  }
+  if (!guestCount) return null;
+  const q = quote({ pricePerPerson, guestCount, hireFee, feePercent });
+  return { fits: q.total <= budget.amount, estimate: q.total, over: Math.max(0, q.total - budget.amount) };
+}
+
+module.exports = { quote, addonLine, parseBudget, budgetFit };

@@ -258,6 +258,47 @@ const MIGRATIONS = [
   CREATE INDEX reviews_restaurant_status ON reviews (restaurant_id, status);
   CREATE INDEX reviews_status ON reviews (status);
   `,
+  // v5: budget/tier packages – a menu is either a fixed set menu or a package with
+  // per-course quotas ("choose 3 starters") over an eligible list of the restaurant's dishes.
+  `
+  CREATE TABLE dishes (
+    id            INTEGER PRIMARY KEY,
+    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    name          TEXT NOT NULL,
+    course        TEXT NOT NULL CHECK (course IN ('openers', 'starters', 'mains', 'rice', 'breads', 'desserts', 'beverages')),
+    diet          TEXT NOT NULL DEFAULT 'non-veg' CHECK (diet IN ('veg', 'non-veg')),
+    description   TEXT NOT NULL DEFAULT '',
+    active        INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX dishes_restaurant ON dishes (restaurant_id, course);
+
+  ALTER TABLE menus ADD COLUMN kind TEXT NOT NULL DEFAULT 'set' CHECK (kind IN ('set', 'package'));
+
+  CREATE TABLE menu_rules (
+    menu_id INTEGER NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+    course  TEXT NOT NULL,
+    choose  INTEGER NOT NULL CHECK (choose BETWEEN 1 AND 20),
+    PRIMARY KEY (menu_id, course)
+  );
+
+  CREATE TABLE menu_dishes (
+    menu_id INTEGER NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+    dish_id INTEGER NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
+    PRIMARY KEY (menu_id, dish_id)
+  );
+
+  -- The host's dish picks, snapshotted so the kitchen sees exactly what was ordered.
+  CREATE TABLE booking_dishes (
+    id         INTEGER PRIMARY KEY,
+    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    dish_id    INTEGER REFERENCES dishes(id) ON DELETE SET NULL,
+    name       TEXT NOT NULL,
+    course     TEXT NOT NULL,
+    diet       TEXT NOT NULL
+  );
+  CREATE INDEX booking_dishes_booking ON booking_dishes (booking_id);
+  `,
 ];
 
 function migrate(db) {

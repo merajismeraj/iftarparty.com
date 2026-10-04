@@ -2,6 +2,9 @@
 const express = require('express');
 const money = require('../services/money');
 const reviews = require('../services/reviews');
+const packages = require('../services/packages');
+const pricing = require('../services/pricing');
+const settings = require('../services/settings');
 const { isValidDate, todayISO, blockingBooking, upcomingReservations, expireStaleHolds } = require('../services/bookings');
 
 const PAGE_SIZE = 12;
@@ -14,7 +17,7 @@ const SORTS = {
 };
 
 /** Venue search across location, menu, price, capacity and date availability. */
-function searchVenues(db, q) {
+function searchVenues(db, q, feePercent = 0) {
   const where = ['v.active = 1', 'm.active = 1', `r.status = 'approved'`];
   const params = [];
   const like = (s) => `%${String(s).trim().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
@@ -24,8 +27,11 @@ function searchVenues(db, q) {
     params.push(...Array(4).fill(like(q.location)));
   }
   if (q.menu?.trim()) {
-    where.push(`(m.name LIKE ? ESCAPE '\\' OR m.items LIKE ? ESCAPE '\\' OR m.description LIKE ? ESCAPE '\\' OR r.cuisine LIKE ? ESCAPE '\\')`);
-    params.push(...Array(4).fill(like(q.menu)));
+    // Matches set-menu text and the dishes offered inside packages.
+    where.push(`(m.name LIKE ? ESCAPE '\\' OR m.items LIKE ? ESCAPE '\\' OR m.description LIKE ? ESCAPE '\\' OR r.cuisine LIKE ? ESCAPE '\\'
+      OR EXISTS (SELECT 1 FROM menu_dishes md JOIN dishes d ON d.id = md.dish_id
+                 WHERE md.menu_id = m.id AND d.active = 1 AND d.name LIKE ? ESCAPE '\\'))`);
+    params.push(...Array(5).fill(like(q.menu)));
   }
   if (['veg', 'non-veg', 'mixed'].includes(q.diet)) {
     where.push('m.diet = ?');
@@ -36,10 +42,14 @@ function searchVenues(db, q) {
     where.push('v.min_pax <= ? AND v.max_pax >= ? AND m.min_pax <= ?');
     params.push(guests, guests, guests);
   }
-  const maxPrice = money.toMinor(q.max_price);
-  if (q.max_price && maxPrice > 0) {
+  const budget = pricing.parseBudget(q, money.toMinor);
+  if (budget?.type === 'guest') {
     where.push('m.price_per_person <= ?');
-    params.push(maxPrice);
+    params.push(budget.amount);
+  } else if (budget?.type === 'total' && guests > 0) {
+    // Full estimate before optional extras: (food + hall) plus the platform fee.
+    where.push('(m.price_per_person * ? + v.hire_fee) * (100 + ?) <= ? * 100');
+    params.push(guests, feePercent, budget.amount);
   }
   if (isValidDate(q.date)) {
     where.push(`NOT EXISTS (SELECT 1 FROM bookings b WHERE b.venue_id = v.id AND b.event_date = ?
@@ -67,7 +77,8 @@ function searchVenues(db, q) {
      GROUP BY v.id ORDER BY ${order}, v.id DESC LIMIT ? OFFSET ?`
   ).all(...params, PAGE_SIZE, (page - 1) * PAGE_SIZE);
 
-  return { rows, total: Number(total), page, pages: Math.max(1, Math.ceil(Number(total) / PAGE_SIZE)) };
+  const budgetNeedsGuests = budget?.type === 'total' && !(guests > 0);
+  return { rows, total: Number(total), page, pages: Math.max(1, Math.ceil(Number(total) / PAGE_SIZE)), budget, budgetNeedsGuests };
 }
 
 module.exports = (db) => {
@@ -84,7 +95,7 @@ module.exports = (db) => {
 
   router.get('/search', (req, res) => {
     expireStaleHolds(db);
-    const result = searchVenues(db, req.query);
+    const result = searchVenues(db, req.query, settings.feePercent(db));
     res.render('search', { title: 'Find an Iftar venue', ...result, q: req.query, today: todayISO() });
   });
 
@@ -99,7 +110,17 @@ module.exports = (db) => {
       return res.status(404).render('error', { title: 'Venue not found', message: 'This venue is not listed any more.' });
     }
     const images = db.prepare('SELECT * FROM venue_images WHERE venue_id = ? ORDER BY sort_order, id').all(venue.id);
-    const menus = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? AND active = 1 ORDER BY price_per_person').all(venue.restaurant_id);
+    const budget = pricing.parseBudget(req.query, money.toMinor);
+    const guestsQ = Number.parseInt(req.query.guests, 10) || 0;
+    const feePct = settings.feePercent(db);
+    const menus = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? AND active = 1 ORDER BY price_per_person').all(venue.restaurant_id)
+      .map((m) => {
+        const rules = m.kind === 'package' ? packages.load(db, m.id) : null;
+        const fit = pricing.budgetFit(budget, { pricePerPerson: m.price_per_person, guestCount: guestsQ, hireFee: venue.hire_fee, feePercent: feePct });
+        return { ...m, rules, fit };
+      })
+      .filter((m) => m.kind === 'set' || m.rules.length); // a package with no available dishes can't be booked
+    const pickedDishes = new Set([].concat(req.query.dish || []).map(String));
     const addons = db.prepare(
       `SELECT * FROM addons WHERE restaurant_id = ? AND active = 1
        ORDER BY CASE category WHEN 'food' THEN 0 WHEN 'decor' THEN 1 WHEN 'service' THEN 2 ELSE 3 END, price`
@@ -109,7 +130,7 @@ module.exports = (db) => {
     const date = isValidDate(req.query.date) ? req.query.date : '';
     const taken = date ? blockingBooking(db, venue.id, date) : null;
     res.render('venue', {
-      title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, addons, picked, reservations,
+      title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, addons, picked, pickedDishes, reservations, budget,
       rating: reviews.summary(db, venue.restaurant_id), reviewList: reviews.published(db, venue.restaurant_id, 20),
       form: { date, guests: req.query.guests || '', menu_id: req.query.menu || '', arrival_time: '18:00' },
       taken, today: todayISO(),

@@ -11,7 +11,7 @@
     <dl class="kv">
       <dt>Date</dt><dd><%= fmt.longDate(b.event_date) %>, <%= fmt.time12(b.arrival_time) %></dd>
       <dt>Hall</dt><dd><%= b.venue_name %>, <%= b.restaurant_name %> (<%= b.city %>)</dd>
-      <dt>Menu</dt><dd><%= b.menu_name %> · <%= b.guest_count %> guests</dd>
+      <dt>Menu</dt><dd><%= b.menu_name %> · <%= b.guest_count %> guests<% dishes.forEach(g => { %><br><span class="small"><span class="muted"><%= g.label %>:</span> <%= g.dishes.map(d => d.name).join(', ') %></span><% }) %></dd>
       <dt>Host</dt><dd><%= b.host_name %><br><%= b.host_email %> · <%= b.host_phone || '—' %></dd>
       <dt>RSVPs</dt><dd><%= rsvp.yes %> yes (<%= rsvp.headcount %> heads) · <%= rsvp.maybe %> maybe · <%= rsvp.no %> no · <%= rsvp.pending %> awaiting · <%= rsvp.invited %> invited</dd>
       <dt>Messages</dt><dd><%= messages.length ? messages.map(x => `${x.channel} ${x.status}: ${x.n}`).join(' · ') : 'none sent' %></dd>

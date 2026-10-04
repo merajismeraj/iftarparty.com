@@ -29,24 +29,37 @@
         </div>
       <% } %>
 
-      <h2 class="h3" id="menus">Iftar menus</h2>
+      <h2 class="h3" id="menus">Menus &amp; packages</h2>
+      <% if (budget) { %>
+        <p class="small muted">Showing fit for your budget of <strong><%= money.format(budget.amount) %></strong> <%= budget.type === 'total' ? `total${form.guests ? ` for ${form.guests} guests` : ''}` : 'per guest' %><%= budget.type === 'total' ? ' (food + hall + service fee, before extras)' : '' %>.</p>
+      <% } %>
       <% if (!menus.length) { %><p class="muted">This restaurant hasn’t published a menu yet.</p><% } %>
       <div class="menu-list">
         <% menus.forEach(m => { %>
           <article class="menu-item">
             <header>
-              <h3><%= m.name %> <span class="diet diet-<%= m.diet %>" title="<%= m.diet %>"><%= m.diet === 'veg' ? 'Veg' : m.diet === 'mixed' ? 'Veg & non-veg' : 'Non-veg' %></span></h3>
-              <strong><%= money.format(m.price_per_person) %><span class="muted small">/guest</span></strong>
+              <h3><%= m.name %> <% if (m.kind === 'package') { %><span class="pill pill-soft">Package</span><% } %> <span class="diet diet-<%= m.diet %>" title="<%= m.diet %>"><%= m.diet === 'veg' ? 'Veg' : m.diet === 'mixed' ? 'Veg & non-veg' : 'Non-veg' %></span></h3>
+              <strong class="nowrap"><%= money.format(m.price_per_person) %><span class="muted small">/guest</span></strong>
             </header>
+            <% if (m.fit) { %><p><span class="budget-badge <%= m.fit.fits ? 'budget-ok' : 'budget-over' %>"><%= m.fit.fits ? 'Within budget' : `Over budget by ${money.format(m.fit.over)}` %></span><% if (budget.type === 'total') { %> <span class="small muted">est. <%= money.format(m.fit.estimate) %></span><% } %></p><% } %>
             <% if (m.description) { %><p class="muted"><%= m.description %></p><% } %>
-            <ul class="dishes"><% m.items.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean).forEach(d => { %><li><%= d %></li><% }) %></ul>
+            <% if (m.kind === 'package') { %>
+              <p class="small"><strong>Choose <%= packages.summary(m.rules) %></strong></p>
+              <div class="package-courses">
+                <% m.rules.forEach(r => { %>
+                  <div class="course-line"><span class="muted"><%= r.label %> (pick <%= r.choose %>):</span> <%= r.dishes.map(d => d.name).join(' · ') %></div>
+                <% }) %>
+              </div>
+            <% } else { %>
+              <ul class="dishes"><% m.items.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean).forEach(d => { %><li><%= d %></li><% }) %></ul>
+            <% } %>
             <% if (m.min_pax > 1) { %><p class="small muted">Minimum <%= m.min_pax %> guests</p><% } %>
           </article>
         <% }) %>
       </div>
 
       <% if (addons.length) { %>
-        <h2 class="h3" id="packages">Packages &amp; add-ons</h2>
+        <h2 class="h3" id="extras">Extras &amp; add-ons</h2>
         <div class="addon-list">
           <% addons.forEach(a => { %>
             <article class="addon-item">
@@ -81,7 +94,8 @@
     <aside class="venue-aside" id="reserve">
       <form class="card book-card" method="post" action="/venues/<%= venue.id %>/reserve"
             data-quote data-hire-fee="<%= venue.hire_fee %>" data-fee-percent="<%= feePercent %>" data-currency="<%= currency %>"
-            data-min-pax="<%= venue.min_pax %>" data-max-pax="<%= venue.max_pax %>" data-venue="<%= venue.id %>">
+            data-min-pax="<%= venue.min_pax %>" data-max-pax="<%= venue.max_pax %>" data-venue="<%= venue.id %>"
+            <% if (budget) { %>data-budget="<%= budget.amount %>" data-budget-type="<%= budget.type %>"<% } %>>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <h2 class="h3">Reserve this hall</h2>
         <label class="field">
@@ -102,19 +116,33 @@
           </label>
         </div>
         <fieldset class="field">
-          <legend>Menu</legend>
-          <% menus.forEach((m, i) => { %>
+          <legend>Menu or package</legend>
+          <% menus.forEach((m, i) => { const on = String(form.menu_id) === String(m.id) || (!form.menu_id && i === 0); %>
             <label class="radio-card">
-              <input type="radio" name="menu_id" value="<%= m.id %>" required data-price="<%= m.price_per_person %>" data-min="<%= m.min_pax %>"
-                <%= String(form.menu_id) === String(m.id) || (!form.menu_id && i === 0) ? 'checked' : '' %>>
-              <span><%= m.name %></span><strong><%= money.format(m.price_per_person) %></strong>
+              <input type="radio" name="menu_id" value="<%= m.id %>" required data-price="<%= m.price_per_person %>" data-min="<%= m.min_pax %>" <%= on ? 'checked' : '' %>>
+              <span><%= m.name %><% if (m.fit && !m.fit.fits) { %> <span class="budget-badge budget-over">over</span><% } %></span><strong><%= money.format(m.price_per_person) %></strong>
             </label>
+            <% if (m.kind === 'package') { %>
+              <div class="picker" data-picker-for="<%= m.id %>">
+                <p class="small muted">Pick your dishes (you can change them until <%= packages.EDIT_CUTOFF_DAYS %> days before the Iftar):</p>
+                <% m.rules.forEach(r => { %>
+                  <div class="course-block" data-course data-choose="<%= r.choose %>">
+                    <div class="course-head"><strong><%= r.label %></strong><span class="small">choose up to <%= r.choose %> · <span class="count" data-course-count>0</span>/<%= r.choose %></span></div>
+                    <div class="dish-pills">
+                      <% r.dishes.forEach(d => { %>
+                        <label class="dish-pill"><input type="checkbox" name="dish_ids" value="<%= d.id %>" <%= pickedDishes.has(String(d.id)) ? 'checked' : '' %>> <span class="diet-dot diet-<%= d.diet %>" title="<%= d.diet %>"></span><%= d.name %></label>
+                      <% }) %>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
           <% }) %>
         </fieldset>
 
         <% if (addons.length) { %>
           <fieldset class="field">
-            <legend>Packages &amp; add-ons <span class="muted small">(optional)</span></legend>
+            <legend>Extras <span class="muted small">(optional)</span></legend>
             <% addons.forEach(a => { %>
               <label class="radio-card">
                 <input type="checkbox" name="addon_ids" value="<%= a.id %>" data-addon-price="<%= a.price %>" data-addon-pricing="<%= a.pricing %>" <%= picked.has(String(a.id)) ? 'checked' : '' %>>
@@ -126,11 +154,12 @@
 
         <div class="quote" data-quote-box hidden>
           <div><span data-q-food-label>Food</span><span data-q-food></span></div>
-          <div data-q-addons-row hidden><span>Packages</span><span data-q-addons></span></div>
+          <div data-q-addons-row hidden><span>Extras</span><span data-q-addons></span></div>
           <div><span>Hall fee</span><span data-q-hire></span></div>
           <div><span>Service fee (<%= feePercent %>%)</span><span data-q-fee></span></div>
           <div class="total"><span>Total</span><span data-q-total></span></div>
         </div>
+        <p class="small" data-budget-msg hidden></p>
         <p class="small bad" data-quote-error hidden></p>
 
         <% if (user && user.role === 'restaurant') { %>

@@ -8,8 +8,10 @@
     </div>
     <div class="btn-row">
       <a class="btn" href="/restaurant/venues/new">+ Add hall</a>
-      <a class="btn btn-ghost" href="/restaurant/menus/new">+ Add menu</a>
-      <a class="btn btn-ghost" href="/restaurant/addons/new">+ Add package</a>
+      <a class="btn btn-ghost" href="/restaurant/menus/new">+ Set menu</a>
+      <a class="btn btn-ghost" href="/restaurant/menus/new?kind=package">+ Package</a>
+      <a class="btn btn-ghost" href="/restaurant/dishes">Dish catalogue</a>
+      <a class="btn btn-ghost" href="/restaurant/addons/new">+ Extra</a>
     </div>
   </div>
 
@@ -49,7 +51,7 @@
               <td><strong><%= fmt.shortDate(b.event_date) %></strong><br><span class="muted small"><%= fmt.time12(b.arrival_time) %></span></td>
               <td><%= b.title %><br><span class="muted small"><%= b.host_phone || b.host_email %></span></td>
               <td><%= b.venue_name %></td>
-              <td><%= b.menu_name %><% if (b.addons.length) { %><br><span class="muted small">+ <%= b.addons.map(a => a.name).join(', ') %></span><% } %></td>
+              <td><%= b.menu_name %><% if (b.dishes.length) { %><br><span class="small"><%= b.dishes.map(g => g.dishes.map(d => d.name).join(', ')).join(' · ') %></span><% } %><% if (b.addons.length) { %><br><span class="muted small">+ <%= b.addons.map(a => a.name).join(', ') %></span><% } %></td>
               <td><%= b.guest_count %></td>
               <td><%= b.rsvp.yes %> (<%= b.rsvp.headcount %>)</td>
               <td><%= money.format(b.total_amount - b.platform_fee) %></td>
@@ -85,14 +87,14 @@
     <a class="card add-card" href="/restaurant/venues/new"><span>+</span>Add a hall</a>
   </div>
 
-  <h2 class="h3">Iftar menus</h2>
+  <h2 class="h3" id="menus">Menus &amp; packages</h2>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Menu</th><th>Type</th><th>Price / guest</th><th>Min guests</th><th></th></tr></thead>
       <tbody>
         <% menus.forEach(m => { %>
           <tr class="<%= m.active ? '' : 'inactive' %>">
-            <td><strong><%= m.name %></strong><% if (!m.active) { %> <span class="pill">Not offered</span><% } %><br><span class="muted small"><%= m.items.split(/\r?\n|,/).filter(s => s.trim()).slice(0, 4).join(' · ') %></span></td>
+            <td><strong><%= m.name %></strong> <span class="pill pill-soft"><%= m.kind === 'package' ? 'Package' : 'Set menu' %></span><% if (!m.active) { %> <span class="pill">Not offered</span><% } %><br><span class="muted small"><%= m.kind === 'package' ? (m.rules || 'No courses set up yet – edit to add choices') : m.items.split(/\r?\n|,/).filter(s => s.trim()).slice(0, 4).join(' · ') %></span></td>
             <td><span class="diet diet-<%= m.diet %>"><%= m.diet %></span></td>
             <td><%= money.format(m.price_per_person) %></td>
             <td><%= m.min_pax %></td>
@@ -109,7 +111,7 @@
       </tbody>
     </table>
   </div>
-  <h2 class="h3" id="addons">Packages &amp; add-ons</h2>
+  <h2 class="h3" id="addons">Extras &amp; add-ons</h2>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Package</th><th>Type</th><th>Price</th><th></th></tr></thead>
@@ -128,7 +130,7 @@
             </td>
           </tr>
         <% }) %>
-        <% if (!addons.length) { %><tr><td colspan="4" class="muted">No packages yet. Add extras like a live grill, dessert counter or décor to raise your average booking value. <a href="/restaurant/addons/new">Add a package</a>.</td></tr><% } %>
+        <% if (!addons.length) { %><tr><td colspan="4" class="muted">No extras yet. Add a live grill, dessert counter or décor to raise your average booking value. <a href="/restaurant/addons/new">Add an extra</a>.</td></tr><% } %>
       </tbody>
     </table>
   </div>

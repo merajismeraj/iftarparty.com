@@ -60,7 +60,7 @@ function partyTitle(hostName) {
  * Validate a reservation request and place a time-limited hold on the venue.
  * Runs in a single synchronous transaction, so two hosts cannot hold the same night.
  */
-function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arrivalTime, addonIds = [] }) {
+function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arrivalTime, addonIds = [], dishIds = [] }) {
   const guests = Number.parseInt(guestCount, 10);
   if (!isValidDate(eventDate)) throw new BookingError('Please choose a valid date.');
   if (eventDate < todayISO()) throw new BookingError('Please choose a date in the future.');
@@ -82,6 +82,9 @@ function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arriva
       throw new BookingError(`${venue.name} hosts between ${venue.min_pax} and ${venue.max_pax} guests.`);
     }
     if (guests < menu.min_pax) throw new BookingError(`The ${menu.name} menu needs at least ${menu.min_pax} guests.`);
+    // Lazy require: packages depends on this module.
+    const packages = require('./packages');
+    const dishes = menu.kind === 'package' ? packages.validateSelection(db, menu, dishIds) : [];
     if (blockingBooking(db, venue.id, eventDate)) {
       throw new BookingError('Sorry, this venue is already reserved for that evening. Please pick another date.');
     }
@@ -114,6 +117,7 @@ function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arriva
       const line = pricing.addonLine(a, guests);
       insAddon.run(bookingId, a.id, a.name, a.pricing, a.price, line.quantity, line.total);
     });
+    if (dishes.length) packages.saveSelection(db, bookingId, dishes);
     return bookingId;
   });
 }
@@ -148,7 +152,7 @@ function getDetailed(db, bookingId) {
   return db
     .prepare(
       `SELECT b.*, v.name AS venue_name, v.restaurant_id, r.name AS restaurant_name, r.address, r.area, r.city,
-              r.phone AS restaurant_phone, m.name AS menu_name, m.items AS menu_items, m.diet,
+              r.phone AS restaurant_phone, m.name AS menu_name, m.items AS menu_items, m.diet, m.kind AS menu_kind,
               u.name AS host_name, u.email AS host_email, u.phone AS host_phone,
               (SELECT filename FROM venue_images WHERE venue_id = v.id ORDER BY sort_order, id LIMIT 1) AS image
        FROM bookings b
