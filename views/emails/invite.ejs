@@ -1,31 +1,28 @@
 <!doctype html>
 <html>
-<body style="margin:0;padding:0;background:#f4efe6;font-family:Georgia,'Times New Roman',serif;color:#1d2433;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4efe6;padding:24px 12px;">
+<body style="margin:0;padding:0;background:#f5f5f4;font-family:Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#111111;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f4;padding:24px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
-        <tr><td style="background:#14213d;padding:36px 32px;text-align:center;color:#f7e7c1;">
-          <div style="font-size:40px;color:#e9b949;line-height:1;">&#9790;</div>
-          <p style="margin:12px 0 4px;font:600 12px Arial,sans-serif;letter-spacing:3px;text-transform:uppercase;color:#e9b949;">You're invited</p>
-          <h1 style="margin:0;font-size:28px;font-weight:700;color:#ffffff;"><%= booking.title %></h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="font-size:18px;margin:0 0 16px;">Assalamu Alaikum <%= guest.name.split(/\s+/)[0] %>,</p>
-          <p style="font:16px/1.6 Arial,sans-serif;margin:0 0 16px;"><%= booking.host_name %> would love for you to join them to break the fast together this Ramadan.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e7e7e5;border-radius:16px;">
+        <tr><td style="padding:32px 32px 8px;">
+          <p style="margin:0 0 24px;font-size:15px;font-weight:800;letter-spacing:-0.3px;">iftarparty<span style="color:#0f766e;">.</span></p>
+          <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">You're invited</p>
+          <h1 style="margin:0 0 20px;font-size:26px;line-height:1.2;letter-spacing:-0.5px;font-weight:700;"><%= booking.title %></h1>
+          <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Assalamu Alaikum <%= guest.name.split(/\s+/)[0] %>, <%= booking.host_name %> would love for you to join them to break the fast together.</p>
           <% if (booking.invite_message) { %>
-          <p style="font:italic 16px/1.6 Georgia,serif;margin:0 0 20px;padding:12px 16px;border-left:3px solid #e9b949;background:#fbf7ef;">“<%= booking.invite_message %>”</p>
+          <p style="margin:0 0 20px;padding:12px 16px;background:#f5f5f4;border-radius:10px;font-size:15px;line-height:1.6;">“<%= booking.invite_message %>”</p>
           <% } %>
-          <table role="presentation" width="100%" style="font:15px/1.5 Arial,sans-serif;margin:0 0 24px;">
-            <tr><td style="padding:6px 0;color:#6b7280;width:70px;vertical-align:top;">When</td><td style="padding:6px 0;"><strong><%= invite.when %></strong></td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280;vertical-align:top;">Where</td><td style="padding:6px 0;"><strong><%= booking.venue_name %></strong>, <%= booking.restaurant_name %><br><%= [booking.address, booking.area, booking.city].filter(Boolean).join(', ') %></td></tr>
-            <tr><td style="padding:6px 0;color:#6b7280;vertical-align:top;">Menu</td><td style="padding:6px 0;"><%= booking.menu_name %></td></tr>
+          <table role="presentation" width="100%" style="font-size:15px;line-height:1.5;margin:0 0 24px;border-top:1px solid #e7e7e5;">
+            <tr><td style="padding:12px 0 4px;color:#6b6b6b;width:72px;vertical-align:top;">When</td><td style="padding:12px 0 4px;"><%= invite.when %></td></tr>
+            <tr><td style="padding:4px 0;color:#6b6b6b;vertical-align:top;">Where</td><td style="padding:4px 0;"><%= booking.venue_name %>, <%= booking.restaurant_name %><br><span style="color:#6b6b6b;"><%= [booking.address, booking.area, booking.city].filter(Boolean).join(', ') %></span></td></tr>
+            <tr><td style="padding:4px 0;color:#6b6b6b;vertical-align:top;">Menu</td><td style="padding:4px 0;"><%= booking.menu_name %></td></tr>
           </table>
-          <table role="presentation" align="center" cellpadding="0" cellspacing="0"><tr><td style="border-radius:999px;background:#e9b949;">
-            <a href="<%= invite.link %>" style="display:inline-block;padding:14px 32px;font:700 16px Arial,sans-serif;color:#14213d;text-decoration:none;">RSVP now</a>
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:10px;background:#0f766e;">
+            <a href="<%= invite.link %>" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">RSVP</a>
           </td></tr></table>
-          <p style="font:13px Arial,sans-serif;color:#6b7280;text-align:center;margin:20px 0 0;">Or open: <a href="<%= invite.link %>" style="color:#14213d;"><%= invite.link %></a></p>
+          <p style="margin:16px 0 24px;font-size:13px;color:#6b6b6b;">Or open <a href="<%= invite.link %>" style="color:#111111;"><%= invite.link %></a></p>
         </td></tr>
-        <tr><td style="padding:16px 32px;background:#fbf7ef;font:12px Arial,sans-serif;color:#9ca3af;text-align:center;">Sent on behalf of <%= booking.host_name %> via IftarParty.com</td></tr>
+        <tr><td style="padding:16px 32px;border-top:1px solid #e7e7e5;font-size:12px;color:#6b6b6b;">Sent on behalf of <%= booking.host_name %> via IftarParty</td></tr>
       </table>
     </td></tr>
   </table>

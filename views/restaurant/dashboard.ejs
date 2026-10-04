@@ -67,7 +67,7 @@
     <% venues.forEach(v => { %>
       <div class="card venue-card <%= v.active ? '' : 'inactive' %>">
         <div class="venue-card-img">
-          <% if (v.image) { %><img src="/uploads/<%= v.image %>" alt="<%= v.name %>"><% } else { %><div class="img-fallback">☾</div><% } %>
+          <% if (v.image) { %><img src="/uploads/<%= v.image %>" alt="<%= v.name %>"><% } else { %><div class="img-fallback">No photo</div><% } %>
           <% if (!v.active) { %><span class="pill pill-dark">Hidden</span><% } %>
         </div>
         <div class="venue-card-body">

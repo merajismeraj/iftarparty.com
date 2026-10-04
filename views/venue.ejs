@@ -17,7 +17,7 @@
     <% images.slice(0, 5).forEach((img, i) => { %>
       <img src="/uploads/<%= img.filename %>" alt="<%= venue.name %> photo <%= i + 1 %>" class="<%= i === 0 ? 'main' : '' %>" <%= i ? 'loading=lazy' : '' %>>
     <% }) %>
-    <% if (!images.length) { %><div class="img-fallback main">☾</div><% } %>
+    <% if (!images.length) { %><div class="img-fallback main">No photos yet</div><% } %>
   </div>
 
   <div class="venue-layout">

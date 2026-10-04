@@ -5,7 +5,7 @@
          (q.budget || q.max_price) && `${money.format(money.toMinor(q.budget || q.max_price))}${q.budget_type === 'total' ? ' total' : '/guest'}`].filter(Boolean); %>
     <div class="search-panel" data-search-panel <%= crit.length ? 'data-has-criteria' : '' %>>
       <button type="button" class="search-summary" data-search-expand aria-controls="search-form">
-        <span><strong><%= crit.length ? crit.slice(0, 2).join(' · ') : 'All venues' %></strong><span class="small muted"><%= crit.slice(2).join(' · ') || 'Location, date, guests, menu, budget' %></span></span>
+        <span><strong><%= crit.length ? crit.slice(0, 2).join(' · ') : 'All venues' %></strong><% if (crit.length > 2) { %><span class="small muted"><%= crit.slice(2).join(' · ') %></span><% } else if (!crit.length) { %><span class="small muted">Location, date, guests, menu, budget</span><% } %></span>
         <span class="edit">Edit search</span>
       </button>
       <%- include('partials/search-form', { q, compact: true }) %>

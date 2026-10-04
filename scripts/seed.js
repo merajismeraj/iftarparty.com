@@ -16,15 +16,20 @@ if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n > 0) {
 }
 
 fs.mkdirSync(config.uploadDir, { recursive: true });
+/** Neutral placeholder "photo" (soft tones, abstract room shapes) until restaurants upload real images. */
 function placeholder(label, hue) {
   const file = `seed-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.svg`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,22%)"/><stop offset="1" stop-color="hsl(${hue + 30},55%,38%)"/></linearGradient></defs>
-  <rect width="800" height="500" fill="url(#g)"/>
-  ${Array.from({ length: 7 }, (_, i) => `<circle cx="${110 + i * 100}" cy="90" r="14" fill="#e9b949" opacity=".85"/><line x1="${110 + i * 100}" y1="0" x2="${110 + i * 100}" y2="76" stroke="#e9b949" stroke-width="2" opacity=".6"/>`).join('')}
-  <rect x="80" y="300" width="640" height="110" rx="12" fill="#000" opacity=".18"/>
-  <path d="M430 170a70 70 0 1 0 35 120 56 56 0 1 1-35-120z" fill="#e9b949"/>
-  <text x="400" y="372" font-family="Georgia,serif" font-size="40" fill="#fff" text-anchor="middle">${label}</text></svg>`;
+  const h = hue % 360;
+  const tables = Array.from({ length: 4 }, (_, i) => `<ellipse cx="${150 + i * 170}" cy="390" rx="58" ry="16" fill="hsl(${h},10%,78%)"/>`).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${h},14%,93%)"/><stop offset="1" stop-color="hsl(${h},10%,86%)"/></linearGradient></defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <rect x="0" y="330" width="800" height="270" fill="hsl(${h},10%,82%)"/>
+  <rect x="90" y="90" width="180" height="170" rx="6" fill="hsl(${h},16%,97%)"/>
+  <rect x="310" y="90" width="180" height="170" rx="6" fill="hsl(${h},16%,97%)"/>
+  <rect x="530" y="90" width="180" height="170" rx="6" fill="hsl(${h},16%,97%)"/>
+  ${tables}
+  <text x="40" y="560" font-family="Inter, Arial, sans-serif" font-size="22" fill="hsl(${h},6%,45%)">${label}</text></svg>`;
   fs.writeFileSync(path.join(config.uploadDir, file), svg);
   return file;
 }
@@ -75,7 +80,7 @@ const restaurants = [
     addons: [
       { name: 'Live Kebab Grill', category: 'food', pricing: 'per_guest', price: 18000, description: 'Chef-manned grill with seekh, boti and malai tikka served hot.' },
       { name: 'Sheer Khurma & Dessert Counter', category: 'food', pricing: 'per_guest', price: 12000, description: 'Sheer khurma, phirni, kunafa and seasonal fruit.' },
-      { name: 'Ramadan Décor Package', category: 'decor', pricing: 'flat', price: 850000, description: 'Lanterns, crescent backdrop, table runners and fairy lights.' },
+      { name: 'Ramadan Décor Package', category: 'decor', pricing: 'flat', price: 850000, description: 'Floral centrepieces, table runners, warm lighting and a welcome backdrop.' },
       { name: 'Event Photography (3 hrs)', category: 'service', pricing: 'flat', price: 1200000, description: 'Professional photographer with 150+ edited photos in 48 hours.' },
     ],
   },
@@ -121,7 +126,7 @@ transaction(db, () => {
         .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee).lastInsertRowid);
       venueIds.push({ vid, rid, v, pending: Boolean(spec.status) });
       ['', ' – Seating', ' – Décor'].forEach((suffix, i) => {
-        db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, placeholder(`${v.name}${suffix}`, 210 + ri * 40 + vi * 15 + i * 10), i);
+        db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, placeholder(`${v.name}${suffix}`, 20 + ri * 70 + vi * 25 + i * 8), i);
       });
     });
     const dishIds = {};
