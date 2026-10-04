@@ -15,10 +15,13 @@
 </head>
 <body>
 <% if (!locals.bare) { %>
-<header class="site-header">
+<header class="site-header" data-site-header>
   <div class="wrap nav">
     <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">☾</span> IftarParty</a>
-    <nav class="nav-links">
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle hidden>
+      <span class="nav-toggle-bars" aria-hidden="true"></span><span>Menu</span>
+    </button>
+    <nav class="nav-links" id="site-nav" aria-label="Main">
       <a href="/search" class="<%= path === '/search' ? 'active' : '' %>">Find a venue</a>
       <% if (!user) { %>
         <a href="/signup?role=restaurant">For restaurants</a>

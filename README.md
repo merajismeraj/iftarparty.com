@@ -101,6 +101,7 @@ npm run admin -- promote someone@example.com
 ## Architecture
 
 - **Express 5 + EJS** server-rendered pages, with a small vanilla JS file for the live quote, availability check and hold countdown.
+- **Mobile-first UI.** Base styles target phones and are layered up at 640px and 960px. On phones the site uses a menu-button drawer, a collapsible search summary, swipeable venue photos, a sticky *Reserve* bar with the live total, and tables that turn into stacked cards. Tap targets are at least 44px and inputs use 16px text (no iOS zoom). Everything is checked for horizontal overflow at 320, 375, 768 and 1280px. The site still works without JS: the nav and search simply render expanded.
 - **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v5), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
 - **Double-booking protection:** the hold is taken inside a synchronous `BEGIN IMMEDIATE` transaction. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
 - **Security:** bcrypt passwords, signed httpOnly session cookies, CSRF tokens on every form, Helmet CSP, ownership checks on every restaurant and booking route, image-only uploads with size limits, rate-limited login, and spreadsheet-formula escaping in CSV exports.

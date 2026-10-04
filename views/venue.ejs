@@ -175,4 +175,10 @@
     </aside>
   </div>
 </section>
+<% if (menus.length && !(user && user.role !== 'host')) { %>
+  <div class="mobile-cta" data-mobile-cta>
+    <div class="mobile-cta-price"><span class="small muted" data-cta-label>From</span><strong data-cta-amount><%= money.format(Math.min(...menus.map(m => m.price_per_person))) %><span class="small muted">/guest</span></strong></div>
+    <a class="btn btn-gold" href="#reserve" <%= taken ? 'aria-disabled="true"' : '' %>><%= taken ? 'Pick another date' : 'Reserve' %></a>
+  </div>
+<% } %>
 <%- include('partials/foot') %>

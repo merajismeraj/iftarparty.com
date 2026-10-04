@@ -1,4 +1,6 @@
 'use strict';
+// Lets CSS start collapsible UI (nav drawer, search panel) closed only when JS can reopen it.
+document.documentElement.classList.add('js');
 (function () {
   function money(minor, currency) {
     const major = minor / 100;
@@ -40,6 +42,11 @@
       set('[data-q-hire]', money(hireFee, currency));
       set('[data-q-fee]', money(fee, currency));
       set('[data-q-total]', money(food + hireFee + addons + fee, currency));
+      const cta = document.querySelector('[data-mobile-cta]');
+      if (cta) {
+        cta.querySelector('[data-cta-label]').textContent = `${guests} guests · total`;
+        cta.querySelector('[data-cta-amount]').textContent = money(food + hireFee + addons + fee, currency);
+      }
       syncBudget(food + hireFee + addons + fee, price);
       box.hidden = false;
     }
@@ -137,7 +144,59 @@
     } catch { fail(); }
   }
 
+  // Phones: hamburger drawer for the main nav.
+  function initNav() {
+    const header = document.querySelector('[data-site-header]');
+    const toggle = document.querySelector('[data-nav-toggle]');
+    if (!header || !toggle) return;
+    toggle.hidden = false;
+    toggle.addEventListener('click', () => {
+      const open = header.classList.toggle('nav-open');
+      toggle.setAttribute('aria-expanded', String(open));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && header.classList.contains('nav-open')) { header.classList.remove('nav-open'); toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); }
+    });
+  }
+
+  // Phones: tables render as stacked cards; label each cell with its column header.
+  function labelTables() {
+    document.querySelectorAll('.table-wrap table').forEach((table) => {
+      const heads = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      if (!heads.length) return;
+      table.querySelectorAll('tbody tr').forEach((tr) => {
+        [...tr.children].forEach((td, i) => { if (!td.hasAttribute('data-label') && td.colSpan === 1) td.setAttribute('data-label', heads[i] || ''); });
+      });
+    });
+  }
+
+  // Phones: on results pages, collapse the search form behind a one-line summary.
+  function initSearchPanel() {
+    const panel = document.querySelector('[data-search-panel]');
+    if (!panel) return;
+    if (panel.hasAttribute('data-has-criteria')) panel.classList.add('collapsed');
+    panel.querySelector('[data-search-expand]').addEventListener('click', () => {
+      panel.classList.remove('collapsed');
+      const first = panel.querySelector('.search-form input');
+      if (first) first.focus();
+    });
+  }
+
+  // Phones: sticky "Reserve" bar, hidden while the booking form itself is on screen.
+  function initMobileCta() {
+    const cta = document.querySelector('[data-mobile-cta]');
+    const target = document.getElementById('reserve');
+    if (!cta || !target) return;
+    document.body.classList.add('has-mobile-cta');
+    if (!('IntersectionObserver' in window)) return;
+    new IntersectionObserver(([entry]) => cta.classList.toggle('hide', entry.isIntersecting), { threshold: 0.15 }).observe(target);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    initNav();
+    labelTables();
+    initSearchPanel();
+    initMobileCta();
     document.querySelectorAll('[data-cashfree-session]').forEach(initCashfree);
     // Restaurant menu form: show the set-menu or package section for the chosen type.
     document.querySelectorAll('form[data-menu-form]').forEach((form) => {
