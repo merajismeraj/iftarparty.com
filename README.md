@@ -36,7 +36,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 74 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 78 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -49,7 +49,7 @@ Each integration runs in **demo mode** until you add its keys, so you can use th
 |---|---|---|
 | Payments | Simulated checkout. Refunds succeed instantly | **Cashfree Payment Gateway**: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox\|production` |
 | Email | Printed to the server log | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (any SMTP provider, e.g. SES, Postmark, SendGrid) |
-| WhatsApp | Printed to the server log | Meta WhatsApp Cloud API: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME` |
+| WhatsApp | Printed to the server log | **OpenWA** self-hosted gateway (default): `OPENWA_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`. Or the official Meta Cloud API with `WHATSAPP_PROVIDER=meta` |
 
 ### Cashfree
 
@@ -61,20 +61,21 @@ Each integration runs in **demo mode** until you add its keys, so you can use th
 
 Test it with Cashfree **sandbox** keys and their test UPI ID or cards before switching `CASHFREE_ENV=production`.
 
-**WhatsApp template.** WhatsApp only lets businesses start a conversation with an approved template. Create a *Utility* template (default name `iftar_invite`) with 5 body variables:
+### WhatsApp (OpenWA)
 
-```
-Assalamu Alaikum {{1}}, you're invited to {{2}}!
-When: {{3}}
-Where: {{4}}
-Please RSVP here: {{5}}
-```
+Invites, reminders and cancellation notices go out through [OpenWA](https://github.com/rmyndharis/OpenWA), a self-hosted WhatsApp Web gateway. It sends the full personalised message as plain text, so **no Meta template approval is needed**.
 
-When a booking is cancelled, invited guests who haven't declined receive a cancellation notice. On WhatsApp this uses a second *Utility* template (default `iftar_cancelled`, set with `WHATSAPP_CANCEL_TEMPLATE_NAME`) with 4 body variables:
+1. **Run OpenWA** on a server with persistent storage (it keeps the WhatsApp session):
+   ```bash
+   git clone https://github.com/rmyndharis/OpenWA.git && cd OpenWA
+   docker compose up -d          # API + dashboard on :2785
+   ```
+2. **Link a number.** Create and start a session (`POST /api/sessions` with `{"name":"iftarparty"}`, then `POST /api/sessions/{id}/start`), open `GET /api/sessions/{id}/qr`, and scan it with WhatsApp on the **dedicated** phone.
+3. **Configure IftarParty:** set `OPENWA_URL=http://<host>:2785/api`, `OPENWA_API_KEY` (from OpenWA's `/app/data/.api-key`) and `OPENWA_SESSION_ID`.
 
-```
-Assalamu Alaikum {{1}}, we're sorry – {{2}} on {{3}} at {{4}} has been cancelled. No action is needed from you.
-```
+> **Risk:** OpenWA is unofficial (it automates WhatsApp Web), and WhatsApp may restrict numbers that look automated. Use a **dedicated number you can afford to lose**, never your main business line. Sends are **paced**: one at a time, at least `OPENWA_MIN_INTERVAL_MS` apart (default 1.5s, with jitter). Keep invite lists to people who expect the message. A failed send shows up in **Admin → Messages** with OpenWA's error (for example "session not connected") and can be resent once fixed.
+
+**Official alternative.** Set `WHATSAPP_PROVIDER=meta` with `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` to use Meta's WhatsApp Cloud API. That route needs two approved *Utility* templates: `iftar_invite` with 5 body variables (guest name, party title, date & time, venue, RSVP link), and `iftar_cancelled` with 4 (guest name, party title, date, venue).
 
 Every delivery attempt, invitation or cancellation, is recorded in the `message_log` table and shown in the admin portal.
 
@@ -118,6 +119,23 @@ public/        CSS, JS
 scripts/seed.js, scripts/create-admin.js
 test/
 ```
+
+## Deploying
+
+### Hosted demo (Vercel)
+The repository deploys to Vercel as-is. `api/index.js` exports the Express app, `vercel.json` sends every route to it and bundles `views/`, and `public/` is served by the CDN.
+
+On Vercel the app runs in **demo mode**:
+- The SQLite database and uploads live in `/tmp`, which Vercel wipes whenever it recycles a function instance.
+- Each instance starts with fresh **sample data** (`DEMO_MODE`). Anything you create may disappear, and separate instances don't share data.
+- Payments, email and WhatsApp stay in demo mode unless you add their keys.
+
+Use it to click through the product. Don't take real bookings on it.
+
+### Production
+Real bookings need durable storage and a long-running process:
+- **Simplest:** run `npm start` on any VM or container host with a persistent disk (Render, Railway, Fly.io, a VPS). Mount it for `DATABASE_PATH`/`UPLOAD_DIR`, put HTTPS in front, and set `NODE_ENV=production`, `SESSION_SECRET`, `BASE_URL` and the Cashfree, SMTP and OpenWA keys. OpenWA can run on the same machine via Docker.
+- **Serverless (Vercel):** swap SQLite for Postgres (e.g. Neon) and local uploads for Vercel Blob. The data layer is concentrated in `src/db.js` and `src/services/*`, and uploads in `src/middleware/uploads.js`.
 
 ## Production notes
 

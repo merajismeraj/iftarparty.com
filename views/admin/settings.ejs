@@ -17,6 +17,7 @@
     <dl class="kv">
       <dt>Payments</dt><dd><%= live ? 'Cashfree (live keys configured)' : 'Demo – set CASHFREE_APP_ID / CASHFREE_SECRET_KEY' %></dd>
       <dt>Webhook URL</dt><dd><code>/webhooks/cashfree</code> (payment success + refund status)</dd>
+      <dt>WhatsApp</dt><dd><%= { openwa: 'OpenWA gateway (self-hosted)', meta: 'Meta WhatsApp Cloud API', demo: 'Demo – set OPENWA_URL, OPENWA_API_KEY, OPENWA_SESSION_ID' }[wa] %></dd>
     </dl>
     <p class="small muted">Credentials live in environment variables, never in the database.</p>
   </div>

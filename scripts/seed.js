@@ -1,18 +1,22 @@
 'use strict';
-/* Seeds demo restaurants, halls, menus, a host and a confirmed party with guests. Safe to re-run (skips if data exists). */
+/*
+ * Seeds demo restaurants, halls, menus, hosts, parties, guests and reviews. Safe to re-run (skips if data exists).
+ * CLI: `npm run seed`. Also used to bootstrap the hosted demo (see src/app.js).
+ */
 const fs = require('node:fs');
 const path = require('node:path');
 const bcrypt = require('bcryptjs');
 const config = require('../src/config');
-const db = require('../src/db').open();
 const { transaction } = require('../src/db');
 const { newToken } = require('../src/services/invites');
 const { partyTitle, todayISO } = require('../src/services/bookings');
 const pricing = require('../src/services/pricing');
 
+/** Seed `db` with demo data. Returns false (and does nothing) when the database already has users. */
+function seedDemo(db, { quiet = false } = {}) {
 if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n > 0) {
-  console.log('Database already has data – skipping seed. Delete', config.databasePath, 'to reseed.');
-  process.exit(0);
+  if (!quiet) console.log('Database already has data – skipping seed. Delete', config.databasePath, 'to reseed.');
+  return false;
 }
 
 fs.mkdirSync(config.uploadDir, { recursive: true });
@@ -220,7 +224,14 @@ transaction(db, () => {
     .run(bid, name, email, phone, newToken(), status, size, email ? 'logged' : 'not_sent', phone ? 'logged' : 'not_sent', status === 'pending' ? null : new Date().toISOString()));
 });
 
-console.log(`Seeded demo data.
+if (!quiet) console.log(`Seeded demo data.
   Admin login:       admin@demo.test / password123
   Host login:        host@demo.test, sana@demo.test / password123
   Restaurant logins: owner@noor.test, owner@charminar.test, owner@arabian.test, owner@zaffran.test (pending) / password123`);
+return true;
+}
+
+module.exports = { seedDemo };
+
+if (require.main === module) seedDemo(require('../src/db').open());
+

@@ -15,7 +15,7 @@ process.env.PLATFORM_FEE_PERCENT = '5';
 
 const request = require('supertest');
 const { open } = require('../src/db');
-const { createApp } = require('../src/app');
+const { createApp } = require('../src/create-app');
 
 // 1x1 PNG
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');

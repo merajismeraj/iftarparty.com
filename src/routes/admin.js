@@ -468,7 +468,7 @@ module.exports = (db) => {
 
   // ---------- Settings & audit ----------
   router.get('/settings', (req, res) => {
-    res.render('admin/settings', { title: 'Settings', fee: settings.feePercent(db), minDishes: settings.minPackageDishes(db), live: payments.isLive(), errors: [] });
+    res.render('admin/settings', { title: 'Settings', fee: settings.feePercent(db), minDishes: settings.minPackageDishes(db), live: payments.isLive(), wa: require('../services/notify').whatsappProvider(), errors: [] });
   });
 
   router.post('/settings', (req, res) => {
@@ -480,7 +480,7 @@ module.exports = (db) => {
     if (!Number.isInteger(minDishes) || minDishes < 1 || minDishes > 30) errors.push('Minimum dishes per package must be a whole number from 1 to 30.');
     if (errors.length) {
       return res.status(422).render('admin/settings', {
-        title: 'Settings', fee: req.body.platform_fee_percent, minDishes: req.body.min_package_dishes, live: payments.isLive(), errors,
+        title: 'Settings', fee: req.body.platform_fee_percent, minDishes: req.body.min_package_dishes, live: payments.isLive(), wa: require('../services/notify').whatsappProvider(), errors,
       });
     }
     const before = { fee: settings.feePercent(db), min: settings.minPackageDishes(db) };

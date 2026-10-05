@@ -5,7 +5,7 @@
   "description": "IftarParty.com \u2013 reserve restaurant party halls for Iftar and invite guests with WhatsApp/email RSVP.",
   "main": "src/server.js",
   "engines": {
-    "node": ">=22.13"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
