@@ -1,0 +1,74 @@
+<%- include('_open') %>
+<div class="section-head"><h1>Overview</h1>
+  <span class="pill <%= live ? 'pill-ok' : 'pill-warn' %>">Payments: <%= live ? 'Cashfree live' : 'demo mode' %></span>
+</div>
+
+<div class="stats">
+  <div class="stat"><span class="stat-n"><%= money.format(m.gmv) %></span><span class="muted">Gross bookings (GMV)</span></div>
+  <div class="stat stat-ok"><span class="stat-n"><%= money.format(m.fees) %></span><span class="muted">Platform revenue</span></div>
+  <div class="stat"><span class="stat-n"><%= m.confirmed %></span><span class="muted">Confirmed bookings · <%= m.upcoming %> upcoming</span></div>
+  <div class="stat"><span class="stat-n"><%= money.format(m.refunded) %></span><span class="muted">Refunded</span></div>
+  <div class="stat"><span class="stat-n"><%= m.restaurants_live %></span><span class="muted">Live restaurants · <%= m.hosts %> host<%= m.hosts === 1 ? '' : 's' %></span></div>
+  <div class="stat"><span class="stat-n"><%= m.guests_yes %>/<%= m.guests_invited %></span><span class="muted">Upcoming RSVPs yes / invited</span></div>
+</div>
+
+<h2 class="h3">Needs attention</h2>
+<% const todo = [
+  [m.restaurants_pending, `${m.restaurants_pending} restaurant${m.restaurants_pending === 1 ? '' : 's'} awaiting approval`, '/admin/restaurants?status=pending'],
+  [m.reviews_pending, `${m.reviews_pending} review${m.reviews_pending === 1 ? '' : 's'} or replies awaiting moderation`, '/admin/reviews'],
+  [m.payouts_owed, `${money.format(m.payouts_owed)} owed to restaurants for completed Iftars`, '/admin/payouts'],
+  [m.refunds_failed, `${m.refunds_failed} refund${m.refunds_failed === 1 ? '' : 's'} failed – retry needed`, '/admin/bookings?refund=failed'],
+  [m.orphan_payments, `${m.orphan_payments} payment${m.orphan_payments === 1 ? '' : 's'} taken without a booking and not yet refunded`, '/admin/bookings?refund=orphan'],
+  [m.refunds_pending, `${m.refunds_pending} refund${m.refunds_pending === 1 ? '' : 's'} processing at the bank`, '/admin/bookings?refund=pending'],
+  [m.messages_failed, `${m.messages_failed} invite${m.messages_failed === 1 ? '' : 's'} failed to deliver this week`, '/admin/messages?status=failed'],
+].filter(([n]) => n); %>
+<% if (!todo.length) { %><p class="muted">All clear. ✓</p><% } else { %>
+  <ul class="todo"><% todo.forEach(([, label, href]) => { %><li><a href="<%= href %>"><%= label %> →</a></li><% }) %></ul>
+<% } %>
+
+<% if (pending.length) { %>
+  <h2 class="h3">Awaiting approval</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Restaurant</th><th>Owner</th><th>Halls</th><th>Signed up</th><th></th></tr></thead>
+    <tbody><% pending.forEach(r => { %>
+      <tr>
+        <td><a href="/admin/restaurants/<%= r.id %>"><strong><%= r.name %></strong></a><br><span class="muted small"><%= [r.area, r.city].filter(Boolean).join(', ') %></span></td>
+        <td><%= r.owner_name %></td><td><%= r.venues %></td><td class="small"><%= r.created_at.slice(0, 10) %></td>
+        <td class="nowrap">
+          <form method="post" action="/admin/restaurants/<%= r.id %>/status" class="inline">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="approved"><input type="hidden" name="back" value="/admin">
+            <button class="btn btn-small">Approve</button>
+          </form>
+          <a class="btn btn-small btn-ghost" href="/admin/restaurants/<%= r.id %>">Review</a>
+        </td>
+      </tr>
+    <% }) %></tbody>
+  </table></div>
+<% } %>
+
+<div class="two-col">
+  <div>
+    <h2 class="h3">Latest bookings</h2>
+    <div class="table-wrap"><table>
+      <tbody><% recent.forEach(b => { %>
+        <tr>
+          <td><a href="/admin/bookings/<%= b.id %>">#<%= b.id %></a></td>
+          <td><%= b.title %><br><span class="muted small"><%= b.venue_name %>, <%= b.restaurant_name %> · <%= fmt.shortDate(b.event_date) %></span></td>
+          <td><%- include('_status', { s: b.status }) %></td>
+          <td class="nowrap"><%= money.format(b.total_amount, b.currency) %></td>
+        </tr>
+      <% }) %>
+      <% if (!recent.length) { %><tr><td class="muted">No bookings yet.</td></tr><% } %></tbody>
+    </table></div>
+  </div>
+  <div>
+    <h2 class="h3">Recent admin activity</h2>
+    <div class="table-wrap"><table>
+      <tbody><% actions.forEach(a => { %>
+        <tr><td class="small nowrap"><%= a.created_at.slice(5, 16) %></td><td class="small"><strong><%= a.admin_name || 'system' %></strong> <%= a.action %><br><span class="muted"><%= a.detail %></span></td></tr>
+      <% }) %>
+      <% if (!actions.length) { %><tr><td class="muted">Nothing yet.</td></tr><% } %></tbody>
+    </table></div>
+  </div>
+</div>
+<%- include('_close') %>

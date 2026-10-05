@@ -1,0 +1,16 @@
+<article class="review" id="review-<%= r.id %>">
+  <header>
+    <div><%- include('stars', { value: r.rating }) %> <strong><%= r.title || '' %></strong></div>
+    <span class="muted small"><%= r.author || r.host_name %> · <%= r.venue_name %> · Iftar in <%= new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${r.event_date}T00:00:00Z`)) %> · <span class="verified">✓ Verified booking</span></span>
+  </header>
+  <p class="prewrap"><%= r.body %></p>
+  <% const subs = [['Food', r.food_rating], ['Service', r.service_rating], ['Ambience', r.ambience_rating]].filter(([, x]) => x); %>
+  <% if (subs.length) { %><p class="small muted"><%= subs.map(([l, x]) => `${l} ${x}/5`).join(' · ') %></p><% } %>
+  <% if (r.reply && (r.reply_status === 'approved' || locals.showPendingReply)) { %>
+    <div class="review-reply">
+      <strong class="small">Response from the restaurant<%= r.reply_status !== 'approved' ? ` (${r.reply_status})` : '' %></strong>
+      <p class="prewrap small"><%= r.reply %></p>
+      <% if (r.reply_status === 'rejected' && r.reply_note) { %><p class="small bad">Not published: <%= r.reply_note %></p><% } %>
+    </div>
+  <% } %>
+</article>

@@ -1,0 +1,9 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad center">
+  <div class="card form-card" data-cashfree-session="<%= sessionId %>" data-cashfree-mode="<%= mode %>">
+    <h1 class="h2">Taking you to secure payment…</h1>
+    <p class="muted">Paying <strong><%= money.format(b.total_amount, b.currency) %></strong> for <%= b.title %> via Cashfree (UPI, cards, netbanking, wallets).</p>
+    <p class="small bad" data-cashfree-error hidden>The payment window didn’t open. <a href="/bookings/<%= b.id %>/checkout">Go back and try again</a>.</p>
+  </div>
+</section>
+<%- include('../partials/foot') %>

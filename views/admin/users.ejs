@@ -1,0 +1,31 @@
+<%- include('_open') %>
+<h1>Users</h1>
+<form class="admin-filters" method="get">
+  <input name="q" placeholder="Name, email or phone" value="<%= q.q || '' %>">
+  <select name="role"><option value="">All roles</option><% ['host', 'restaurant', 'admin'].forEach(r => { %><option <%= q.role === r ? 'selected' : '' %>><%= r %></option><% }) %></select>
+  <select name="status"><option value="">Any status</option><% ['active', 'suspended'].forEach(s => { %><option <%= q.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
+  <button class="btn btn-small">Filter</button>
+</form>
+<div class="table-wrap"><table>
+  <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Bookings</th><th>Joined</th><th></th></tr></thead>
+  <tbody><% rows.forEach(u => { %>
+    <tr>
+      <td><strong><%= u.name %></strong><br><span class="muted small"><%= u.email %> · <%= u.phone || '—' %></span></td>
+      <td><%= u.role %><% if (u.restaurant_id) { %> · <a class="small" href="/admin/restaurants/<%= u.restaurant_id %>">restaurant</a><% } %></td>
+      <td><%- include('_status', { s: u.status }) %></td>
+      <td><% if (u.role === 'host') { %><a href="/admin/bookings?q=<%= encodeURIComponent(u.email) %>"><%= u.bookings %></a><% } else { %>—<% } %></td>
+      <td class="small"><%= u.created_at.slice(0, 10) %></td>
+      <td><% if (u.role !== 'admin') { %>
+        <form method="post" action="/admin/users/<%= u.id %>/status" class="inline">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="back" value="/admin/users?<%= new URLSearchParams(Object.entries(q).filter(([, v]) => typeof v === 'string')) %>">
+          <input type="hidden" name="status" value="<%= u.status === 'active' ? 'suspended' : 'active' %>">
+          <button class="btn btn-small btn-ghost" data-confirm="<%= u.status === 'active' ? `Suspend ${u.name}? They will be signed out and blocked from signing in.` : '' %>"><%= u.status === 'active' ? 'Suspend' : 'Reactivate' %></button>
+        </form>
+      <% } %></td>
+    </tr>
+  <% }) %>
+  <% if (!rows.length) { %><tr><td colspan="6" class="muted">No users match.</td></tr><% } %></tbody>
+</table></div>
+<%- include('_pager') %>
+<%- include('_close') %>

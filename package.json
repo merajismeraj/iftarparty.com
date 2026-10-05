@@ -1,0 +1,32 @@
+{
+  "name": "iftarparty",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IftarParty.com \u2013 reserve restaurant party halls for Iftar and invite guests with WhatsApp/email RSVP.",
+  "main": "src/server.js",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "seed": "node --disable-warning=ExperimentalWarning scripts/seed.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "admin": "node --disable-warning=ExperimentalWarning scripts/create-admin.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-session": "^2.1.1",
+    "csv-parse": "^7.0.3",
+    "dotenv": "^18.0.5",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.14"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
+  }
+}

@@ -1,0 +1,144 @@
+# IftarParty.com
+
+Reserve private party halls at local restaurants for Iftar gatherings, pay online, and invite guests on WhatsApp and email with RSVP tracking.
+
+## What it does
+
+**Restaurants**
+- Sign up as a restaurant partner. Add halls with min/max guest count (pax), a hall hire fee and photos (JPG/PNG/WebP, up to 8).
+- Add Iftar menus with a per-guest price, minimum guests, veg/non-veg flag and the dishes included.
+- Build a **dish catalogue** (openers, starters, mains, biryani & rice, breads, desserts, beverages; veg or non-veg).
+- Offer **set menus** (a fixed list of dishes) and/or **packages**: budget tiers like *Silver ₹699 · Gold ₹999 · Platinum ₹1,499* per guest. Each package sets how many dishes the host chooses per course (e.g. *3 starters · 2 mains · 2 desserts*) and which dishes are eligible, so premium dishes can be kept for higher tiers. Marking a dish unavailable removes it from every package at once.
+- Add **extras** such as a live grill, dessert counter, décor or photography, priced **per guest** or **per event**.
+- Read published reviews and reply. Replies are moderated before they appear.
+- The dashboard shows upcoming parties, each host's contact details, the RSVP headcount and the payout.
+
+**Hosts**
+- Search by **location**, **date**, **guest count**, **menu, dish or cuisine** (dish names inside packages match too), **budget** and diet. The budget can be **per guest** or a **total for the event**: food + hall + service fee for your guest count, before extras. Cards show a *Fits budget* estimate. Sort by price, top rated, size or newest.
+- On a venue page, every menu and package is marked **Within budget** or **Over budget by ₹X**. Pick a date, guest count and menu or package, choose dishes per course (the picker stops at each course's limit) and any extras. Hosts must pick **at least 4 dishes in total** (at least one from every course in the package). The minimum is an admin setting, and packages that can't reach it are hidden. The **full price shows live**, along with how much of your budget is left.
+- Dish picks and extras are saved with the booking at their quoted prices. Hosts can **change dishes until 2 days before the Iftar**; after that the menu is final for the kitchen. Picks appear on the checkout page, the host's party page, the restaurant dashboard, the admin booking page and the guests' invitations. The server recalculates it, so a client can't change the price.
+- Reserving holds the hall for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
+- After payment you're sent straight to **upload your invite list** as a CSV or pasted rows with name, email and mobile. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
+- Guests reply Yes, Maybe or No with the number of people coming and a note. The host's dashboard shows **attending, total heads, maybe, declined and awaiting reply**, plus a bar comparing confirmed heads to guests booked. You can send reminders to anyone who hasn't replied and export the RSVPs to CSV.
+- The RSVP page shows **who's coming**: the confirmed guests as "First L." with any "+N" family members, plus a total headcount. The guest viewing it appears first as "You". Contact details, declines and maybes are never shown, and the host can switch the list off in their invitation settings.
+
+**Reviews (verified, moderated)**
+- Only the host of a **confirmed booking whose Iftar has taken place** can review the venue, once per booking. They give an overall rating plus optional food, service and ambience ratings.
+- Every review waits in the admin **moderation queue**. Editing a published review takes it offline until it's approved again. If a review is rejected, the host sees the reason and can resubmit.
+- Venue pages show the average rating, the star distribution, the sub-ratings and published reviews. Reviewers are shown as "First L." with a *Verified booking* badge. Search cards show the rating, and results can be sorted by **Top rated**.
+
+## Run it
+
+Requires Node.js 22.13 or later. It uses the built-in `node:sqlite`, so there are no native modules to build.
+
+```bash
+npm install
+cp .env.example .env      # optional – works with defaults
+npm run seed              # demo restaurants, halls, menus and a booked party
+npm start                 # http://localhost:3000
+npm test                  # 78 integration + unit tests (Cashfree is exercised against a fake gateway)
+```
+
+Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
+
+## Integrations
+
+Each integration runs in **demo mode** until you add its keys, so you can use the whole flow locally.
+
+| Feature | Demo mode | Production |
+|---|---|---|
+| Payments | Simulated checkout. Refunds succeed instantly | **Cashfree Payment Gateway**: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox\|production` |
+| Email | Printed to the server log | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (any SMTP provider, e.g. SES, Postmark, SendGrid) |
+| WhatsApp | Printed to the server log | **OpenWA** self-hosted gateway (default): `OPENWA_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`. Or the official Meta Cloud API with `WHATSAPP_PROVIDER=meta` |
+
+### Cashfree
+
+1. **Create the order on the server.** We call `POST /pg/orders` with API version `2023-08-01`. Cashfree returns a `payment_session_id`, which the Cashfree JS SDK uses to open its hosted checkout. The host pays there by UPI, card, netbanking or wallet.
+2. **Confirm the payment two ways.** Cashfree sends the host back to `/bookings/:id/payment-return`, and it also sends a signed webhook to **`<BASE_URL>/webhooks/cashfree`**. Add that URL in *Cashfree Dashboard → Developers → Webhooks* and subscribe to **Payment success** and **Refund status**. In both cases we re-fetch the order from Cashfree and only confirm the booking if `order_status = PAID` and the amount matches.
+3. **Check the webhook signature.** Each webhook must carry a valid `x-webhook-signature`: an HMAC-SHA256 of the timestamp plus the raw body, signed with your secret key. Webhooks older than 10 minutes are rejected.
+4. **Record every attempt in a ledger.** Each order and refund is stored in the `payments` table. If money arrives that can't buy a booking, it is **refunded automatically** through `POST /pg/orders/{id}/refunds`. That covers three cases: a second payment for a booking that's already paid, a late payment after someone else took the night, and a payment for a booking that was cancelled in the meantime.
+5. **Order ids look like `IP-<bookingId>-<random>`**, so a webhook can always be matched to its booking.
+
+Test it with Cashfree **sandbox** keys and their test UPI ID or cards before switching `CASHFREE_ENV=production`.
+
+### WhatsApp (OpenWA)
+
+Invites, reminders and cancellation notices go out through [OpenWA](https://github.com/rmyndharis/OpenWA), a self-hosted WhatsApp Web gateway. It sends the full personalised message as plain text, so **no Meta template approval is needed**.
+
+1. **Run OpenWA** on a server with persistent storage (it keeps the WhatsApp session):
+   ```bash
+   git clone https://github.com/rmyndharis/OpenWA.git && cd OpenWA
+   docker compose up -d          # API + dashboard on :2785
+   ```
+2. **Link a number.** Create and start a session (`POST /api/sessions` with `{"name":"iftarparty"}`, then `POST /api/sessions/{id}/start`), open `GET /api/sessions/{id}/qr`, and scan it with WhatsApp on the **dedicated** phone.
+3. **Configure IftarParty:** set `OPENWA_URL=http://<host>:2785/api`, `OPENWA_API_KEY` (from OpenWA's `/app/data/.api-key`) and `OPENWA_SESSION_ID`.
+
+> **Risk:** OpenWA is unofficial (it automates WhatsApp Web), and WhatsApp may restrict numbers that look automated. Use a **dedicated number you can afford to lose**, never your main business line. Sends are **paced**: one at a time, at least `OPENWA_MIN_INTERVAL_MS` apart (default 1.5s, with jitter). Keep invite lists to people who expect the message. A failed send shows up in **Admin → Messages** with OpenWA's error (for example "session not connected") and can be resent once fixed.
+
+**Official alternative.** Set `WHATSAPP_PROVIDER=meta` with `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` to use Meta's WhatsApp Cloud API. That route needs two approved *Utility* templates: `iftar_invite` with 5 body variables (guest name, party title, date & time, venue, RSVP link), and `iftar_cancelled` with 4 (guest name, party title, date, venue).
+
+Every delivery attempt, invitation or cancellation, is recorded in the `message_log` table and shown in the admin portal.
+
+## Admin portal (`/admin`)
+
+Admin accounts can't be created from the website. Use the command line:
+
+```bash
+npm run admin -- create ops@iftarparty.com "Ops Team"   # asks for a password (12+ chars), or set ADMIN_PASSWORD
+npm run admin -- promote someone@example.com
+```
+
+| Section | What it does |
+|---|---|
+| **Overview** | GMV, platform revenue, refunds, live restaurants and upcoming RSVPs. A *Needs attention* queue lists pending approvals, payouts owed, failed or processing refunds, unrefunded payments and failed invites. |
+| **Restaurants** | Approve, reject, suspend or reinstate. New sign-ups stay **pending** and hidden from search until approved. Rejecting or suspending needs a reason, which the restaurant sees. Hide individual halls. View payout details. |
+| **Bookings** | Filter by status, refund state, event dates or free text, including the order id. Export to CSV for accounting. Each booking shows the event, RSVPs, the money breakdown and the full **payments ledger**. **Cancel with a full, partial or no refund** through Cashfree. The host is emailed, invited guests are told by WhatsApp and email (optional), their RSVP links show the cancellation, and the night becomes free again. Re-check stuck orders with the gateway and retry failed refunds. |
+| **Reviews** | Moderation queue for reviews and restaurant replies: approve, reject or unpublish, with a reason the author sees. Includes booking context and the reviewer's history. |
+| **Payouts** | Lists what each restaurant is owed (total minus platform fee) for Iftars that have already happened, with their UPI and bank details. Record the bank reference (UTR) to mark them paid; the payout history is kept. |
+| **Users** | Search, then suspend or reactivate hosts and restaurant owners. A suspended user is signed out immediately and can't sign back in. |
+| **Messages** | WhatsApp and email delivery rates for the last 7 days, failed sends with the error from the provider, and one-click resend. |
+| **Settings** | The platform fee percentage, which applies only to new bookings (each booking keeps the fee it was quoted), and the **minimum dishes per package**, default 4. |
+| **Audit log** | Every admin action, with who did it, when, and the details. |
+
+## Architecture
+
+- **Express 5 + EJS** server-rendered pages, with a small vanilla JS file for the live quote, availability check and hold countdown.
+- **Warm, modern visual design.** An ivory background with white cards that lift off it, a deep aubergine-to-terracotta "dusk" gradient for the hero, call-to-action and footer bands, a saffron-terracotta accent for primary actions, soft peach/saffron/plum/sage tints for badges, and Plus Jakarta Sans headings over Inter body text. There is no themed decoration. Colour tokens live at the top of `public/css/style.css`, and the theme layer is at the end of it.
+- **Mobile-first UI.** Base styles target phones and are layered up at 640px and 960px. On phones the site uses a menu-button drawer, a collapsible search summary, swipeable venue photos, a sticky *Reserve* bar with the live total, and tables that turn into stacked cards. Tap targets are at least 44px and inputs use 16px text (no iOS zoom). Everything is checked for horizontal overflow at 320, 375, 768 and 1280px. The site still works without JS: the nav and search simply render expanded.
+- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v6), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
+- **Double-booking protection:** the hold is taken inside a synchronous `BEGIN IMMEDIATE` transaction. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
+- **Security:** bcrypt passwords, signed httpOnly session cookies, CSRF tokens on every form, Helmet CSP, ownership checks on every restaurant and booking route, image-only uploads with size limits, rate-limited login, and spreadsheet-formula escaping in CSV exports.
+
+```
+src/
+  app.js, server.js, config.js, db.js
+  routes/      public (search, venue) · auth · restaurant · bookings · rsvp · admin · webhooks
+  services/    bookings (holds/confirm) · packages · reviews · checkout (ledger, refunds) · payments (Cashfree) · pricing · settings · audit · invites · notify · guestlist
+views/         EJS pages + email template
+public/        CSS, JS
+scripts/seed.js, scripts/create-admin.js
+test/
+```
+
+## Deploying
+
+### Hosted demo (Vercel)
+The repository deploys to Vercel as-is. `api/index.js` exports the Express app, `vercel.json` sends every route to it and bundles `views/`, and `public/` is served by the CDN.
+
+On Vercel the app runs in **demo mode**:
+- The SQLite database and uploads live in `/tmp`, which Vercel wipes whenever it recycles a function instance.
+- Each instance starts with fresh **sample data** (`DEMO_MODE`). Anything you create may disappear, and separate instances don't share data.
+- Payments, email and WhatsApp stay in demo mode unless you add their keys.
+
+Use it to click through the product. Don't take real bookings on it.
+
+### Production
+Real bookings need durable storage and a long-running process:
+- **Simplest:** run `npm start` on any VM or container host with a persistent disk (Render, Railway, Fly.io, a VPS). Mount it for `DATABASE_PATH`/`UPLOAD_DIR`, put HTTPS in front, and set `NODE_ENV=production`, `SESSION_SECRET`, `BASE_URL` and the Cashfree, SMTP and OpenWA keys. OpenWA can run on the same machine via Docker.
+- **Serverless (Vercel):** swap SQLite for Postgres (e.g. Neon) and local uploads for Vercel Blob. The data layer is concentrated in `src/db.js` and `src/services/*`, and uploads in `src/middleware/uploads.js`.
+
+## Production notes
+
+- Set `NODE_ENV=production`, a long random `SESSION_SECRET` and `BASE_URL`, which is used in RSVP links.
+- Store `uploads/` and the database on persistent disk. For multi-instance scale, move to Postgres and S3, which only touches `db.js` and `middleware/uploads.js`.
+- For large guest lists, move `sendInvites` to a job queue. It already sends with limited concurrency.

@@ -1,0 +1,56 @@
+<%- include('../partials/head') %>
+<section class="wrap section">
+  <div class="section-head">
+    <div><p class="eyebrow dark">Assalamu Alaikum, <%= user.name.split(' ')[0] %></p><h1>My Iftar parties</h1></div>
+    <a class="btn" href="/search">+ Book a new venue</a>
+  </div>
+  <% if (!parties.length) { %>
+    <div class="empty">
+      <p class="lead">You haven’t booked an Iftar yet.</p>
+      <a class="btn btn-gold" href="/search">Find a venue</a>
+    </div>
+  <% } %>
+  <div class="party-list">
+    <% parties.forEach(p => { const past = p.event_date < today; %>
+      <article class="card party-card <%= past ? "past" : "" %> <%= p.status === "cancelled" ? "cancelled" : "" %>">
+        <% if (p.image) { %><img src="/uploads/<%= p.image %>" alt=""><% } %>
+        <div class="party-body">
+          <div class="party-top">
+            <div>
+              <h2 class="h3"><%= p.title %></h2>
+              <p class="muted"><%= fmt.longDate(p.event_date) %> · <%= p.venue_name %>, <%= p.restaurant_name %></p>
+            </div>
+            <% if (p.status === 'cancelled') { %><span class="pill pill-bad">Cancelled</span>
+            <% } else if (p.status === 'pending_payment') { %><span class="pill pill-warn">Awaiting payment</span>
+            <% } else if (past) { %><span class="pill">Completed</span>
+            <% } else { %><span class="pill pill-ok">Reserved</span><% } %>
+          </div>
+          <% if (p.status === 'cancelled') { %>
+            <p class="small"><%= p.cancel_reason ? `Reason: ${p.cancel_reason}` : 'This booking was cancelled.' %>
+              <% if (p.payment && p.payment.refund_status !== 'none') { %><br>Refund: <%= money.format(p.payment.refund_amount, p.currency) %> – <%= { success: 'completed', pending: 'processing (5–7 working days)', failed: 'being retried by our team' }[p.payment.refund_status] %><% } %>
+              <% if (p.notified) { %><br><span class="muted">We notified <%= p.notified %> of your guests by WhatsApp/email.</span><% } else if (p.rsvp.invited) { %><br><span class="muted">Your guests were not notified – please let them know.</span><% } %></p>
+          <% } else if (p.status === 'confirmed') { %>
+            <div class="rsvp-strip">
+              <div><span class="stat-n"><%= p.rsvp.yes %></span><span class="muted small">Attending</span></div>
+              <div><span class="stat-n"><%= p.rsvp.headcount %></span><span class="muted small">Total heads</span></div>
+              <div><span class="stat-n"><%= p.rsvp.maybe %></span><span class="muted small">Maybe</span></div>
+              <div><span class="stat-n"><%= p.rsvp.no %></span><span class="muted small">Declined</span></div>
+              <div><span class="stat-n"><%= p.rsvp.pending %></span><span class="muted small">Awaiting</span></div>
+              <div><span class="stat-n"><%= p.rsvp.invited %></span><span class="muted small">Invited</span></div>
+            </div>
+            <div class="btn-row">
+              <a class="btn btn-small" href="/bookings/<%= p.id %>"><%= past ? 'View party' : p.rsvp.invited ? 'Manage guests & RSVPs' : 'Upload invite list' %></a>
+              <% if (past) { %>
+                <% if (!p.review) { %><a class="btn btn-small btn-gold" href="/bookings/<%= p.id %>/review">★ Review <%= p.restaurant_name %></a>
+                <% } else { %><a class="btn btn-small btn-ghost" href="/bookings/<%= p.id %>/review">Your review: <%= { pending: 'awaiting moderation', approved: 'published', rejected: 'needs changes' }[p.review.status] %></a><% } %>
+              <% } %>
+            </div>
+          <% } else { %>
+            <div class="btn-row"><a class="btn btn-small btn-gold" href="/bookings/<%= p.id %>/checkout">Complete payment</a></div>
+          <% } %>
+        </div>
+      </article>
+    <% }) %>
+  </div>
+</section>
+<%- include('../partials/foot') %>

@@ -1,0 +1,38 @@
+<%- include('../partials/head') %>
+<% const editing = Boolean(venue.id); const fee = locals.rawFee ? venue.hire_fee : money.toMajor(venue.hire_fee); %>
+<section class="wrap narrow page-pad">
+  <p class="crumbs"><a href="/restaurant">Dashboard</a> › <%= editing ? 'Edit hall' : 'New hall' %></p>
+  <div class="card form-card">
+    <h1 class="h2"><%= editing ? `Edit ${venue.name}` : 'Add a party hall' %></h1>
+    <%- include('../partials/errors') %>
+    <form method="post" enctype="multipart/form-data" action="<%= editing ? `/restaurant/venues/${venue.id}` : '/restaurant/venues' %>?_csrf=<%= csrfToken %>">
+      <label class="field"><span>Hall name</span><input name="name" required maxlength="120" value="<%= venue.name || '' %>" placeholder="Noor Banquet Hall"></label>
+      <div class="row-3">
+        <label class="field"><span>Min guests</span><input type="number" name="min_pax" min="1" required value="<%= venue.min_pax %>"></label>
+        <label class="field"><span>Max guests (pax)</span><input type="number" name="max_pax" min="1" required value="<%= venue.max_pax %>"></label>
+        <label class="field"><span>Hall hire fee (<%= currency %>)</span><input type="number" name="hire_fee" min="0" step="any" value="<%= fee || 0 %>"><small class="muted">0 if included in menu</small></label>
+      </div>
+      <label class="field"><span>Description</span><textarea name="description" rows="4" placeholder="Seating style, prayer area, parking, décor…"><%= venue.description || '' %></textarea></label>
+      <label class="field"><span>Amenities (comma separated)</span><input name="amenities" value="<%= venue.amenities || '' %>" placeholder="Air-conditioned, Prayer area, Valet parking, Projector"></label>
+
+      <% if (images.length) { %>
+        <p class="field-label">Current photos</p>
+        <div class="thumbs">
+          <% images.forEach(img => { %>
+            <figure>
+              <img src="/uploads/<%= img.filename %>" alt="">
+              <button class="btn btn-small btn-ghost" formaction="/restaurant/venues/<%= venue.id %>/images/<%= img.id %>/delete?_csrf=<%= csrfToken %>" formnovalidate data-confirm="Remove this photo?">Remove</button>
+            </figure>
+          <% }) %>
+        </div>
+      <% } %>
+      <label class="field">
+        <span><%= images.length ? 'Add more photos' : 'Photos of the hall' %></span>
+        <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple <%= editing ? '' : 'required' %>>
+        <small class="muted">Up to 8 images, 5 MB each. The first photo is the cover.</small>
+      </label>
+      <button class="btn btn-gold btn-block"><%= editing ? 'Save changes' : 'Publish hall' %></button>
+    </form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

@@ -1,0 +1,114 @@
+<%- include('../partials/head') %>
+<%
+  const uninvited = guests.filter(g => !g.invited_at).length;
+  const statusLabel = { yes: 'Attending', no: 'Declined', maybe: 'Maybe', pending: 'Awaiting reply' };
+  const chanIcon = (s) => ({ sent: '✓', logged: '✓ (demo)', failed: '✗ failed', not_sent: '—' }[s] || s);
+%>
+<section class="wrap section">
+  <% if (welcome) { %><ol class="progress-steps"><li class="done">Choose hall</li><li class="done">Pay</li><li class="on">Invite guests</li></ol><% } %>
+  <p class="crumbs"><a href="/my-parties">My parties</a> › <%= b.title %></p>
+  <div class="party-hero card">
+    <% if (b.image) { %><img src="/uploads/<%= b.image %>" alt=""><% } %>
+    <div>
+      <span class="pill pill-ok"><%= past ? 'Completed' : 'Reserved' %></span>
+      <h1><%= b.title %></h1>
+      <p class="lead"><%= fmt.longDate(b.event_date) %> · arrive <%= fmt.time12(b.arrival_time) %></p>
+      <p class="muted"><strong><%= b.venue_name %></strong>, <%= b.restaurant_name %> · <%= [b.address, b.area, b.city].filter(Boolean).join(', ') %><br>
+        <%= b.guest_count %> guests booked · <%= b.menu_name %><% if (addons.length) { %> + <%= addons.map(a => a.name).join(', ') %><% } %> · paid <%= money.format(b.total_amount, b.currency) %><% if (b.restaurant_phone) { %> · Restaurant: <%= b.restaurant_phone %><% } %></p>
+    </div>
+  </div>
+
+  <% if (dishes.length) { %>
+    <div class="card form-card" id="menu">
+      <div class="section-head"><h2 class="h3">Your menu · <%= b.menu_name %></h2>
+        <% if (canEditMenu) { %><a class="btn btn-small btn-ghost" href="/bookings/<%= b.id %>/menu">Change dishes</a><% } else { %><span class="small muted">Final – call the restaurant for changes</span><% } %>
+      </div>
+      <div class="menu-selection"><% dishes.forEach(g => { %><div><span class="muted"><%= g.label %>:</span> <%= g.dishes.map(d => d.name).join(', ') %></div><% }) %></div>
+    </div>
+  <% } %>
+
+  <h2 class="h3">RSVPs</h2>
+  <div class="stats">
+    <div class="stat stat-ok"><span class="stat-n"><%= rsvp.yes %></span><span class="muted">Attending</span></div>
+    <div class="stat"><span class="stat-n"><%= rsvp.headcount %></span><span class="muted">Total heads (incl. family)</span></div>
+    <div class="stat"><span class="stat-n"><%= rsvp.maybe %></span><span class="muted">Maybe</span></div>
+    <div class="stat"><span class="stat-n"><%= rsvp.no %></span><span class="muted">Declined</span></div>
+    <div class="stat"><span class="stat-n"><%= rsvp.pending %></span><span class="muted">Awaiting reply</span></div>
+  </div>
+  <div class="capacity">
+    <label for="cap" class="small muted">Confirmed heads vs. guests booked: <strong><%= rsvp.headcount %> / <%= b.guest_count %></strong></label>
+    <meter id="cap" min="0" max="<%= b.guest_count %>" high="<%= b.guest_count %>" optimum="<%= Math.round(b.guest_count * 0.9) %>" value="<%= Math.min(rsvp.headcount, b.guest_count) %>"></meter>
+    <% if (rsvp.headcount > b.guest_count) { %><p class="small bad">You have more confirmed guests than you booked for. Call the restaurant to increase your headcount.</p><% } %>
+  </div>
+
+  <div class="two-col">
+    <div class="card form-card" id="guests">
+      <h2 class="h3">Add your invite list</h2>
+      <p class="muted small">Upload a CSV with <strong>name, email, mobile</strong> columns (<a href="/guest-list-template.csv">download template</a>) or paste one guest per line. Each guest needs an email or a mobile number. Mobiles without a country code are treated as +<%= locals.defaultCountryCode || '91' %>.</p>
+      <% if (past) { %>
+        <p class="muted">This Iftar has passed — invites are closed.</p>
+      <% } else { %>
+      <form method="post" action="/bookings/<%= b.id %>/guests?_csrf=<%= csrfToken %>" enctype="multipart/form-data">
+        <label class="field"><span>CSV file</span><input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
+        <p class="center muted small">— or —</p>
+        <label class="field"><span>Paste guests</span><textarea name="list" rows="5" placeholder="Aisha Khan, aisha@example.com, +919876543210&#10;Omar Siddiqui, , 9876501234"></textarea></label>
+        <label class="check"><input type="checkbox" name="send_now" checked> Send invites on WhatsApp &amp; email right away</label>
+        <button class="btn btn-gold btn-block">Add guests</button>
+      </form>
+      <% } %>
+    </div>
+
+    <div class="card form-card" id="invite">
+      <h2 class="h3">Personalise your invitation</h2>
+      <form method="post" action="/bookings/<%= b.id %>/details">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field"><span>Arrival time</span><input type="time" name="arrival_time" value="<%= b.arrival_time %>"></label>
+        <label class="field"><span>Personal note to guests</span><textarea name="invite_message" rows="3" maxlength="600" placeholder="Join us to break our fast together this Ramadan."><%= b.invite_message %></textarea></label>
+        <label class="check"><input type="checkbox" name="show_guest_list" <%= b.show_guest_list ? 'checked' : '' %>> Show guests who else is coming <span class="muted small">(first name + initial only)</span></label>
+        <button class="btn btn-ghost btn-block">Save invitation</button>
+      </form>
+      <p class="field-label">Preview (what <%= guests[0] ? guests[0].name.split(' ')[0] : 'a guest' %> receives)</p>
+      <pre class="invite-preview"><%= preview.text %></pre>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2 class="h3">Guest list (<%= guests.length %>)</h2>
+    <div class="btn-row">
+      <% if (!past && uninvited) { %>
+        <form method="post" action="/bookings/<%= b.id %>/invites" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="scope" value="new"><button class="btn btn-small">Send invites to <%= uninvited %> new</button></form>
+      <% } %>
+      <% if (!past && rsvp.pending && rsvp.pending !== uninvited) { %>
+        <form method="post" action="/bookings/<%= b.id %>/invites" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="scope" value="pending"><button class="btn btn-small btn-ghost" data-confirm="Send a reminder to everyone who hasn't replied?">Remind <%= rsvp.pending %> awaiting reply</button></form>
+      <% } %>
+      <% if (guests.length) { %><a class="btn btn-small btn-ghost" href="/bookings/<%= b.id %>/guests.csv">Export CSV</a><% } %>
+    </div>
+  </div>
+  <% if (!guests.length) { %>
+    <p class="muted">No guests yet. Add your invite list above and we’ll send each guest a personalised WhatsApp message and email with an RSVP link.</p>
+  <% } else { %>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Guest</th><th>Contact</th><th>WhatsApp</th><th>Email</th><th>RSVP</th><th></th></tr></thead>
+      <tbody>
+        <% guests.forEach(g => { %>
+          <tr>
+            <td><strong><%= g.name %></strong><% if (g.note) { %><br><span class="muted small">“<%= g.note %>”</span><% } %></td>
+            <td class="small"><%= g.phone || '' %><%= g.phone && g.email ? ' · ' : '' %><%= g.email || '' %></td>
+            <td class="small <%= g.whatsapp_status === 'failed' ? 'bad' : '' %>"><%= g.phone ? chanIcon(g.whatsapp_status) : 'n/a' %></td>
+            <td class="small <%= g.email_status === 'failed' ? 'bad' : '' %>"><%= g.email ? chanIcon(g.email_status) : 'n/a' %></td>
+            <td><span class="rsvp rsvp-<%= g.rsvp_status %>"><%= statusLabel[g.rsvp_status] %><%= g.rsvp_status === 'yes' && g.party_size > 1 ? ` · ${g.party_size}` : '' %></span></td>
+            <td class="nowrap">
+              <% if (!past) { %>
+              <form method="post" action="/bookings/<%= b.id %>/guests/<%= g.id %>/resend" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link small"><%= g.invited_at ? 'Resend' : 'Send' %></button></form>
+              <% } %>
+              <form method="post" action="/bookings/<%= b.id %>/guests/<%= g.id %>/delete" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link small bad" data-confirm="Remove <%= g.name %> from the list?">Remove</button></form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+<%- include('../partials/foot') %>

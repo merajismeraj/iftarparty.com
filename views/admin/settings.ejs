@@ -1,0 +1,25 @@
+<%- include('_open') %>
+<h1>Settings</h1>
+<div class="two-col">
+  <form class="card form-card" method="post" action="/admin/settings">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <h2 class="h3">Commission</h2>
+    <%- include('../partials/errors') %>
+    <label class="field"><span>Platform fee (% added on top of food + hall fee)</span><input type="number" name="platform_fee_percent" min="0" max="30" step="0.01" value="<%= fee %>"></label>
+    <p class="small muted">Applies to new reservations only; each booking stores the fee it was quoted.</p>
+    <h2 class="h3">Packages</h2>
+    <label class="field"><span>Minimum dishes a host must pick in a package (all courses combined)</span><input type="number" name="min_package_dishes" min="1" max="30" step="1" value="<%= minDishes %>"></label>
+    <p class="small muted">Packages whose available dishes can’t reach this number are hidden from hosts until the restaurant updates them.</p>
+    <button class="btn btn-block">Save</button>
+  </form>
+  <div class="card form-card">
+    <h2 class="h3">Integrations</h2>
+    <dl class="kv">
+      <dt>Payments</dt><dd><%= live ? 'Cashfree (live keys configured)' : 'Demo – set CASHFREE_APP_ID / CASHFREE_SECRET_KEY' %></dd>
+      <dt>Webhook URL</dt><dd><code>/webhooks/cashfree</code> (payment success + refund status)</dd>
+      <dt>WhatsApp</dt><dd><%= { openwa: 'OpenWA gateway (self-hosted)', meta: 'Meta WhatsApp Cloud API', demo: 'Demo – set OPENWA_URL, OPENWA_API_KEY, OPENWA_SESSION_ID' }[wa] %></dd>
+    </dl>
+    <p class="small muted">Credentials live in environment variables, never in the database.</p>
+  </div>
+</div>
+<%- include('_close') %>

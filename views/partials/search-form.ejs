@@ -1,0 +1,29 @@
+<form class="search-form <%= locals.compact ? 'compact' : '' %>" id="search-form" method="get" action="/search">
+  <label class="field">
+    <span>Location</span>
+    <input name="location" placeholder="City or area, e.g. Bandra" value="<%= q.location || '' %>">
+  </label>
+  <label class="field">
+    <span>Date</span>
+    <input type="date" name="date" min="<%= today %>" value="<%= q.date || '' %>">
+  </label>
+  <label class="field">
+    <span>Guests</span>
+    <input type="number" name="guests" min="1" max="2000" placeholder="50" value="<%= q.guests || '' %>">
+  </label>
+  <label class="field">
+    <span>Menu / cuisine</span>
+    <input name="menu" placeholder="Haleem, Biryani, Arabic…" value="<%= q.menu || '' %>">
+  </label>
+  <div class="field budget-field">
+    <span>Budget</span>
+    <div class="budget-inputs">
+      <input type="number" name="budget" min="0" step="100" placeholder="Any" aria-label="Budget amount" value="<%= q.budget || q.max_price || '' %>">
+      <select name="budget_type" aria-label="Budget type">
+        <option value="guest" <%= q.budget_type !== 'total' ? 'selected' : '' %>>/guest</option>
+        <option value="total" <%= q.budget_type === 'total' ? 'selected' : '' %>>total</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-gold">Search</button>
+</form>

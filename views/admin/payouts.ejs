@@ -1,0 +1,40 @@
+<%- include('_open') %>
+<h1>Payouts</h1>
+<p class="muted">Restaurants are paid their share (total − platform fee) after the Iftar takes place. Transfer via your bank or UPI, then record the UTR here.
+  <% if (upcoming.n) { %>Next: <%= money.format(upcoming.amount) %> across <%= upcoming.n %> upcoming booking<%= upcoming.n === 1 ? '' : 's' %>.<% } %></p>
+
+<h2 class="h3">Owed now</h2>
+<% if (!owed.length) { %><p class="muted">Nothing owed. ✓</p><% } %>
+<div class="payout-list">
+  <% owed.forEach(o => { %>
+    <div class="card form-card payout-card">
+      <div>
+        <h3><a href="/admin/restaurants/<%= o.id %>"><%= o.name %></a></h3>
+        <p class="muted small"><%= o.bookings %> completed booking<%= o.bookings === 1 ? '' : 's' %> since <%= o.oldest %> · #<%= o.booking_ids.split(',').join(', #') %></p>
+        <p class="small">
+          <% if (o.payout_upi || o.payout_account) { %>
+            <%= o.payout_name || '' %> <%= o.payout_upi ? `· UPI ${o.payout_upi}` : '' %> <%= o.payout_account ? `· A/C ${o.payout_account} · ${o.payout_ifsc}` : '' %>
+          <% } else { %><span class="bad">No payout details on file – ask the restaurant to add them.</span><% } %>
+        </p>
+      </div>
+      <div class="payout-amount"><span class="stat-n"><%= money.format(o.amount) %></span></div>
+      <form method="post" action="/admin/payouts" class="payout-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="restaurant_id" value="<%= o.id %>">
+        <input type="hidden" name="booking_ids" value="<%= o.booking_ids %>">
+        <input name="reference" required placeholder="UTR / transfer reference">
+        <button class="btn btn-small" data-confirm="Mark <%= money.format(o.amount) %> as paid to <%= o.name %>?">Mark paid</button>
+      </form>
+    </div>
+  <% }) %>
+</div>
+
+<h2 class="h3">History</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th>Paid</th><th>Restaurant</th><th>Reference</th><th>Bookings</th><th>Amount</th></tr></thead>
+  <tbody><% history.forEach(h => { %>
+    <tr><td class="small"><%= h.paid_at %></td><td><%= h.name %></td><td><code><%= h.payout_ref %></code></td><td><%= h.bookings %></td><td><%= money.format(h.amount) %></td></tr>
+  <% }) %>
+  <% if (!history.length) { %><tr><td colspan="5" class="muted">No payouts recorded yet.</td></tr><% } %></tbody>
+</table></div>
+<%- include('_close') %>

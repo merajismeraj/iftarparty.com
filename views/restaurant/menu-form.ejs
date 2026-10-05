@@ -1,0 +1,61 @@
+<%- include('../partials/head') %>
+<% const editing = Boolean(menu.id); const isPkg = menu.kind === 'package';
+   const price = rawPrice ? menu.price_per_person : (menu.price_per_person ? money.toMajor(menu.price_per_person) : '');
+   const picked = (course) => new Set([].concat(def[`dishes_${course}`] || []).map(String)); %>
+<section class="wrap narrow page-pad">
+  <p class="crumbs"><a href="/restaurant">Dashboard</a> › <%= editing ? 'Edit' : 'New' %> <%= isPkg ? 'package' : 'menu' %></p>
+  <div class="card form-card">
+    <h1 class="h2"><%= editing ? `Edit ${menu.name}` : 'Add a menu or package' %></h1>
+    <%- include('../partials/errors') %>
+    <form method="post" action="<%= editing ? `/restaurant/menus/${menu.id}` : '/restaurant/menus' %>" data-menu-form>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <fieldset class="field">
+        <legend>Type</legend>
+        <div class="kind-choice">
+          <label class="radio-card"><input type="radio" name="kind" value="set" <%= isPkg ? '' : 'checked' %>><span><strong>Set menu</strong><br><span class="small muted">Fixed list of dishes</span></span></label>
+          <label class="radio-card"><input type="radio" name="kind" value="package" <%= isPkg ? 'checked' : '' %>><span><strong>Package</strong><br><span class="small muted">Host picks dishes per course, e.g. 3 starters + 2 mains</span></span></label>
+        </div>
+      </fieldset>
+      <label class="field"><span>Name</span><input name="name" required maxlength="120" value="<%= menu.name || '' %>" placeholder="Gold Iftar Package"></label>
+      <div class="row-3">
+        <label class="field"><span>Price per guest (<%= currency %>)</span><input type="number" name="price_per_person" min="1" step="any" required value="<%= price %>"></label>
+        <label class="field"><span>Minimum guests</span><input type="number" name="min_pax" min="1" value="<%= menu.min_pax || 1 %>"></label>
+        <label class="field"><span>Type</span>
+          <select name="diet">
+            <% [['non-veg', 'Non-veg'], ['veg', 'Veg'], ['mixed', 'Veg & non-veg']].forEach(([v, l]) => { %>
+              <option value="<%= v %>" <%= menu.diet === v ? 'selected' : '' %>><%= l %></option>
+            <% }) %>
+          </select>
+        </label>
+      </div>
+      <label class="field"><span>Short description</span><input name="description" value="<%= menu.description || '' %>" placeholder="Our most popular tier for family Iftars"></label>
+
+      <div data-kind-section="set" <%= isPkg ? 'hidden' : '' %>>
+        <label class="field"><span>Dishes included (one per line)</span><textarea name="items" rows="8" placeholder="Dates & Rooh Afza&#10;Fruit chaat&#10;Chicken haleem&#10;Mutton biryani&#10;Phirni"><%= menu.items || '' %></textarea></label>
+      </div>
+
+      <div data-kind-section="package" <%= isPkg ? '' : 'hidden' %>>
+        <p class="field-label">Courses &amp; choices</p>
+        <% if (!dishes.length) { %>
+          <div class="flash flash-info">Add dishes to your <a href="/restaurant/dishes">dish catalogue</a> first, then tick which ones this package offers.</div>
+        <% } %>
+        <p class="small muted">For each course, set how many dishes the host chooses (0 = not included) and tick the dishes eligible at this price. Leave premium dishes out of cheaper tiers. Hosts must pick at least <%= minDishes %> dishes in total, so the course limits need to add up to <%= minDishes %> or more.</p>
+        <% courses.forEach(([course, label]) => { const list = dishes.filter(d => d.course === course); if (!list.length) return; const sel = picked(course); %>
+          <div class="course-block">
+            <div class="course-head">
+              <strong><%= label %></strong>
+              <label class="small">Guest chooses <input type="number" class="inline-input" name="choose_<%= course %>" min="0" max="20" value="<%= def[`choose_${course}`] || 0 %>"></label>
+            </div>
+            <div class="dish-pills">
+              <% list.forEach(d => { %>
+                <label class="dish-pill"><input type="checkbox" name="dishes_<%= course %>" value="<%= d.id %>" <%= sel.has(String(d.id)) ? 'checked' : '' %>> <span class="diet-dot diet-<%= d.diet %>" title="<%= d.diet %>"></span><%= d.name %></label>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <button class="btn btn-gold btn-block"><%= editing ? 'Save' : 'Add' %></button>
+    </form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

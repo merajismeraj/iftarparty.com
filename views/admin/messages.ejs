@@ -1,0 +1,32 @@
+<%- include('_open') %>
+<h1>Invite delivery</h1>
+<div class="stats">
+  <% ['whatsapp', 'email'].forEach(ch => { const rows7 = health.filter(h => h.channel === ch); const all = rows7.reduce((a, h) => a + h.n, 0); const failed = rows7.filter(h => h.status === 'failed').reduce((a, h) => a + h.n, 0); %>
+    <div class="stat <%= failed ? '' : 'stat-ok' %>"><span class="stat-n"><%= all ? Math.round(((all - failed) / all) * 100) : 100 %>%</span><span class="muted"><%= ch === 'whatsapp' ? 'WhatsApp' : 'Email' %> delivered (7 days) · <%= failed %> failed of <%= all %></span></div>
+  <% }) %>
+</div>
+<form class="admin-filters" method="get">
+  <select name="status"><option value="">All results</option><% ['failed', 'sent', 'logged'].forEach(s => { %><option <%= q.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
+  <select name="kind"><option value="">Invites &amp; cancellations</option><% ['invite', 'cancellation'].forEach(s => { %><option <%= q.kind === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
+  <select name="channel"><option value="">Both channels</option><% ['whatsapp', 'email'].forEach(s => { %><option <%= q.channel === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
+  <button class="btn btn-small">Filter</button>
+</form>
+<div class="table-wrap"><table>
+  <thead><tr><th>When</th><th>Guest</th><th>Party</th><th>Type</th><th>Channel</th><th>Result</th><th></th></tr></thead>
+  <tbody><% rows.forEach(m => { %>
+    <tr>
+      <td class="small nowrap"><%= m.created_at %></td>
+      <td><%= m.guest_name || '—' %><br><span class="muted small"><%= m.recipient %></span></td>
+      <td class="small"><% if (m.booking_id) { %><a href="/admin/bookings/<%= m.booking_id %>"><%= m.title %></a><br><span class="muted"><%= m.event_date %></span><% } %></td>
+      <td><%= m.kind %></td>
+      <td><%= m.channel %></td>
+      <td><%- include('_status', { s: m.status }) %><% if (m.status === 'failed') { %><br><span class="small bad"><%= m.detail %></span><% } %></td>
+      <td><% if (m.status === 'failed' && m.guest_id && m.kind === 'invite' && m.booking_status === 'confirmed') { %>
+        <form method="post" action="/admin/guests/<%= m.guest_id %>/resend" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="back" value="/admin/messages?status=failed"><button class="btn btn-small btn-ghost">Resend</button></form>
+      <% } %></td>
+    </tr>
+  <% }) %>
+  <% if (!rows.length) { %><tr><td colspan="7" class="muted">No messages match.</td></tr><% } %></tbody>
+</table></div>
+<%- include('_pager') %>
+<%- include('_close') %>

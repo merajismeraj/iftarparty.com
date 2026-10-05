@@ -1,0 +1,4 @@
+<% const cls = { approved: 'pill-ok', confirmed: 'pill-ok', active: 'pill-ok', success: 'pill-ok', paid: 'pill-ok', sent: 'pill-ok',
+                 pending: 'pill-warn', pending_payment: 'pill-warn', created: 'pill-warn', logged: 'pill-warn', unpaid: 'pill-warn',
+                 rejected: 'pill-bad', suspended: 'pill-bad', cancelled: 'pill-bad', failed: 'pill-bad' }[s] || ''; %>
+<span class="pill <%= cls %>"><%= String(s).replace('_', ' ') %></span>

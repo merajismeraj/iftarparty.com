@@ -1,0 +1,30 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <p class="crumbs"><a href="/restaurant">Dashboard</a> › Profile</p>
+  <div class="card form-card">
+    <h1 class="h2">Restaurant profile</h1>
+    <%- include('../partials/errors') %>
+    <form method="post" action="/restaurant/profile">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field"><span>Restaurant name</span><input name="name" required value="<%= form.name %>"></label>
+      <label class="field"><span>Cuisine</span><input name="cuisine" value="<%= form.cuisine %>" placeholder="Mughlai, Hyderabadi, Lebanese…"></label>
+      <label class="field"><span>About</span><textarea name="description" rows="4"><%= form.description %></textarea></label>
+      <label class="field"><span>Street address</span><input name="address" value="<%= form.address %>"></label>
+      <div class="row-2">
+        <label class="field"><span>Area / locality</span><input name="area" value="<%= form.area %>"></label>
+        <label class="field"><span>City</span><input name="city" required value="<%= form.city %>"></label>
+      </div>
+      <label class="field"><span>Booking contact phone</span><input type="tel" name="phone" value="<%= form.phone %>"></label>
+      <h2 class="h3" id="payout">Payout details</h2>
+      <p class="muted small">Your share of each booking (total minus the platform fee) is transferred after the Iftar takes place. UPI is fastest.</p>
+      <label class="field"><span>Account holder / business name</span><input name="payout_name" value="<%= form.payout_name %>"></label>
+      <label class="field"><span>UPI ID</span><input name="payout_upi" value="<%= form.payout_upi %>" placeholder="noormahal@okhdfc"></label>
+      <div class="row-2">
+        <label class="field"><span>Bank account number</span><input name="payout_account" inputmode="numeric" value="<%= form.payout_account %>"></label>
+        <label class="field"><span>IFSC</span><input name="payout_ifsc" value="<%= form.payout_ifsc %>" placeholder="HDFC0001234"></label>
+      </div>
+      <button class="btn btn-block">Save profile</button>
+    </form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

@@ -1,0 +1,63 @@
+<%- include('partials/head') %>
+<section class="rsvp-page">
+  <div class="invite-card">
+    <div class="invite-top">
+      <p class="eyebrow"><%= cancelled ? 'Event cancelled' : 'You’re invited' %></p>
+      <h1><%= booking.title %></h1>
+      <p class="invite-to">Dear <%= guest.name %>,</p>
+      <% if (booking.invite_message) { %><blockquote><%= booking.invite_message %><cite>— <%= booking.host_name %></cite></blockquote><% } %>
+    </div>
+    <dl class="invite-details">
+      <div><dt>When</dt><dd><%= fmt.longDate(booking.event_date) %><br><%= fmt.time12(booking.arrival_time) %> — before Maghrib</dd></div>
+      <div><dt>Where</dt><dd><strong><%= booking.venue_name %></strong><br><%= booking.restaurant_name %><br><%= [booking.address, booking.area, booking.city].filter(Boolean).join(', ') %></dd></div>
+      <div><dt>Menu</dt><dd><%= booking.menu_name %><% if (dishes.length) { %><span class="menu-selection small"><% dishes.forEach(g => { %><span><%= g.dishes.map(d => d.name).join(' · ') %></span><% }) %></span><% } %></dd></div>
+    </dl>
+    <% if (coming) { %>
+      <section class="coming" aria-labelledby="coming-title">
+        <h2 class="coming-title" id="coming-title">Who’s coming <span class="muted"><%= coming.heads ? `· ${coming.heads} ${coming.heads === 1 ? 'person' : 'people'}` : '' %></span></h2>
+        <% if (!coming.people.length) { %>
+          <p class="small muted">No one has confirmed yet – be the first!</p>
+        <% } else { %>
+          <ul class="coming-list">
+            <% coming.people.forEach(p => { %>
+              <li class="<%= p.you ? 'you' : '' %>">
+                <span class="avatar tone-<%= p.tone %>" aria-hidden="true"><%= p.initials %></span>
+                <span class="coming-name"><%= p.you ? 'You' : p.name %><% if (p.extra) { %> <span class="muted">+<%= p.extra %></span><% } %></span>
+              </li>
+            <% }) %>
+          </ul>
+          <% if (guest.rsvp_status !== 'yes' && !closed && !cancelled) { %><p class="small muted">Join them – reply below.</p><% } %>
+        <% } %>
+      </section>
+    <% } %>
+    <%- include('partials/flash') %>
+    <% if (cancelled) { %>
+      <div class="cancel-note">
+        <p><strong>This Iftar has been cancelled.</strong><% if (booking.cancel_reason) { %><br><span class="muted">Reason: <%= booking.cancel_reason %></span><% } %></p>
+        <p class="small muted"><%= booking.host_name %> will be in touch if it is rescheduled. No action is needed from you.</p>
+      </div>
+    <% } else if (closed) { %>
+      <p class="center muted">This Iftar has taken place. <%= guest.rsvp_status === 'yes' ? 'JazakAllah khair for joining!' : '' %></p>
+    <% } else { %>
+      <% if (guest.rsvp_status !== 'pending') { %>
+        <p class="center">Your reply: <span class="rsvp rsvp-<%= guest.rsvp_status %>"><%= { yes: `Attending${guest.party_size > 1 ? ` (${guest.party_size} people)` : ''}`, no: 'Not attending', maybe: 'Maybe' }[guest.rsvp_status] %></span><br><span class="small muted">You can change it below.</span></p>
+      <% } %>
+      <form method="post" action="/rsvp/<%= guest.rsvp_token %>" class="rsvp-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field"><span>How many of you are coming? (including you)</span>
+          <select name="party_size">
+            <% for (let n = 1; n <= maxParty; n++) { %><option value="<%= n %>" <%= guest.party_size === n ? 'selected' : '' %>><%= n %></option><% } %>
+          </select>
+        </label>
+        <label class="field"><span>Note for the host (optional)</span><input name="note" maxlength="500" value="<%= guest.note %>" placeholder="Dietary needs, arriving late…"></label>
+        <div class="rsvp-buttons">
+          <button class="btn btn-gold" name="status" value="yes">Yes, I’ll be there</button>
+          <button class="btn btn-ghost" name="status" value="maybe">Maybe</button>
+          <button class="btn btn-ghost" name="status" value="no">Can’t make it</button>
+        </div>
+      </form>
+    <% } %>
+  </div>
+  <p class="center small muted powered">Sent with <a href="/">IftarParty</a></p>
+</section>
+<%- include('partials/foot') %>

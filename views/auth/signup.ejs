@@ -1,0 +1,35 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <div class="card form-card">
+    <div class="tabs">
+      <a href="/signup" class="<%= role === 'host' ? 'on' : '' %>">I’m hosting an Iftar</a>
+      <a href="/signup?role=restaurant" class="<%= role === 'restaurant' ? 'on' : '' %>">I own a restaurant</a>
+    </div>
+    <h1 class="h2"><%= role === 'restaurant' ? 'List your restaurant' : 'Create your host account' %></h1>
+    <p class="muted"><%= role === 'restaurant' ? 'Add your party halls and Iftar menus. Hosts book and pay online.' : 'Your name appears on the venue as “Iftar Party by …” once you reserve.' %></p>
+    <%- include('../partials/errors') %>
+    <form method="post" action="/signup">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="role" value="<%= role %>">
+      <label class="field"><span>Your full name</span><input name="name" required autocomplete="name" value="<%= form.name || '' %>"></label>
+      <div class="row-2">
+        <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email" value="<%= form.email || '' %>"></label>
+        <label class="field"><span>Mobile</span><input type="tel" name="phone" autocomplete="tel" required value="<%= form.phone || '' %>"></label>
+      </div>
+      <label class="field"><span>Password</span><input type="password" name="password" required minlength="8" autocomplete="new-password"><small class="muted">At least 8 characters.</small></label>
+      <% if (role === 'restaurant') { %>
+        <hr>
+        <label class="field"><span>Restaurant name</span><input name="restaurant_name" required value="<%= form.restaurant_name || '' %>"></label>
+        <label class="field"><span>Cuisine</span><input name="cuisine" placeholder="Mughlai, Hyderabadi, Arabic…" value="<%= form.cuisine || '' %>"></label>
+        <label class="field"><span>Street address</span><input name="address" value="<%= form.address || '' %>"></label>
+        <div class="row-2">
+          <label class="field"><span>Area / locality</span><input name="area" value="<%= form.area || '' %>"></label>
+          <label class="field"><span>City</span><input name="city" required value="<%= form.city || '' %>"></label>
+        </div>
+      <% } %>
+      <button class="btn btn-gold btn-block"><%= role === 'restaurant' ? 'Create restaurant account' : 'Create account' %></button>
+    </form>
+    <p class="muted center small">Already have an account? <a href="/login">Sign in</a></p>
+  </div>
+</section>
+<%- include('../partials/foot') %>

@@ -1,0 +1,16 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <div class="card form-card">
+    <p class="pill">Demo payment gateway</p>
+    <h1 class="h2">Pay <%= money.format(b.total_amount, b.currency) %></h1>
+    <p class="muted">Cashfree isn’t configured, so this simulated checkout confirms the booking without charging anything. Set <code>CASHFREE_APP_ID</code> and <code>CASHFREE_SECRET_KEY</code> to take real payments.</p>
+    <form method="post" action="/bookings/<%= b.id %>/demo-pay">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="order_id" value="<%= orderId %>">
+      <label class="field"><span>UPI ID</span><input value="success@upi" readonly></label>
+      <button class="btn btn-gold btn-block">Confirm payment</button>
+    </form>
+    <p class="center"><a class="small" href="/bookings/<%= b.id %>/checkout">← Back</a></p>
+  </div>
+</section>
+<%- include('../partials/foot') %>

@@ -1,0 +1,24 @@
+<%- include('../partials/head') %>
+<section class="wrap section">
+  <p class="crumbs"><a href="/restaurant">Dashboard</a> › Reviews</p>
+  <h1>Reviews</h1>
+  <p class="muted">Every review comes from a host who held an Iftar at your restaurant, and is checked by our team before it’s published. <%= pending ? `${pending} new review${pending === 1 ? ' is' : 's are'} awaiting moderation.` : '' %></p>
+  <% if (!summary.count) { %>
+    <div class="empty"><p class="lead">No published reviews yet.</p><p class="muted">Hosts are invited to review after their Iftar.</p></div>
+  <% } else { %>
+    <%- include('../partials/rating-summary', { s: summary }) %>
+    <div class="review-list">
+      <% list.forEach(r => { %>
+        <%- include('../partials/review-card', { r, showPendingReply: true }) %>
+        <% if (r.reply_status !== 'approved' && r.reply_status !== 'pending') { %>
+          <form class="reply-form" method="post" action="/restaurant/reviews/<%= r.id %>/reply">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <textarea name="reply" rows="2" maxlength="1000" required placeholder="Thank the host or respond to their feedback"><%= r.reply_status === 'rejected' ? r.reply : '' %></textarea>
+            <button class="btn btn-small">Post reply</button>
+          </form>
+        <% } %>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+<%- include('../partials/foot') %>

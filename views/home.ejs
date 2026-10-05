@@ -1,0 +1,42 @@
+<%- include('partials/head') %>
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Ramadan gatherings, made effortless</p>
+    <h1>Host your Iftar party at the perfect restaurant hall</h1>
+    <p class="lead">Compare private halls by location, menu, price and capacity. Pay online, then invite your guests on WhatsApp and email — and watch the RSVPs roll in.</p>
+    <%- include('partials/search-form', { q: {}, compact: false }) %>
+    <% if (cities.length) { %>
+      <p class="chips">Popular: <% cities.forEach(c => { %><a class="chip" href="/search?location=<%= encodeURIComponent(c.city) %>"><%= c.city %></a><% }) %></p>
+    <% } %>
+  </div>
+</section>
+
+<section class="wrap section">
+  <h2 class="section-title">How it works</h2>
+  <ol class="steps">
+    <li><span class="step-n">1</span><h3>Find a hall</h3><p class="muted">Filter by area, date, guest count, menu and budget.</p></li>
+    <li><span class="step-n">2</span><h3>Pick the menu</h3><p class="muted">See the full price instantly — no back-and-forth calls.</p></li>
+    <li><span class="step-n">3</span><h3>Pay &amp; reserve</h3><p class="muted">The hall is held for you as <em>“Iftar Party by you”</em>.</p></li>
+    <li><span class="step-n">4</span><h3>Invite &amp; track</h3><p class="muted">Upload your guest list; we send WhatsApp &amp; email invites and count RSVPs.</p></li>
+  </ol>
+</section>
+
+<% if (featured.length) { %>
+<section class="wrap section">
+  <div class="section-head"><h2 class="section-title">Newly listed venues</h2><a href="/search">See all →</a></div>
+  <div class="grid cards">
+    <% featured.forEach(v => { %><%- include('partials/venue-card', { v }) %><% }) %>
+  </div>
+</section>
+<% } %>
+
+<section class="wrap section">
+  <div class="cta-band">
+    <div>
+      <h2>Own a restaurant with a party hall?</h2>
+      <p>List your halls and Iftar menus for free. Get paid bookings with the guest count confirmed up front.</p>
+    </div>
+    <a class="btn btn-gold" href="/signup?role=restaurant">List your restaurant</a>
+  </div>
+</section>
+<%- include('partials/foot') %>
