@@ -167,7 +167,7 @@ describe('budget / tier packages with dish choices', () => {
     const res = await request(app).get('/search?budget=11550&budget_type=total');
     assert.match(res.text, /Add the number of guests/);
     const card = await request(app).get('/search?guests=20&budget=15000&budget_type=total');
-    assert.match(card.text, /Fits budget<\/span> est. ₹11,550 total/);
+    assert.match(card.text, /≈ ₹11,550 total/);
   });
 
   test('venue page marks each menu and package against the budget', async () => {

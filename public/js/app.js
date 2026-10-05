@@ -1,5 +1,5 @@
 'use strict';
-// Lets CSS start collapsible UI (nav drawer, search panel) closed only when JS can reopen it.
+// Lets CSS start collapsible UI (nav drawer, planner steps) closed only when JS can reopen it.
 document.documentElement.classList.add('js');
 (function () {
   function money(minor, currency) {
@@ -170,16 +170,54 @@ document.documentElement.classList.add('js');
     });
   }
 
-  // Phones: on results pages, collapse the search form behind a one-line summary.
-  function initSearchPanel() {
-    const panel = document.querySelector('[data-search-panel]');
-    if (!panel) return;
-    if (panel.hasAttribute('data-has-criteria')) panel.classList.add('collapsed');
-    panel.querySelector('[data-search-expand]').addEventListener('click', () => {
-      panel.classList.remove('collapsed');
-      const first = panel.querySelector('.search-form input');
-      if (first) first.focus();
+  // Home planner: guests + date first, then budget + location. Without JS both steps show as one form.
+  function initPlanner(form) {
+    const steps = [...form.querySelectorAll('[data-step]')];
+    const dots = [...form.querySelectorAll('.plan-progress li')];
+    const estimate = form.querySelector('[data-plan-estimate]');
+    const show = (n) => {
+      steps.forEach((s) => { s.hidden = Number(s.dataset.step) !== n; });
+      dots.forEach((d, i) => d.classList.toggle('on', i < n));
+      const first = steps[n - 1].querySelector('input:not([type=radio]), input:checked, input');
+      if (first && n > 1) first.focus({ preventScroll: true });
+    };
+    form.classList.add('stepped');
+    show(1);
+    form.querySelector('[data-next]').addEventListener('click', () => {
+      const missing = [...steps[0].querySelectorAll('input')].find((i) => !i.checkValidity());
+      if (missing) { missing.reportValidity(); return; }
+      show(2);
     });
+    form.querySelector('[data-back]').addEventListener('click', () => show(1));
+    // Enter on step 1 moves on instead of submitting half a search.
+    steps[0].addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); form.querySelector('[data-next]').click(); }
+    });
+    form.querySelectorAll('[data-quick]').forEach((row) => {
+      const input = form.elements[row.dataset.quick];
+      const mark = () => row.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c.dataset.value === input.value));
+      row.addEventListener('click', (e) => {
+        const chip = e.target.closest('.chip');
+        if (!chip) return;
+        input.value = chip.dataset.value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      input.addEventListener('input', mark);
+      mark();
+    });
+    const syncEstimate = () => {
+      const guests = Number.parseInt(form.elements.guests.value, 10);
+      const per = Number(form.querySelector('input[name=budget]:checked')?.value);
+      estimate.textContent = guests > 0 && per > 0 ? `≈ ${money(guests * per * 100, form.dataset.currency)} food for ${guests} guests` : '';
+    };
+    form.addEventListener('input', syncEstimate);
+    form.addEventListener('change', syncEstimate);
+    syncEstimate();
+    // Keep the results URL short: drop empty answers.
+    form.addEventListener('submit', () => {
+      form.querySelectorAll('input').forEach((i) => { if (!i.value) i.disabled = true; });
+    });
+    window.addEventListener('pageshow', () => form.querySelectorAll('input').forEach((i) => { i.disabled = false; }));
   }
 
   // Phones: sticky "Reserve" bar, hidden while the booking form itself is on screen.
@@ -195,7 +233,7 @@ document.documentElement.classList.add('js');
   document.addEventListener('DOMContentLoaded', () => {
     initNav();
     labelTables();
-    initSearchPanel();
+    document.querySelectorAll('form[data-planner]').forEach(initPlanner);
     initMobileCta();
     document.querySelectorAll('[data-cashfree-session]').forEach(initCashfree);
     // Restaurant menu form: show the set-menu or package section for the chosen type.

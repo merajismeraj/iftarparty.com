@@ -85,18 +85,18 @@ module.exports = (db) => {
   const router = express.Router();
 
   router.get('/', (req, res) => {
-    const featured = searchVenues(db, { sort: 'newest' }).rows.slice(0, 6);
     const cities = db.prepare(
       `SELECT r.city, COUNT(*) AS n FROM venues v JOIN restaurants r ON r.id = v.restaurant_id
        WHERE v.active = 1 AND r.status = 'approved' AND r.city <> '' GROUP BY r.city ORDER BY n DESC LIMIT 8`
     ).all();
-    res.render('home', { featured, cities, today: todayISO() });
+    // Query params pre-fill the planner when a host taps "Change" on the results page.
+    res.render('home', { cities, q: req.query, today: todayISO() });
   });
 
   router.get('/search', (req, res) => {
     expireStaleHolds(db);
     const result = searchVenues(db, req.query, settings.feePercent(db));
-    res.render('search', { title: 'Find an Iftar venue', ...result, q: req.query, today: todayISO() });
+    res.render('search', { title: 'Find an Iftar venue', ...result, q: req.query });
   });
 
   router.get('/venues/:id', (req, res) => {

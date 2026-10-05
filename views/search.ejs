@@ -1,45 +1,56 @@
 <%- include('partials/head') %>
-<section class="search-band">
-  <div class="wrap">
-    <% const crit = [q.location, q.date && fmt.shortDate(q.date), q.guests && `${q.guests} guests`, q.menu,
-         (q.budget || q.max_price) && `${money.format(money.toMinor(q.budget || q.max_price))}${q.budget_type === 'total' ? ' total' : '/guest'}`].filter(Boolean); %>
-    <div class="search-panel" data-search-panel <%= crit.length ? 'data-has-criteria' : '' %>>
-      <button type="button" class="search-summary" data-search-expand aria-controls="search-form">
-        <span><strong><%= crit.length ? crit.slice(0, 2).join(' · ') : 'All venues' %></strong><% if (crit.length > 2) { %><span class="small muted"><%= crit.slice(2).join(' · ') %></span><% } else if (!crit.length) { %><span class="small muted">Location, date, guests, menu, budget</span><% } %></span>
-        <span class="edit">Edit search</span>
-      </button>
-      <%- include('partials/search-form', { q, compact: true }) %>
-    </div>
+<%
+  const keep = new URLSearchParams(Object.entries(q).filter(([k, v]) => v && k !== 'page' && typeof v === 'string'));
+  const withParam = (k, v) => { const p = new URLSearchParams(keep); if (v) p.set(k, v); else p.delete(k); p.delete('page'); return `/search?${p}`; };
+  const planQs = new URLSearchParams(Object.entries({ guests: q.guests, date: q.date, budget: q.budget, budget_type: q.budget_type, location: q.location })
+    .filter(([, v]) => v && typeof v === 'string')).toString();
+  const venueQs = new URLSearchParams(Object.entries({ date: q.date, guests: q.guests, budget: q.budget || q.max_price, budget_type: q.budget ? q.budget_type : undefined })
+    .filter(([, v]) => v && typeof v === 'string')).toString();
+  const crit = [q.guests && `${q.guests} guests`, q.date && fmt.shortDate(q.date),
+    budget && !budgetNeedsGuests && `${budget.type === 'total' ? '' : 'up to '}${money.format(budget.amount)}${budget.type === 'total' ? ' total' : '/guest'}`,
+    q.location].filter(Boolean);
+  const sorts = [['', 'Lowest price'], ['rating', 'Top rated'], ['capacity', 'Largest']];
+  const sortLabel = (sorts.find(([k]) => k === (q.sort === 'price' ? '' : q.sort || '')) || sorts[0])[1];
+  const refined = q.diet || q.menu || (q.sort && q.sort !== 'price');
+%>
+<section class="results-bar">
+  <div class="wrap results-bar-in">
+    <p class="crit"><strong><%= crit.length ? crit.join(' · ') : 'All halls' %></strong></p>
+    <a class="btn btn-small btn-ghost" href="/<%= planQs ? `?${planQs}` : '' %>"><%= crit.length ? 'Change' : 'Plan' %></a>
   </div>
 </section>
+
 <section class="wrap section">
-  <%
-    const keep = new URLSearchParams(Object.entries(q).filter(([k, v]) => v && k !== 'page' && typeof v === 'string'));
-    const withParam = (k, v) => { const p = new URLSearchParams(keep); if (v) p.set(k, v); else p.delete(k); return `/search?${p}`; };
-    const venueQs = new URLSearchParams(Object.entries({ date: q.date, guests: q.guests, budget: q.budget || q.max_price, budget_type: q.budget ? q.budget_type : undefined })
-      .filter(([, v]) => v && typeof v === 'string')).toString();
-  %>
   <div class="results-head">
-    <h1 class="h2"><%= total %> venue<%= total === 1 ? '' : 's' %><%= q.location ? ` in “${q.location}”` : '' %><%= q.date ? ` free on ${fmt.shortDate(q.date)}` : '' %></h1>
-    <div class="filters">
-      <span class="muted small">Diet:</span>
-      <a class="chip <%= !q.diet ? 'on' : '' %>" href="<%= withParam('diet', '') %>">Any</a>
-      <a class="chip <%= q.diet === 'veg' ? 'on' : '' %>" href="<%= withParam('diet', 'veg') %>">Veg</a>
-      <a class="chip <%= q.diet === 'non-veg' ? 'on' : '' %>" href="<%= withParam('diet', 'non-veg') %>">Non-veg</a>
-      <span class="muted small sep">Sort:</span>
-      <a class="chip <%= !q.sort || q.sort === 'price' ? 'on' : '' %>" href="<%= withParam('sort', '') %>">Lowest price</a>
-      <a class="chip <%= q.sort === 'rating' ? 'on' : '' %>" href="<%= withParam('sort', 'rating') %>">Top rated</a>
-      <a class="chip <%= q.sort === 'capacity' ? 'on' : '' %>" href="<%= withParam('sort', 'capacity') %>">Largest</a>
-      <a class="chip <%= q.sort === 'newest' ? 'on' : '' %>" href="<%= withParam('sort', 'newest') %>">Newest</a>
-    </div>
+    <h1 class="h2"><%= total %> hall<%= total === 1 ? '' : 's' %> available</h1>
+    <details class="refine" <%= refined ? 'open' : '' %>>
+      <summary><%= sortLabel %><%= q.diet === 'veg' ? ' · Veg' : '' %><%= q.menu ? ` · “${q.menu}”` : '' %></summary>
+      <div class="refine-body">
+        <div class="refine-row">
+          <% sorts.forEach(([k, label]) => { %><a class="chip <%= sortLabel === label ? 'on' : '' %>" href="<%= withParam('sort', k) %>"><%= label %></a><% }) %>
+        </div>
+        <div class="refine-row">
+          <a class="chip <%= q.diet === 'veg' ? 'on' : '' %>" href="<%= withParam('diet', q.diet === 'veg' ? '' : 'veg') %>">Veg only</a>
+        </div>
+        <form class="refine-dish" method="get" action="/search">
+          <% for (const [k, v] of keep) { if (k !== 'menu') { %><input type="hidden" name="<%= k %>" value="<%= v %>"><% } } %>
+          <input name="menu" placeholder="Dish or cuisine, e.g. haleem" aria-label="Dish or cuisine" value="<%= q.menu || '' %>">
+          <button class="btn btn-small">Go</button>
+        </form>
+      </div>
+    </details>
   </div>
+
   <% if (budgetNeedsGuests) { %><div class="flash flash-info">Add the number of guests to filter by a total budget.</div><% } %>
-  <% if (budget && !budgetNeedsGuests) { %><p class="small muted">Budget: <strong><%= money.format(budget.amount) %></strong> <%= budget.type === 'total' ? `total for ${q.guests} guests – food, hall & service fee (extras not included)` : 'per guest' %>.</p><% } %>
+  <% if (!(q.guests && q.date)) { %>
+    <p class="nudge small"><a href="/<%= planQs ? `?${planQs}` : '' %>">Add your guest count and date</a> to see only halls that fit and are free.</p>
+  <% } %>
+
   <% if (!rows.length) { %>
     <div class="empty">
-      <p class="lead">No venues match all of those filters.</p>
-      <p class="muted">Try a nearby area, a different date, or raising your budget.</p>
-      <a class="btn btn-ghost" href="/search">Clear filters</a>
+      <p class="lead">No halls match.</p>
+      <p class="muted">Try another date, a nearby area or a higher budget.</p>
+      <a class="btn btn-ghost" href="/<%= planQs ? `?${planQs}` : '' %>">Change search</a>
     </div>
   <% } else { %>
     <div class="grid cards">

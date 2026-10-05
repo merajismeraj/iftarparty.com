@@ -4,14 +4,14 @@
     <span class="pill pill-dark">Up to <%= v.max_pax %> guests</span>
   </div>
   <div class="venue-card-body">
-    <h3><%= v.name %></h3>
-    <p class="muted"><%= v.restaurant_name %> · <%= [v.area, v.city].filter(Boolean).join(', ') %></p>
-    <% if (v.review_count) { %><p class="small card-rating"><span class="star-one">★</span> <strong><%= v.rating %></strong> <span class="muted">(<%= v.review_count %>)</span></p><% } %>
-    <% if (v.menu_names) { %><p class="small menu-names"><%= v.menu_names.split(',').slice(0, 3).join(' · ') %></p><% } %>
-    <% if (locals.est) { %><p class="small"><span class="budget-badge budget-ok">Fits budget</span> est. <%= money.format(est) %> total</p><% } %>
+    <div class="venue-card-title">
+      <h3><%= v.name %></h3>
+      <% if (v.review_count) { %><span class="small card-rating"><span class="star-one">★</span> <strong><%= v.rating %></strong> <span class="muted">(<%= v.review_count %>)</span></span><% } %>
+    </div>
+    <p class="muted small"><%= [v.area, v.city].filter(Boolean).join(', ') %></p>
     <div class="venue-card-foot">
       <span><span class="muted small">from</span> <strong><%= money.format(v.from_price) %></strong><span class="muted small">/guest</span></span>
-      <span class="small muted"><%= v.min_pax %>–<%= v.max_pax %> pax</span>
+      <% if (locals.est) { %><span class="small budget-est">≈ <%= money.format(est) %> total</span><% } %>
     </div>
   </div>
 </a>
