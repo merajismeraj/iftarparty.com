@@ -19,4 +19,16 @@ function time12(hhmm) {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-module.exports = { longDate, shortDate, time12 };
+/** "Meraj Ahmed" -> "Meraj A." – the only form of a guest's or reviewer's name shown to others. */
+function displayName(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.` : parts[0] || 'Guest';
+}
+
+/** "Meraj Ahmed" -> "MA" */
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?';
+}
+
+module.exports = { longDate, shortDate, time12, displayName, initials };

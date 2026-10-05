@@ -2,6 +2,7 @@
 const express = require('express');
 const svc = require('../services/bookings');
 const packages = require('../services/packages');
+const fmt = require('../services/format');
 
 const MAX_PARTY = 10;
 
@@ -19,11 +20,27 @@ module.exports = (db) => {
 
   const gone = (res) => res.status(404).render('error', { title: 'Invitation not found', message: 'This invitation link is invalid or the event was cancelled.' });
 
+  /** Confirmed guests, privacy-safe: first name + last initial and party size only. */
+  function whoIsComing(booking, viewer) {
+    if (!booking.show_guest_list || booking.status !== 'confirmed') return null;
+    const rows = db.prepare(
+      `SELECT id, name, party_size FROM guests WHERE booking_id = ? AND rsvp_status = 'yes'
+       ORDER BY responded_at, id`
+    ).all(booking.id);
+    const people = rows.map((g, i) => ({
+      name: fmt.displayName(g.name), initials: fmt.initials(g.name), extra: Math.max(0, g.party_size - 1),
+      you: g.id === viewer.id, tone: i % 8,
+    }));
+    // The viewer first, then everyone else in the order they replied.
+    people.sort((a, b) => Number(b.you) - Number(a.you));
+    return { people, heads: rows.reduce((sum, g) => sum + g.party_size, 0) };
+  }
+
   router.get('/rsvp/:token', (req, res) => {
     const ctx = load(req.params.token);
     if (!ctx) return gone(res);
     res.set('Referrer-Policy', 'no-referrer');
-    res.render('rsvp', { title: ctx.booking.title, ...ctx, dishes: packages.bookingSelection(db, ctx.booking.id), cancelled: ctx.booking.status === 'cancelled', closed: ctx.booking.event_date < svc.todayISO(), maxParty: MAX_PARTY, bare: true });
+    res.render('rsvp', { title: ctx.booking.title, ...ctx, dishes: packages.bookingSelection(db, ctx.booking.id), coming: whoIsComing(ctx.booking, ctx.guest), cancelled: ctx.booking.status === 'cancelled', closed: ctx.booking.event_date < svc.todayISO(), maxParty: MAX_PARTY, bare: true });
   });
 
   router.post('/rsvp/:token', (req, res) => {

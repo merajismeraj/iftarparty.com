@@ -299,6 +299,10 @@ const MIGRATIONS = [
   );
   CREATE INDEX booking_dishes_booking ON booking_dishes (booking_id);
   `,
+  // v6: hosts choose whether guests can see who else has confirmed.
+  `
+  ALTER TABLE bookings ADD COLUMN show_guest_list INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 function migrate(db) {

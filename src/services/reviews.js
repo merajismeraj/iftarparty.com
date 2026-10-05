@@ -13,10 +13,7 @@ class ReviewError extends Error {}
 const SUB_RATINGS = ['food_rating', 'service_rating', 'ambience_rating'];
 
 /** "Meraj Ahmed" -> "Meraj A." – never show a reviewer's full name publicly. */
-function displayName(name) {
-  const parts = String(name || '').trim().split(/\s+/);
-  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.` : parts[0] || 'Guest';
-}
+const { displayName } = require('./format');
 
 /** Why a host can't review this booking, or null if they can. */
 function ineligibleReason(booking, hostId) {

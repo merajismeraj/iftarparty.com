@@ -12,6 +12,24 @@
       <div><dt>Where</dt><dd><strong><%= booking.venue_name %></strong><br><%= booking.restaurant_name %><br><%= [booking.address, booking.area, booking.city].filter(Boolean).join(', ') %></dd></div>
       <div><dt>Menu</dt><dd><%= booking.menu_name %><% if (dishes.length) { %><span class="menu-selection small"><% dishes.forEach(g => { %><span><%= g.dishes.map(d => d.name).join(' · ') %></span><% }) %></span><% } %></dd></div>
     </dl>
+    <% if (coming) { %>
+      <section class="coming" aria-labelledby="coming-title">
+        <h2 class="coming-title" id="coming-title">Who’s coming <span class="muted"><%= coming.heads ? `· ${coming.heads} ${coming.heads === 1 ? 'person' : 'people'}` : '' %></span></h2>
+        <% if (!coming.people.length) { %>
+          <p class="small muted">No one has confirmed yet – be the first!</p>
+        <% } else { %>
+          <ul class="coming-list">
+            <% coming.people.forEach(p => { %>
+              <li class="<%= p.you ? 'you' : '' %>">
+                <span class="avatar tone-<%= p.tone %>" aria-hidden="true"><%= p.initials %></span>
+                <span class="coming-name"><%= p.you ? 'You' : p.name %><% if (p.extra) { %> <span class="muted">+<%= p.extra %></span><% } %></span>
+              </li>
+            <% }) %>
+          </ul>
+          <% if (guest.rsvp_status !== 'yes' && !closed && !cancelled) { %><p class="small muted">Join them – reply below.</p><% } %>
+        <% } %>
+      </section>
+    <% } %>
     <%- include('partials/flash') %>
     <% if (cancelled) { %>
       <div class="cancel-note">

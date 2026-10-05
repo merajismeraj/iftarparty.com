@@ -20,6 +20,7 @@ Reserve private party halls at local restaurants for Iftar gatherings, pay onlin
 - Reserving holds the hall for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
 - After payment you're sent straight to **upload your invite list** as a CSV or pasted rows with name, email and mobile. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
 - Guests reply Yes, Maybe or No with the number of people coming and a note. The host's dashboard shows **attending, total heads, maybe, declined and awaiting reply**, plus a bar comparing confirmed heads to guests booked. You can send reminders to anyone who hasn't replied and export the RSVPs to CSV.
+- The RSVP page shows **who's coming**: the confirmed guests as "First L." with any "+N" family members, plus a total headcount. The guest viewing it appears first as "You". Contact details, declines and maybes are never shown, and the host can switch the list off in their invitation settings.
 
 **Reviews (verified, moderated)**
 - Only the host of a **confirmed booking whose Iftar has taken place** can review the venue, once per booking. They give an overall rating plus optional food, service and ambience ratings.
@@ -35,7 +36,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 69 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 74 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -103,7 +104,7 @@ npm run admin -- promote someone@example.com
 - **Express 5 + EJS** server-rendered pages, with a small vanilla JS file for the live quote, availability check and hold countdown.
 - **Warm, modern visual design.** An ivory background with white cards that lift off it, a deep aubergine-to-terracotta "dusk" gradient for the hero, call-to-action and footer bands, a saffron-terracotta accent for primary actions, soft peach/saffron/plum/sage tints for badges, and Plus Jakarta Sans headings over Inter body text. There is no themed decoration. Colour tokens live at the top of `public/css/style.css`, and the theme layer is at the end of it.
 - **Mobile-first UI.** Base styles target phones and are layered up at 640px and 960px. On phones the site uses a menu-button drawer, a collapsible search summary, swipeable venue photos, a sticky *Reserve* bar with the live total, and tables that turn into stacked cards. Tap targets are at least 44px and inputs use 16px text (no iOS zoom). Everything is checked for horizontal overflow at 320, 375, 768 and 1280px. The site still works without JS: the nav and search simply render expanded.
-- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v5), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
+- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v6), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
 - **Double-booking protection:** the hold is taken inside a synchronous `BEGIN IMMEDIATE` transaction. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
 - **Security:** bcrypt passwords, signed httpOnly session cookies, CSRF tokens on every form, Helmet CSP, ownership checks on every restaurant and booking route, image-only uploads with size limits, rate-limited login, and spreadsheet-formula escaping in CSV exports.
 

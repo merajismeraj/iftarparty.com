@@ -207,7 +207,8 @@ module.exports = (db) => {
     if (!b) return;
     const message = String(req.body.invite_message || '').trim().slice(0, 600);
     const time = TIME_RE.test(req.body.arrival_time || '') ? req.body.arrival_time : b.arrival_time;
-    db.prepare('UPDATE bookings SET invite_message = ?, arrival_time = ? WHERE id = ?').run(message, time, b.id);
+    const showList = req.body.show_guest_list === 'on' ? 1 : 0;
+    db.prepare('UPDATE bookings SET invite_message = ?, arrival_time = ?, show_guest_list = ? WHERE id = ?').run(message, time, showList, b.id);
     req.flash('success', 'Invitation updated.');
     res.redirect(`/bookings/${b.id}#invite`);
   });

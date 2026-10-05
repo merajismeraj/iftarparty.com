@@ -64,6 +64,7 @@
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <label class="field"><span>Arrival time</span><input type="time" name="arrival_time" value="<%= b.arrival_time %>"></label>
         <label class="field"><span>Personal note to guests</span><textarea name="invite_message" rows="3" maxlength="600" placeholder="Join us to break our fast together this Ramadan."><%= b.invite_message %></textarea></label>
+        <label class="check"><input type="checkbox" name="show_guest_list" <%= b.show_guest_list ? 'checked' : '' %>> Show guests who else is coming <span class="muted small">(first name + initial only)</span></label>
         <button class="btn btn-ghost btn-block">Save invitation</button>
       </form>
       <p class="field-label">Preview (what <%= guests[0] ? guests[0].name.split(' ')[0] : 'a guest' %> receives)</p>
