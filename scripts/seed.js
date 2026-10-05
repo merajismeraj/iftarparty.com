@@ -16,20 +16,29 @@ if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n > 0) {
 }
 
 fs.mkdirSync(config.uploadDir, { recursive: true });
-/** Neutral placeholder "photo" (soft tones, abstract room shapes) until restaurants upload real images. */
-function placeholder(label, hue) {
+/** Warm placeholder "photo" – an abstract dining room at dusk – until restaurants upload real images. */
+const MOODS = [
+  ['#f6c9a8', '#e58a5c', '#fbe3cf', '#c76a45'],
+  ['#f3d9a4', '#d99a3e', '#fdf0d4', '#a8742a'],
+  ['#e9c3cf', '#b9657e', '#f8e1e7', '#8f4a5e'],
+  ['#cfe1d2', '#6f9f86', '#ecf5ee', '#4f7a63'],
+  ['#d9cce9', '#8a6fb0', '#efe7f6', '#634b87'],
+];
+function placeholder(label, seed) {
   const file = `seed-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.svg`;
-  const h = hue % 360;
-  const tables = Array.from({ length: 4 }, (_, i) => `<ellipse cx="${150 + i * 170}" cy="390" rx="58" ry="16" fill="hsl(${h},10%,78%)"/>`).join('');
+  const [wall, glow, cloth, floor] = MOODS[seed % MOODS.length];
+  const lamps = Array.from({ length: 5 }, (_, i) => `<circle cx="${110 + i * 145}" cy="150" r="70" fill="url(#lamp)"/><circle cx="${110 + i * 145}" cy="150" r="9" fill="#fff6e8"/>`).join('');
+  const tables = Array.from({ length: 4 }, (_, i) => `<ellipse cx="${150 + i * 170}" cy="420" rx="66" ry="18" fill="${cloth}"/><rect x="${146 + i * 170}" y="420" width="8" height="60" fill="${floor}" opacity=".5"/>`).join('');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${h},14%,93%)"/><stop offset="1" stop-color="hsl(${h},10%,86%)"/></linearGradient></defs>
-  <rect width="800" height="600" fill="url(#g)"/>
-  <rect x="0" y="330" width="800" height="270" fill="hsl(${h},10%,82%)"/>
-  <rect x="90" y="90" width="180" height="170" rx="6" fill="hsl(${h},16%,97%)"/>
-  <rect x="310" y="90" width="180" height="170" rx="6" fill="hsl(${h},16%,97%)"/>
-  <rect x="530" y="90" width="180" height="170" rx="6" fill="hsl(${h},16%,97%)"/>
+  <defs>
+    <linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${wall}"/><stop offset="1" stop-color="${glow}"/></linearGradient>
+    <radialGradient id="lamp"><stop offset="0" stop-color="#fff3dc" stop-opacity=".85"/><stop offset="1" stop-color="#fff3dc" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#w)"/>
+  ${lamps}
+  <rect x="0" y="360" width="800" height="240" fill="${floor}" opacity=".55"/>
   ${tables}
-  <text x="40" y="560" font-family="Inter, Arial, sans-serif" font-size="22" fill="hsl(${h},6%,45%)">${label}</text></svg>`;
+  <text x="36" y="566" font-family="Arial, sans-serif" font-size="22" fill="#ffffff" opacity=".85">${label}</text></svg>`;
   fs.writeFileSync(path.join(config.uploadDir, file), svg);
   return file;
 }
@@ -126,7 +135,7 @@ transaction(db, () => {
         .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee).lastInsertRowid);
       venueIds.push({ vid, rid, v, pending: Boolean(spec.status) });
       ['', ' – Seating', ' – Décor'].forEach((suffix, i) => {
-        db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, placeholder(`${v.name}${suffix}`, 20 + ri * 70 + vi * 25 + i * 8), i);
+        db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, placeholder(`${v.name}${suffix}`, ri * 2 + vi + i), i);
       });
     });
     const dishIds = {};

@@ -5,17 +5,25 @@
  * Touch targets are ≥ 44px and form controls use 16px text so iOS never zooms on focus.
  */
 :root {
-  /* Neutral, minimal palette with a single accent. Token names kept for compatibility:
-     --night = ink/primary, --gold = accent, --sand = subtle surface. */
-  --night: #111111;
-  --night-2: #2b2b2b;
-  --gold: #0f766e;
-  --gold-2: #0b5f58;
-  --sand: #f5f5f4;
+  /* Warm "dusk" palette – modern, no motifs. Token names kept for compatibility:
+     --night = aubergine (primary dark), --gold = saffron-terracotta accent, --sand = warm tint. */
+  --night: #2a1b3d;
+  --night-2: #3d2a55;
+  --gold: #e0662f;
+  --gold-2: #c4521f;
+  --sand: #f6eee4;
   --card: #ffffff;
-  --ink: #111111;
-  --muted: #6b6b6b;
-  --line: #e7e7e5;
+  --ink: #1f1a17;
+  --muted: #7a6f66;
+  --line: #eadfd2;
+  --bg: #fbf7f1;
+  --peach: #fde9dc;
+  --saffron: #fff1d1;
+  --plum: #efe7f6;
+  --sage: #e3f0e8;
+  --dusk: linear-gradient(135deg, #2a1b3d 0%, #4f2a52 48%, #b4532a 100%);
+  --lift: 0 1px 2px rgba(42, 27, 61, .05), 0 8px 24px rgba(42, 27, 61, .07);
+  --display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   --ok: #157f4b;
   --ok-bg: #e5f6ec;
   --warn: #9a5b00;
@@ -23,7 +31,7 @@
   --bad: #b42318;
   --bad-bg: #fdecea;
   --radius: 12px;
-  --shadow: 0 0 0 1px var(--line);
+  --shadow: var(--lift);
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --serif: var(--sans);
   --star: #f5a524;
@@ -609,3 +617,90 @@ blockquote cite { display: block; font: normal .9rem var(--sans); color: var(--m
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 }
+
+
+/* =====================================================================
+ * Warm theme layer – colour, depth and type on top of the layout above.
+ * ===================================================================== */
+body { background: var(--bg); }
+h1, h2, h3, .h2, .h3, .brand, .stat-n { font-family: var(--display); }
+h1, h2 { font-weight: 750; letter-spacing: -.03em; }
+.eyebrow { color: var(--gold-2); font-weight: 650; }
+.eyebrow.dark { color: var(--gold-2); }
+input, select, textarea { border-color: #e3d7c9; }
+input:focus, select:focus, textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(224, 102, 47, .18); }
+
+/* Header & footer */
+.site-header { background: rgba(251, 247, 241, .9); border-bottom-color: var(--line); }
+.brand { font-weight: 800; }
+.btn, .btn-small { border-radius: 12px; }
+.btn-gold { box-shadow: 0 6px 16px rgba(224, 102, 47, .28); }
+.btn-gold:hover { box-shadow: 0 8px 20px rgba(224, 102, 47, .34); }
+.site-footer { background: #1f1530; border-top: 0; color: rgba(255, 255, 255, .72); }
+.site-footer a, .site-footer .brand { color: #fff; }
+.site-footer .muted { color: rgba(255, 255, 255, .62); }
+
+/* Hero & search: a dusk gradient band with a floating white search card */
+.hero { background: var(--dusk); color: #fff; padding-bottom: 36px; position: relative; overflow: hidden; }
+.hero::after { content: ''; position: absolute; right: -120px; top: -160px; width: 420px; height: 420px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 179, 125, .35), rgba(255, 179, 125, 0) 70%); pointer-events: none; }
+.hero > .wrap { position: relative; z-index: 1; }
+.hero h1 { color: #fff; }
+.hero .lead { color: rgba(255, 255, 255, .82); }
+.hero .eyebrow { color: #ffc9a8; }
+.hero .search-form { box-shadow: 0 18px 50px rgba(20, 10, 30, .35); border: 0; }
+.hero .chips { color: rgba(255, 255, 255, .72); }
+.hero .chip { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .22); color: #fff; }
+.search-band { background: var(--dusk); border-bottom: 0; }
+.search-summary { background: rgba(255, 255, 255, .96); }
+.search-summary .edit { color: var(--gold-2); }
+.search-band .search-form { border: 0; }
+
+/* Surfaces: white cards lifted off the warm background */
+.card, .menu-item, .addon-item, .stat, .table-wrap, .rating-summary { background: #fff; border: 0; box-shadow: var(--lift); border-radius: 16px; }
+.empty { background: #fff; box-shadow: var(--lift); border-radius: 16px; }
+.venue-card { background: #fff; border-radius: 18px; box-shadow: var(--lift); }
+.venue-card-img { border-radius: 0; }
+.venue-card-body { padding: 14px 16px 16px; }
+a.venue-card:hover { box-shadow: 0 2px 4px rgba(42, 27, 61, .06), 0 16px 36px rgba(42, 27, 61, .12); }
+.venue-card-img .pill { background: rgba(255, 255, 255, .94); }
+.img-fallback { background: linear-gradient(135deg, var(--peach), var(--plum)); color: var(--muted); }
+.pill { background: var(--sand); }
+.pill-soft { background: #fff; border-color: var(--line); }
+th { background: #fbf5ee; }
+.quote { background: var(--sand); }
+.review { background: transparent; }
+.reserved-list li { background: #fff; box-shadow: var(--lift); }
+
+/* Home: colourful step badges and a dusk call-to-action band */
+.steps li { background: #fff; box-shadow: var(--lift); border-radius: 16px; }
+.step-n { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: var(--peach); color: var(--gold-2); font: 800 1rem var(--display); margin-bottom: 10px; }
+.steps li:nth-child(2) .step-n { background: var(--saffron); color: #a16207; }
+.steps li:nth-child(3) .step-n { background: var(--plum); color: var(--night-2); }
+.steps li:nth-child(4) .step-n { background: var(--sage); color: #166534; }
+.cta-band { background: var(--dusk); color: #fff; border-radius: 20px; }
+.cta-band h2 { color: #fff; }
+.cta-band p { color: rgba(255, 255, 255, .82); }
+.cta-band .btn { background: #fff; border-color: #fff; color: var(--night); box-shadow: none; }
+
+/* Selection states use the accent */
+.radio-card:has(input:checked), .dish-pill:has(input:checked) { border-color: var(--gold); background: #fff7f1; box-shadow: inset 0 0 0 1px var(--gold); }
+.filters .chip.on, .tabs a.on { background: var(--night); border-color: var(--night); }
+.progress-steps li.on { background: var(--gold); }
+.date-badge { background: var(--peach); color: var(--gold-2); border: 0; }
+.mobile-cta { background: rgba(255, 255, 255, .97); }
+
+/* Dashboards & admin */
+.stat-ok .stat-n { color: var(--ok); }
+.admin-nav { background: #fff; }
+.admin-nav a.on { background: var(--peach); color: var(--gold-2); }
+.admin-nav .count { background: var(--gold); }
+.todo li a { background: #fff; border: 0; box-shadow: var(--lift); }
+.todo li a::before { background: var(--gold); }
+
+/* Guest invitation: warm dusk backdrop, card with a soft peach top */
+.rsvp-page { background: var(--dusk) top / 100% 320px no-repeat, var(--bg); }
+.invite-card { border: 0; box-shadow: 0 2px 6px rgba(42, 27, 61, .06), 0 18px 40px rgba(42, 27, 61, .12); }
+.invite-top { background: linear-gradient(180deg, var(--peach), #fff); }
+.invite-top .eyebrow { color: var(--gold-2); }
+.powered, .powered a { color: var(--muted); }

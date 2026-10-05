@@ -1,28 +1,30 @@
 <!doctype html>
 <html>
-<body style="margin:0;padding:0;background:#f5f5f4;font-family:Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#111111;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f4;padding:24px 12px;">
+<body style="margin:0;padding:0;background:#fbf7f1;font-family:Inter,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#111111;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fbf7f1;padding:24px 12px;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border:1px solid #e7e7e5;border-radius:16px;">
-        <tr><td style="padding:32px 32px 8px;">
-          <p style="margin:0 0 24px;font-size:15px;font-weight:800;letter-spacing:-0.3px;">iftarparty<span style="color:#0f766e;">.</span></p>
-          <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">You're invited</p>
-          <h1 style="margin:0 0 20px;font-size:26px;line-height:1.2;letter-spacing:-0.5px;font-weight:700;"><%= booking.title %></h1>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(42,27,61,0.08);">
+        <tr><td style="padding:28px 32px;background:#2a1b3d;background-image:linear-gradient(135deg,#2a1b3d 0%,#4f2a52 48%,#b4532a 100%);color:#ffffff;">
+          <p style="margin:0 0 22px;font-size:15px;font-weight:800;letter-spacing:-0.3px;color:#ffffff;">iftarparty<span style="color:#ffb37d;">.</span></p>
+          <p style="margin:0 0 6px;font-size:13px;color:#ffc9a8;font-weight:600;">You're invited</p>
+          <h1 style="margin:0;font-size:26px;line-height:1.2;letter-spacing:-0.5px;font-weight:800;color:#ffffff;"><%= booking.title %></h1>
+        </td></tr>
+        <tr><td style="padding:28px 32px 8px;">
           <p style="margin:0 0 16px;font-size:16px;line-height:1.6;">Assalamu Alaikum <%= guest.name.split(/\s+/)[0] %>, <%= booking.host_name %> would love for you to join them to break the fast together.</p>
           <% if (booking.invite_message) { %>
-          <p style="margin:0 0 20px;padding:12px 16px;background:#f5f5f4;border-radius:10px;font-size:15px;line-height:1.6;">“<%= booking.invite_message %>”</p>
+          <p style="margin:0 0 20px;padding:12px 16px;background:#fbf7f1;border-radius:10px;font-size:15px;line-height:1.6;">“<%= booking.invite_message %>”</p>
           <% } %>
-          <table role="presentation" width="100%" style="font-size:15px;line-height:1.5;margin:0 0 24px;border-top:1px solid #e7e7e5;">
+          <table role="presentation" width="100%" style="font-size:15px;line-height:1.5;margin:0 0 24px;border-top:1px solid #eadfd2;">
             <tr><td style="padding:12px 0 4px;color:#6b6b6b;width:72px;vertical-align:top;">When</td><td style="padding:12px 0 4px;"><%= invite.when %></td></tr>
             <tr><td style="padding:4px 0;color:#6b6b6b;vertical-align:top;">Where</td><td style="padding:4px 0;"><%= booking.venue_name %>, <%= booking.restaurant_name %><br><span style="color:#6b6b6b;"><%= [booking.address, booking.area, booking.city].filter(Boolean).join(', ') %></span></td></tr>
             <tr><td style="padding:4px 0;color:#6b6b6b;vertical-align:top;">Menu</td><td style="padding:4px 0;"><%= booking.menu_name %></td></tr>
           </table>
-          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:10px;background:#0f766e;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:10px;background:#e0662f;">
             <a href="<%= invite.link %>" style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">RSVP</a>
           </td></tr></table>
           <p style="margin:16px 0 24px;font-size:13px;color:#6b6b6b;">Or open <a href="<%= invite.link %>" style="color:#111111;"><%= invite.link %></a></p>
         </td></tr>
-        <tr><td style="padding:16px 32px;border-top:1px solid #e7e7e5;font-size:12px;color:#6b6b6b;">Sent on behalf of <%= booking.host_name %> via IftarParty</td></tr>
+        <tr><td style="padding:16px 32px;border-top:1px solid #eadfd2;font-size:12px;color:#6b6b6b;">Sent on behalf of <%= booking.host_name %> via IftarParty</td></tr>
       </table>
     </td></tr>
   </table>
