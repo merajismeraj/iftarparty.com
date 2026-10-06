@@ -43,4 +43,14 @@ describe('production readiness', () => {
     assert.equal(dump.tables.users.find((u) => u.role === 'admin').email, 'admin@test.local');
     assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'database.backup'`).get(), 'audited');
   });
+
+  test('Vercel previews never use the production database or storage', () => {
+    const { execFileSync } = require('node:child_process');
+    const probe = (env) => JSON.parse(execFileSync(process.execPath, ['-e',
+      "const c=require('./src/config');console.log(JSON.stringify({db:c.databaseUrl,sb:c.supabase.url,key:c.supabase.serviceKey,demo:c.demoMode}))"],
+    { env: { PATH: process.env.PATH, VERCEL: '1', POSTGRES_URL: 'postgres://prod', SUPABASE_URL: 'https://prod.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'k', DEMO_MODE: 'false', SESSION_SECRET: 's', ...env } }).toString());
+    assert.deepEqual(probe({ VERCEL_ENV: 'preview' }), { db: '', sb: '', key: '', demo: true });
+    assert.deepEqual(probe({ VERCEL_ENV: 'production' }), { db: 'postgres://prod', sb: 'https://prod.supabase.co', key: 'k', demo: false });
+    assert.equal(probe({ VERCEL_ENV: 'preview', ALLOW_PREVIEW_DATABASE: 'true' }).db, 'postgres://prod');
+  });
 });

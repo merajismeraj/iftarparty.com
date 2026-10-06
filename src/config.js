@@ -7,6 +7,10 @@ const env = process.env;
 
 // On Vercel the filesystem is read-only except /tmp, and the URL comes from the platform.
 const onVercel = Boolean(env.VERCEL);
+// Vercel previews must never touch production data, even when an integration shares its variables
+// with the Preview environment. Opt in explicitly with ALLOW_PREVIEW_DATABASE=true.
+const isolatedPreview = env.VERCEL_ENV === 'preview' && env.ALLOW_PREVIEW_DATABASE !== 'true';
+const sharedOk = (v) => (isolatedPreview ? '' : v);
 const vercelUrl = env.VERCEL_ENV === 'production' && env.VERCEL_PROJECT_PRODUCTION_URL
   ? env.VERCEL_PROJECT_PRODUCTION_URL : env.VERCEL_URL;
 
@@ -16,19 +20,19 @@ const config = {
   baseUrl: (env.BASE_URL || (vercelUrl ? `https://${vercelUrl}` : `http://localhost:${env.PORT || 3000}`)).replace(/\/$/, ''),
   sessionSecret: env.SESSION_SECRET || 'dev-only-secret-change-me',
   // Postgres connection (Supabase: the pooled "Transaction" URL). The Supabase Vercel integration sets POSTGRES_URL.
-  databaseUrl: env.DATABASE_URL || env.POSTGRES_URL || '',
+  databaseUrl: sharedOk(env.DATABASE_URL || env.POSTGRES_URL || ''),
   // Without a URL, an in-process PGlite database: on disk locally, in memory on Vercel previews.
   databasePath: env.DATABASE_PATH || (onVercel ? ':memory:' : path.join(root, 'data', 'pglite')),
   uploadDir: path.resolve(root, env.UPLOAD_DIR || (onVercel ? '/tmp/uploads' : 'uploads')),
   // Supabase Storage for venue photos (falls back to UPLOAD_DIR on local disk when unset).
   supabase: {
-    url: (env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, ''),
-    serviceKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
+    url: sharedOk(env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, ''),
+    serviceKey: sharedOk(env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || ''),
     bucket: env.SUPABASE_BUCKET || 'venue-photos',
   },
   // Demo mode seeds sample data into an empty database on start. On by default only for Vercel
   // deployments without a real database (previews).
-  demoMode: env.DEMO_MODE === 'true' || (onVercel && !(env.DATABASE_URL || env.POSTGRES_URL) && env.DEMO_MODE !== 'false'),
+  demoMode: isolatedPreview || env.DEMO_MODE === 'true' || (onVercel && !(env.DATABASE_URL || env.POSTGRES_URL) && env.DEMO_MODE !== 'false'),
   onVercel,
   currency: (env.CURRENCY || 'INR').toUpperCase(),
   platformFeePercent: Number(env.PLATFORM_FEE_PERCENT ?? 5),

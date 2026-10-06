@@ -36,7 +36,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 96 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
+npm test                  # 98 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
 TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test   # same suite on a real Postgres server
 ```
 
@@ -145,12 +145,12 @@ The app runs as one Vercel function in **Mumbai (`bom1`)**, set in `vercel.json`
    | `POSTGRES_URL` (or `DATABASE_URL`) | Supabase **transaction pooler** URL (port 6543). Added by the integration |
    | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Added by the integration. Used server-side only, for photo storage |
    | `DEMO_MODE` | `false` |
-   | `ADMIN_EMAIL`, `ADMIN_PASSWORD` (12+ chars), `ADMIN_NAME` | First-boot admin. Created only if no admin exists. Remove `ADMIN_PASSWORD` after you sign in |
+   | `ADMIN_EMAIL` | First admin. While no admin exists, whoever signs in with Google using this address becomes the admin, so no password is stored. Alternatively add `ADMIN_PASSWORD` (12+ chars) to create the account at boot |
    | `SESSION_SECRET`, `BASE_URL`, `GOOGLE_*`, `CASHFREE_*`, `SMTP_*`, `OPENWA_*` | As before |
 3. **Redeploy.** The first request migrates the schema (about a second) and creates the `venue-photos` bucket.
 4. **Backups:** Supabase takes daily backups. *Admin → Settings → Download database backup* exports every table as JSON on demand.
 
-Previews (no database variables) run on an in-memory PGlite database seeded with demo data. They're safe to click through, and everything resets.
+Previews always run on an in-memory PGlite database seeded with demo data, even if an integration shares its variables with the Preview environment. Set `ALLOW_PREVIEW_DATABASE=true` to opt out. They're safe to click through, and everything resets.
 
 Notes:
 - `DATABASE_CA_CERT` (Supabase → Database → SSL certificate) turns on full TLS certificate verification. Without it the connection is encrypted but the certificate isn't verified.

@@ -18,7 +18,8 @@ function api(pathname, { method = 'GET', body, headers = {} } = {}) {
   return fetch(`${url}/storage/v1${pathname}`, {
     method,
     body,
-    headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, ...headers },
+    // Legacy service_role keys are JWTs (Authorization + apikey); new sb_secret_ keys use apikey only.
+    headers: { ...(serviceKey.startsWith('sb_') ? {} : { Authorization: `Bearer ${serviceKey}` }), apikey: serviceKey, ...headers },
     signal: AbortSignal.timeout(20_000),
   });
 }
