@@ -37,7 +37,7 @@
   <thead><tr><th></th><th>Hall</th><th>Capacity</th><th>Hall fee</th><th>Photos</th><th>Visible</th><th></th></tr></thead>
   <tbody><% venues.forEach(v => { %>
     <tr class="<%= v.active ? '' : 'inactive' %>">
-      <td><% if (v.image) { %><img class="thumb" src="/uploads/<%= v.image %>" alt=""><% } %></td>
+      <td><% if (v.image) { %><img class="thumb" src="<%= photoUrl(v.image) %>" alt=""><% } %></td>
       <td><a href="/venues/<%= v.id %>"><strong><%= v.name %></strong></a><br><span class="muted small"><%= v.amenities %></span></td>
       <td><%= v.min_pax %>–<%= v.max_pax %></td><td><%= money.format(v.hire_fee) %></td><td><%= v.photos %></td>
       <td><%= v.active ? 'Yes' : 'Hidden' %></td>

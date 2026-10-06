@@ -29,14 +29,15 @@ Reserve private party halls at local restaurants for Iftar gatherings, pay onlin
 
 ## Run it
 
-Requires Node.js 22.13 or later. It uses the built-in `node:sqlite`, so there are no native modules to build.
+Requires Node.js 22. The database is **Postgres**: Supabase in production. Locally and in tests it uses **PGlite**, a full Postgres compiled to WebAssembly that runs in-process, so there is nothing to install. Data is kept in `data/pglite`.
 
 ```bash
 npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 92 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 96 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
+TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test   # same suite on a real Postgres server
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -115,15 +116,16 @@ npm run admin -- promote someone@example.com
 - **Express 5 + EJS** server-rendered pages, with a small vanilla JS file for the live quote, availability check and hold countdown.
 - **Warm, modern visual design.** An ivory background with white cards that lift off it, a deep aubergine-to-terracotta "dusk" gradient for the hero, call-to-action and footer bands, a saffron-terracotta accent for primary actions, soft peach/saffron/plum/sage tints for badges, and Plus Jakarta Sans headings over Inter body text. There is no themed decoration. Colour tokens live at the top of `public/css/style.css`, and the theme layer is at the end of it.
 - **Mobile-first UI.** Base styles target phones and are layered up at 640px and 960px. On phones the site uses a menu-button drawer, a collapsible search summary, swipeable venue photos, a sticky *Reserve* bar with the live total, and tables that turn into stacked cards. Tap targets are at least 44px and inputs use 16px text (no iOS zoom). Everything is checked for horizontal overflow at 320, 375, 768 and 1280px. The site still works without JS: the nav and search simply render expanded.
-- **SQLite** through `node:sqlite` (`src/db.js`). The schema is versioned with `PRAGMA user_version` (currently v6), so existing databases upgrade in place on startup. Money is stored as integer minor units (paise).
-- **Double-booking protection:** the hold is taken inside a synchronous `BEGIN IMMEDIATE` transaction. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
+- **Postgres** (`src/db.js`): Supabase through `pg` when `DATABASE_URL`/`POSTGRES_URL` is set, otherwise in-process PGlite. A small async adapter (`db.prepare(sql).get/all/run`, `?` placeholders) keeps queries readable. Migrations live in `schema_migrations` and run automatically under an advisory lock, so concurrent serverless cold starts are safe. Row Level Security is enabled on every table, which closes Supabase's public REST API; the app connects as the table owner. Money is stored as integer minor units (paise).
+- **Photos** go to **Supabase Storage** (a public bucket, `venue-photos`, created automatically) when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, otherwise to `UPLOAD_DIR`. Browsers shrink photos to 1600px JPEG before upload, which keeps requests under Vercel's 4.5 MB limit.
+- **Double-booking protection:** holds are taken inside a transaction that holds an advisory lock, so check-then-insert is serialised; a test fires six simultaneous reservations and exactly one wins. A partial unique index allows only one *confirmed* booking per venue per night. If a payment arrives after the hold lapsed and someone else has taken the night, the booking is flagged for refund instead of being double-booked.
 - **Security:** bcrypt passwords, signed httpOnly session cookies, CSRF tokens on every form, Helmet CSP, ownership checks on every restaurant and booking route, image-only uploads with size limits, rate-limited login, and spreadsheet-formula escaping in CSV exports.
 
 ```
 src/
   app.js, server.js, config.js, db.js
   routes/      public (search, venue) · auth · restaurant · bookings · rsvp · admin · webhooks
-  services/    bookings (holds/confirm) · packages · reviews · checkout (ledger, refunds) · payments (Cashfree) · pricing · settings · audit · invites · notify · guestlist
+  services/    bookings (holds/confirm) · packages · reviews · checkout (ledger, refunds) · payments (Cashfree) · storage (Supabase) · google · pricing · settings · audit · invites · notify · guestlist
 views/         EJS pages + email template
 public/        CSS, JS
 scripts/seed.js, scripts/create-admin.js
@@ -132,42 +134,32 @@ test/
 
 ## Deploying
 
-### Hosted demo (Vercel)
-The repository deploys to Vercel as-is. `api/index.js` exports the Express app, `vercel.json` sends every route to it and bundles `views/`, and `public/` is served by the CDN.
+### Production: Vercel + Supabase
+The app runs as one Vercel function in **Mumbai (`bom1`)**, set in `vercel.json`. Data lives in Supabase Postgres and photos in Supabase Storage.
 
-On Vercel the app runs in **demo mode**:
-- The SQLite database and uploads live in `/tmp`, which Vercel wipes whenever it recycles a function instance.
-- Each instance starts with fresh **sample data** (`DEMO_MODE`). Anything you create may disappear, and separate instances don't share data.
-- Payments, email and WhatsApp stay in demo mode unless you add their keys.
-
-Use it to click through the product. Don't take real bookings on it.
-
-### Production (Railway, recommended)
-The repo ships a `Dockerfile` and `railway.json`. One container runs the app, and SQLite plus uploaded photos live on a persistent volume at `/data`.
-
-1. **New project → Deploy from GitHub repo** → pick this repository (branch `main`). Railway builds the `Dockerfile` and health-checks `/healthz`.
-2. **Add a volume** to the service, mounted at **`/data`**. Without it, every deploy wipes the data.
-3. **Variables:**
+1. **Create the Supabase project in Mumbai (`ap-south-1`)**, next to the functions. The easiest way is Vercel → Project → **Storage → Supabase** (Marketplace), which creates the project and adds its variables. **Connect it to Production only.** If previews shared it, they would write into the live database.
+2. **Variables (Production):**
 
    | Variable | Value |
    |---|---|
-   | `SESSION_SECRET` | a long random string (`openssl rand -hex 32`) |
-   | `BASE_URL` | `https://iftarparty.com` |
-   | `ADMIN_EMAIL`, `ADMIN_PASSWORD` (12+ chars), `ADMIN_NAME` | first-boot admin. Created only if no admin exists. Remove `ADMIN_PASSWORD` after you sign in |
-   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | same values as before |
-   | `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox` | Cashfree test keys first |
-   | `SMTP_*`, `OPENWA_*` | when ready |
+   | `POSTGRES_URL` (or `DATABASE_URL`) | Supabase **transaction pooler** URL (port 6543). Added by the integration |
+   | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Added by the integration. Used server-side only, for photo storage |
+   | `DEMO_MODE` | `false` |
+   | `ADMIN_EMAIL`, `ADMIN_PASSWORD` (12+ chars), `ADMIN_NAME` | First-boot admin. Created only if no admin exists. Remove `ADMIN_PASSWORD` after you sign in |
+   | `SESSION_SECRET`, `BASE_URL`, `GOOGLE_*`, `CASHFREE_*`, `SMTP_*`, `OPENWA_*` | As before |
+3. **Redeploy.** The first request migrates the schema (about a second) and creates the `venue-photos` bucket.
+4. **Backups:** Supabase takes daily backups. *Admin → Settings → Download database backup* exports every table as JSON on demand.
 
-   `NODE_ENV=production`, `DATABASE_PATH` and `UPLOAD_DIR` are already set in the image. Demo data is off by default outside Vercel.
-4. **Domain:** under Settings → Networking, add `iftarparty.com` and `www.iftarparty.com`. At your DNS provider, replace the Vercel records with the ones Railway shows. The Google sign-in and Cashfree URLs stay the same because the domain doesn't change.
-5. **Backups:** use *Admin → Settings → Download database backup* (a consistent SQLite snapshot), and/or Railway's volume backups.
+Previews (no database variables) run on an in-memory PGlite database seeded with demo data. They're safe to click through, and everything resets.
 
-Keep it at **one replica**: SQLite on a single volume. For multi-instance scale, move to Postgres (`src/db.js`) and object storage (`src/middleware/uploads.js`).
+Notes:
+- `DATABASE_CA_CERT` (Supabase → Database → SSL certificate) turns on full TLS certificate verification. Without it the connection is encrypted but the certificate isn't verified.
+- WhatsApp through OpenWA still needs an always-on host for the gateway itself, outside Vercel. The app only calls its HTTP API.
 
-Any other Docker host works the same way (Render, Fly.io, a VPS): mount a persistent disk at `/data` and set the variables above.
+### Elsewhere (Docker)
+The `Dockerfile` runs the same app on any container host (Railway, Render, Fly.io, a VPS). Set `DATABASE_URL` to Postgres, or leave it unset to keep PGlite on a persistent volume at `/data`.
 
 ## Production notes
 
 - Set `NODE_ENV=production`, a long random `SESSION_SECRET` and `BASE_URL`, which is used in RSVP links.
-- Store `uploads/` and the database on persistent disk. For multi-instance scale, move to Postgres and S3, which only touches `db.js` and `middleware/uploads.js`.
 - For large guest lists, move `sendInvites` to a job queue. It already sends with limited concurrency.

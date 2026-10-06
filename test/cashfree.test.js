@@ -56,7 +56,7 @@ describe('Cashfree payments', () => {
   before(async () => {
     Object.assign(config.cashfree, { appId: 'cf-app', secretKey: 'cf-secret', env: 'sandbox' });
     cf = fakeCashfree();
-    fx = seedMarketplace(db);
+    fx = await seedMarketplace(db);
     host = await signin(app, 'host@fixture.test');
   });
   after(() => {
@@ -79,7 +79,7 @@ describe('Cashfree payments', () => {
     const id = await reserve(host, futureDate(40));
     const { res, orderId } = await pay(host, id);
     const call = cf.calls.find((c) => c.method === 'POST' && c.path === '/pg/orders');
-    const b = db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
+    const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
     assert.equal(call.headers['x-api-version'], '2023-08-01');
     assert.equal(call.body.order_amount, b.total_amount / 100);
     assert.equal(call.body.order_currency, 'INR');
@@ -90,19 +90,19 @@ describe('Cashfree payments', () => {
     assert.match(res.text, /data-cashfree-session="session_IP-/);
     assert.match(res.text, /sdk\.cashfree\.com\/js\/v3\/cashfree\.js/);
     assert.match(res.headers['content-security-policy'], /script-src 'self' https:\/\/sdk\.cashfree\.com/);
-    assert.equal(db.prepare('SELECT provider, status FROM payments WHERE order_id = ?').get(orderId).provider, 'cashfree');
+    assert.equal((await db.prepare('SELECT provider, status FROM payments WHERE order_id = ?').get(orderId)).provider, 'cashfree');
 
     // Return before paying → not confirmed
     await host.get(`/bookings/${id}/payment-return?order_id=${orderId}`).expect(302);
-    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'pending_payment');
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(id)).status, 'pending_payment');
 
     // Paid → confirmed, ledger updated
     cf.pay(orderId);
     const done = await host.get(`/bookings/${id}/payment-return?order_id=${orderId}`).expect(302);
     assert.match(done.headers.location, new RegExp(`/bookings/${id}\\?welcome=1`));
-    const after = db.prepare('SELECT status, payment_ref, payment_provider FROM bookings WHERE id = ?').get(id);
+    const after = await db.prepare('SELECT status, payment_ref, payment_provider FROM bookings WHERE id = ?').get(id);
     assert.deepEqual({ ...after }, { status: 'confirmed', payment_ref: orderId, payment_provider: 'cashfree' });
-    assert.equal(db.prepare('SELECT status FROM payments WHERE order_id = ?').get(orderId).status, 'paid');
+    assert.equal((await db.prepare('SELECT status FROM payments WHERE order_id = ?').get(orderId)).status, 'paid');
   });
 
   test('an amount mismatch never confirms the booking', async () => {
@@ -110,13 +110,13 @@ describe('Cashfree payments', () => {
     const { orderId } = await pay(host, id);
     cf.pay(orderId, 1);
     await host.get(`/bookings/${id}/payment-return?order_id=${orderId}`).expect(302);
-    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'pending_payment');
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(id)).status, 'pending_payment');
   });
 
   test('a return URL carrying another booking’s order is ignored', async () => {
     const id = await reserve(host, futureDate(42));
     await host.get(`/bookings/${id}/payment-return?order_id=IP-1-abc`).expect(302);
-    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'pending_payment');
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(id)).status, 'pending_payment');
   });
 
   test('webhook: rejects bad signatures, confirms on PAYMENT_SUCCESS, refunds a duplicate payment', async () => {
@@ -133,13 +133,13 @@ describe('Cashfree payments', () => {
     let s = sign(b);
     await request(app).post('/webhooks/cashfree').set('content-type', 'application/json')
       .set('x-webhook-timestamp', s.ts).set('x-webhook-signature', s.sig).send(b).expect(200);
-    assert.equal(db.prepare('SELECT payment_ref FROM bookings WHERE id = ?').get(id).payment_ref, first);
+    assert.equal((await db.prepare('SELECT payment_ref FROM bookings WHERE id = ?').get(id)).payment_ref, first);
 
     b = body(second);
     s = sign(b);
     await request(app).post('/webhooks/cashfree').set('content-type', 'application/json')
       .set('x-webhook-timestamp', s.ts).set('x-webhook-signature', s.sig).send(b).expect(200);
-    const dup = db.prepare('SELECT * FROM payments WHERE order_id = ?').get(second);
+    const dup = await db.prepare('SELECT * FROM payments WHERE order_id = ?').get(second);
     assert.equal(dup.refund_status, 'pending');
     assert.equal(dup.refund_amount, dup.amount);
     assert.deepEqual(cf.refunds.map((r) => r.order_id), [second]);
@@ -149,7 +149,7 @@ describe('Cashfree payments', () => {
     s = sign(rb);
     await request(app).post('/webhooks/cashfree').set('content-type', 'application/json')
       .set('x-webhook-timestamp', s.ts).set('x-webhook-signature', s.sig).send(rb).expect(200);
-    assert.equal(db.prepare('SELECT refund_status FROM payments WHERE order_id = ?').get(second).refund_status, 'success');
+    assert.equal((await db.prepare('SELECT refund_status FROM payments WHERE order_id = ?').get(second)).refund_status, 'success');
     s = sign(b);
     await request(app).post('/webhooks/cashfree').set('content-type', 'application/json')
       .set('x-webhook-timestamp', s.ts).set('x-webhook-signature', s.sig).send(b).expect(200);
@@ -160,9 +160,9 @@ describe('Cashfree payments', () => {
     const date = futureDate(44);
     const id = await reserve(host, date);
     const { orderId } = await pay(host, id);
-    db.prepare(`UPDATE bookings SET hold_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?`).run(id);
+    await db.prepare(`UPDATE bookings SET hold_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?`).run(id);
 
-    seedMarketplace(db, { hostEmail: 'rival@fixture.test' });
+    await seedMarketplace(db, { hostEmail: 'rival@fixture.test' });
     const rival = await signin(app, 'rival@fixture.test');
     const rivalId = await reserve(rival, date);
     const rivalOrder = (await pay(rival, rivalId)).orderId;
@@ -171,9 +171,9 @@ describe('Cashfree payments', () => {
 
     cf.pay(orderId);
     await host.get(`/bookings/${id}/payment-return?order_id=${orderId}`).expect(302);
-    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'cancelled');
-    assert.equal(db.prepare('SELECT refund_status FROM payments WHERE order_id = ?').get(orderId).refund_status, 'pending');
-    assert.equal(db.prepare(`SELECT COUNT(*) n FROM bookings WHERE venue_id = ? AND event_date = ? AND status = 'confirmed'`).get(fx.venueId, date).n, 1);
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(id)).status, 'cancelled');
+    assert.equal((await db.prepare('SELECT refund_status FROM payments WHERE order_id = ?').get(orderId)).refund_status, 'pending');
+    assert.equal((await db.prepare(`SELECT COUNT(*) n FROM bookings WHERE venue_id = ? AND event_date = ? AND status = 'confirmed'`).get(fx.venueId, date)).n, 1);
   });
 
   test('gateway outage on order creation is reported, not a 500', async () => {

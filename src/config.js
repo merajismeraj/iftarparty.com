@@ -15,10 +15,20 @@ const config = {
   port: Number(env.PORT || 3000),
   baseUrl: (env.BASE_URL || (vercelUrl ? `https://${vercelUrl}` : `http://localhost:${env.PORT || 3000}`)).replace(/\/$/, ''),
   sessionSecret: env.SESSION_SECRET || 'dev-only-secret-change-me',
-  databasePath: env.DATABASE_PATH || (onVercel ? '/tmp/iftarparty.db' : path.join(root, 'data', 'iftarparty.db')),
+  // Postgres connection (Supabase: the pooled "Transaction" URL). The Supabase Vercel integration sets POSTGRES_URL.
+  databaseUrl: env.DATABASE_URL || env.POSTGRES_URL || '',
+  // Without a URL, an in-process PGlite database: on disk locally, in memory on Vercel previews.
+  databasePath: env.DATABASE_PATH || (onVercel ? ':memory:' : path.join(root, 'data', 'pglite')),
   uploadDir: path.resolve(root, env.UPLOAD_DIR || (onVercel ? '/tmp/uploads' : 'uploads')),
-  // Demo mode seeds sample data into an empty database on start (always on for the Vercel preview).
-  demoMode: env.DEMO_MODE === 'true' || (onVercel && env.DEMO_MODE !== 'false'),
+  // Supabase Storage for venue photos (falls back to UPLOAD_DIR on local disk when unset).
+  supabase: {
+    url: (env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, ''),
+    serviceKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
+    bucket: env.SUPABASE_BUCKET || 'venue-photos',
+  },
+  // Demo mode seeds sample data into an empty database on start. On by default only for Vercel
+  // deployments without a real database (previews).
+  demoMode: env.DEMO_MODE === 'true' || (onVercel && !(env.DATABASE_URL || env.POSTGRES_URL) && env.DEMO_MODE !== 'false'),
   onVercel,
   currency: (env.CURRENCY || 'INR').toUpperCase(),
   platformFeePercent: Number(env.PLATFORM_FEE_PERCENT ?? 5),

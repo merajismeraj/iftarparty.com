@@ -3,10 +3,11 @@
   "framework": null,
   "buildCommand": "",
   "outputDirectory": "public",
+  "regions": ["bom1"],
   "functions": {
     "api/index.js": {
-      "includeFiles": "{views,public,scripts}/**",
-      "maxDuration": 30
+      "includeFiles": "{views/**,public/**,scripts/**,node_modules/@electric-sql/pglite/dist/*.{wasm,data}}",
+      "maxDuration": 60
     }
   },
   "rewrites": [

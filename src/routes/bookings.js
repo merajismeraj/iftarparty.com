@@ -27,8 +27,8 @@ module.exports = (db) => {
   const host = requireAuth('host');
 
   /** Load a booking owned by the signed-in host, or render 404. */
-  function ownBooking(req, res) {
-    const b = svc.getDetailed(db, req.params.id);
+  async function ownBooking(req, res) {
+    const b = await svc.getDetailed(db, req.params.id);
     if (!b || b.host_id !== req.user.id) {
       res.status(404).render('error', { title: 'Booking not found', message: 'We couldn’t find that booking on your account.' });
       return null;
@@ -37,9 +37,9 @@ module.exports = (db) => {
   }
 
   // Step 1: hold the venue for the chosen night.
-  router.post('/venues/:id/reserve', host, (req, res) => {
+  router.post('/venues/:id/reserve', host, async (req, res) => {
     try {
-      const id = svc.createHold(db, {
+      const id = await svc.createHold(db, {
         venueId: Number(req.params.id), menuId: Number(req.body.menu_id), hostId: req.user.id,
         eventDate: req.body.date, guestCount: req.body.guests, arrivalTime: req.body.arrival_time,
         addonIds: req.body.addon_ids, dishIds: req.body.dish_ids,
@@ -56,16 +56,16 @@ module.exports = (db) => {
   });
 
   // Step 2: review the price and pay.
-  router.get('/bookings/:id/checkout', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.get('/bookings/:id/checkout', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status === 'confirmed') return res.redirect(`/bookings/${b.id}`);
     const expired = b.status !== 'pending_payment' || b.hold_expires_at <= new Date().toISOString();
-    res.render('host/checkout', { title: 'Review & pay', b, expired, addons: svc.bookingAddons(db, b.id), dishes: packages.bookingSelection(db, b.id) });
+    res.render('host/checkout', { title: 'Review & pay', b, expired, addons: await svc.bookingAddons(db, b.id), dishes: await packages.bookingSelection(db, b.id) });
   });
 
   router.post('/bookings/:id/pay', host, async (req, res) => {
-    const b = ownBooking(req, res);
+    const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status === 'confirmed') return res.redirect(`/bookings/${b.id}`);
     if (b.status !== 'pending_payment' || b.hold_expires_at <= new Date().toISOString()) {
@@ -79,7 +79,7 @@ module.exports = (db) => {
         req.flash('error', 'Please enter a valid mobile number to continue to payment.');
         return res.redirect(`/bookings/${b.id}/checkout`);
       }
-      db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, req.user.id);
+      await db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, req.user.id);
       req.user.phone = phone;
     }
     let start;
@@ -97,7 +97,7 @@ module.exports = (db) => {
 
   // Cashfree sends the host back here; the order is re-fetched server-side, never trusted from the URL.
   router.get('/bookings/:id/payment-return', host, async (req, res) => {
-    const b = ownBooking(req, res);
+    const b = await ownBooking(req, res);
     if (!b) return;
     const orderId = String(req.query.order_id || '');
     if (payments.bookingIdFromOrder(orderId) !== b.id) return res.redirect(`/bookings/${b.id}/checkout`);
@@ -113,9 +113,9 @@ module.exports = (db) => {
   });
 
   // Built-in payment simulator, available only when Cashfree is not configured.
-  router.get('/bookings/:id/demo-pay', host, (req, res) => {
+  router.get('/bookings/:id/demo-pay', host, async (req, res) => {
     if (payments.isLive()) return res.redirect(`/bookings/${req.params.id}/checkout`);
-    const b = ownBooking(req, res);
+    const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status === 'confirmed') return res.redirect(`/bookings/${b.id}`);
     res.render('host/demo-pay', { title: 'Payment', b, orderId: String(req.query.order || '') });
@@ -123,9 +123,9 @@ module.exports = (db) => {
 
   router.post('/bookings/:id/demo-pay', host, async (req, res) => {
     if (payments.isLive()) return res.status(404).end();
-    const b = ownBooking(req, res);
+    const b = await ownBooking(req, res);
     if (!b) return;
-    const p = db.prepare(`SELECT * FROM payments WHERE order_id = ? AND booking_id = ? AND provider = 'demo'`).get(String(req.body.order_id || ''), b.id);
+    const p = await db.prepare(`SELECT * FROM payments WHERE order_id = ? AND booking_id = ? AND provider = 'demo'`).get(String(req.body.order_id || ''), b.id);
     if (!p) {
       req.flash('error', 'Payment session not found. Please start payment again.');
       return res.redirect(`/bookings/${b.id}/checkout`);
@@ -156,66 +156,66 @@ module.exports = (db) => {
     }
   }
 
-  router.post('/bookings/:id/cancel', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.post('/bookings/:id/cancel', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status === 'pending_payment') {
-      db.prepare(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`).run(b.id);
+      await db.prepare(`UPDATE bookings SET status = 'cancelled' WHERE id = ?`).run(b.id);
       req.flash('success', 'Reservation hold released.');
     }
     res.redirect('/my-parties');
   });
 
   // ---- Host dashboard ----
-  router.get('/my-parties', host, (req, res) => {
-    svc.expireStaleHolds(db);
-    const rows = db.prepare(
+  router.get('/my-parties', host, async (req, res) => {
+    await svc.expireStaleHolds(db);
+    const rows = await db.prepare(
       `SELECT b.id FROM bookings b WHERE b.host_id = ?
          AND (b.status IN ('confirmed', 'pending_payment') OR (b.status = 'cancelled' AND b.cancelled_at IS NOT NULL))
        ORDER BY b.status = 'cancelled', b.event_date < ?, b.event_date`
     ).all(req.user.id, svc.todayISO());
-    const parties = rows.map((r) => {
-      const b = svc.getDetailed(db, r.id);
-      const notified = b.status === 'cancelled' ? db.prepare(
+    const parties = await Promise.all(rows.map(async (r) => {
+      const b = await svc.getDetailed(db, r.id);
+      const notified = b.status === 'cancelled' ? (await db.prepare(
         `SELECT COUNT(DISTINCT ml.guest_id) AS n FROM message_log ml JOIN guests g ON g.id = ml.guest_id
          WHERE g.booking_id = ? AND ml.kind = 'cancellation'`
-      ).get(b.id).n : 0;
-      return { ...b, rsvp: svc.rsvpSummary(db, b.id), payment: checkout.bookingPayment(db, b), notified, review: reviews.forBooking(db, b.id) };
-    });
+      ).get(b.id)).n : 0;
+      return { ...b, rsvp: await svc.rsvpSummary(db, b.id), payment: await checkout.bookingPayment(db, b), notified, review: await reviews.forBooking(db, b.id) };
+    }));
     res.render('host/parties', { title: 'My Iftar parties', parties, today: svc.todayISO() });
   });
 
-  router.get('/bookings/:id', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.get('/bookings/:id', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status === 'pending_payment') return res.redirect(`/bookings/${b.id}/checkout`);
     if (b.status !== 'confirmed') return res.redirect('/my-parties');
-    const guests = db.prepare(
+    const guests = await db.prepare(
       `SELECT * FROM guests WHERE booking_id = ?
        ORDER BY CASE rsvp_status WHEN 'yes' THEN 0 WHEN 'maybe' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END, name`
     ).all(b.id);
     res.render('host/party', {
-      title: b.title, b, guests, addons: svc.bookingAddons(db, b.id),
-      dishes: packages.bookingSelection(db, b.id), canEditMenu: b.menu_kind === 'package' && packages.canEditSelection(b), rsvp: svc.rsvpSummary(db, b.id), welcome: req.query.welcome === '1',
+      title: b.title, b, guests, addons: await svc.bookingAddons(db, b.id),
+      dishes: await packages.bookingSelection(db, b.id), canEditMenu: b.menu_kind === 'package' && packages.canEditSelection(b), rsvp: await svc.rsvpSummary(db, b.id), welcome: req.query.welcome === '1',
       preview: guests[0] ? invites.buildInvite(b, guests[0]) : invites.buildInvite(b, { name: 'Guest', rsvp_token: 'preview' }),
       past: b.event_date < svc.todayISO(),
     });
   });
 
-  router.post('/bookings/:id/details', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.post('/bookings/:id/details', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
     const message = String(req.body.invite_message || '').trim().slice(0, 600);
     const time = TIME_RE.test(req.body.arrival_time || '') ? req.body.arrival_time : b.arrival_time;
     const showList = req.body.show_guest_list === 'on' ? 1 : 0;
-    db.prepare('UPDATE bookings SET invite_message = ?, arrival_time = ?, show_guest_list = ? WHERE id = ?').run(message, time, showList, b.id);
+    await db.prepare('UPDATE bookings SET invite_message = ?, arrival_time = ?, show_guest_list = ? WHERE id = ?').run(message, time, showList, b.id);
     req.flash('success', 'Invitation updated.');
     res.redirect(`/bookings/${b.id}#invite`);
   });
 
   // Step 3: upload the invite list (CSV file or pasted rows) and optionally send immediately.
   router.post('/bookings/:id/guests', host, guestListUpload.single('file'), async (req, res) => {
-    const b = ownBooking(req, res);
+    const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status !== 'confirmed') return res.redirect(`/bookings/${b.id}`);
     const text = req.file ? req.file.buffer.toString('utf8') : String(req.body.list || '');
@@ -227,14 +227,14 @@ module.exports = (db) => {
       return res.redirect(`/bookings/${b.id}#guests`);
     }
 
-    const existing = db.prepare('SELECT email, phone FROM guests WHERE booking_id = ?').all(b.id);
+    const existing = await db.prepare('SELECT email, phone FROM guests WHERE booking_id = ?').all(b.id);
     const known = new Set(existing.flatMap((g) => [g.email, g.phone]).filter(Boolean));
     const fresh = parsed.guests.filter((g) => !(g.email && known.has(g.email)) && !(g.phone && known.has(g.phone)));
     const skipped = parsed.guests.length - fresh.length;
 
-    transaction(db, () => {
+    await transaction(db, async () => {
       const ins = db.prepare('INSERT INTO guests (booking_id, name, email, phone, rsvp_token) VALUES (?, ?, ?, ?, ?)');
-      fresh.forEach((g) => ins.run(b.id, g.name, g.email, g.phone, invites.newToken()));
+      for (const g of fresh) await ins.run(b.id, g.name, g.email, g.phone, invites.newToken());
     });
 
     const notes = [];
@@ -254,7 +254,7 @@ module.exports = (db) => {
   });
 
   router.post('/bookings/:id/invites', host, async (req, res) => {
-    const b = ownBooking(req, res);
+    const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status !== 'confirmed' || b.event_date < svc.todayISO()) return res.redirect(`/bookings/${b.id}`);
     const scope = req.body.scope === 'pending' ? 'pending' : 'new';
@@ -266,24 +266,24 @@ module.exports = (db) => {
   });
 
   router.post('/bookings/:id/guests/:guestId/resend', host, async (req, res) => {
-    const b = ownBooking(req, res);
+    const b = await ownBooking(req, res);
     if (!b) return;
     const sent = await invites.sendInvites(db, b, Number(req.params.guestId));
     req.flash(sent ? 'success' : 'error', sent ? 'Invite re-sent.' : 'Guest not found.');
     res.redirect(`/bookings/${b.id}#guests`);
   });
 
-  router.post('/bookings/:id/guests/:guestId/delete', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.post('/bookings/:id/guests/:guestId/delete', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
-    db.prepare('DELETE FROM guests WHERE id = ? AND booking_id = ?').run(req.params.guestId, b.id);
+    await db.prepare('DELETE FROM guests WHERE id = ? AND booking_id = ?').run(req.params.guestId, b.id);
     req.flash('success', 'Guest removed.');
     res.redirect(`/bookings/${b.id}#guests`);
   });
 
   // ---- Change package dish picks (until the cutoff before the Iftar) ----
-  function menuEditGuard(req, res) {
-    const b = ownBooking(req, res);
+  async function menuEditGuard(req, res) {
+    const b = await ownBooking(req, res);
     if (!b) return null;
     if (b.menu_kind !== 'package' || !packages.canEditSelection(b)) {
       req.flash('info', `Dish selections are final ${packages.EDIT_CUTOFF_DAYS} days before the Iftar. Please call the restaurant for any changes.`);
@@ -293,63 +293,63 @@ module.exports = (db) => {
     return b;
   }
 
-  router.get('/bookings/:id/menu', host, (req, res) => {
-    const b = menuEditGuard(req, res);
+  router.get('/bookings/:id/menu', host, async (req, res) => {
+    const b = await menuEditGuard(req, res);
     if (!b) return;
-    const picked = new Set(db.prepare('SELECT dish_id FROM booking_dishes WHERE booking_id = ?').all(b.id).map((r) => String(r.dish_id)));
-    res.render('host/menu-edit', { title: 'Your menu', b, rules: packages.load(db, b.menu_id), picked, error: null, minDishes: settings.minPackageDishes(db) });
+    const picked = new Set((await db.prepare('SELECT dish_id FROM booking_dishes WHERE booking_id = ?').all(b.id)).map((r) => String(r.dish_id)));
+    res.render('host/menu-edit', { title: 'Your menu', b, rules: await packages.load(db, b.menu_id), picked, error: null, minDishes: await settings.minPackageDishes(db) });
   });
 
-  router.post('/bookings/:id/menu', host, (req, res) => {
-    const b = menuEditGuard(req, res);
+  router.post('/bookings/:id/menu', host, async (req, res) => {
+    const b = await menuEditGuard(req, res);
     if (!b) return;
-    const menu = db.prepare('SELECT * FROM menus WHERE id = ?').get(b.menu_id);
+    const menu = await db.prepare('SELECT * FROM menus WHERE id = ?').get(b.menu_id);
     try {
-      const dishes = packages.validateSelection(db, menu, req.body.dish_ids);
-      transaction(db, () => packages.saveSelection(db, b.id, dishes));
+      const dishes = await packages.validateSelection(db, menu, req.body.dish_ids);
+      await transaction(db, async () => packages.saveSelection(db, b.id, dishes));
       req.flash('success', 'Menu updated. The restaurant sees your new selection.');
       res.redirect(`/bookings/${b.id}#menu`);
     } catch (err) {
       if (!(err instanceof svc.BookingError)) throw err;
       res.status(422).render('host/menu-edit', {
-        title: 'Your menu', b, rules: packages.load(db, b.menu_id), picked: new Set([].concat(req.body.dish_ids || []).map(String)), error: err.message,
-        minDishes: settings.minPackageDishes(db),
+        title: 'Your menu', b, rules: await packages.load(db, b.menu_id), picked: new Set([].concat(req.body.dish_ids || []).map(String)), error: err.message,
+        minDishes: await settings.minPackageDishes(db),
       });
     }
   });
 
   // ---- Verified review of the venue, after the Iftar ----
-  router.get('/bookings/:id/review', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.get('/bookings/:id/review', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
     const reason = reviews.ineligibleReason(b, req.user.id);
     if (reason) {
       req.flash('info', reason);
       return res.redirect('/my-parties');
     }
-    const existing = reviews.forBooking(db, b.id);
+    const existing = await reviews.forBooking(db, b.id);
     res.render('host/review', { title: `Review ${b.restaurant_name}`, b, review: existing || {}, existing, errors: [] });
   });
 
-  router.post('/bookings/:id/review', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.post('/bookings/:id/review', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
     try {
-      const r = reviews.submit(db, b, req.user.id, req.body);
+      const r = await reviews.submit(db, b, req.user.id, req.body);
       req.flash('success', r.wasPublished
         ? 'Review updated. It will be published again after a quick check by our team.'
         : 'Thank you! Your review will appear once our team has checked it (usually within a day).');
       res.redirect('/my-parties');
     } catch (err) {
       if (!(err instanceof reviews.ReviewError)) throw err;
-      res.status(422).render('host/review', { title: `Review ${b.restaurant_name}`, b, review: req.body, existing: reviews.forBooking(db, b.id), errors: [err.message] });
+      res.status(422).render('host/review', { title: `Review ${b.restaurant_name}`, b, review: req.body, existing: await reviews.forBooking(db, b.id), errors: [err.message] });
     }
   });
 
-  router.get('/bookings/:id/guests.csv', host, (req, res) => {
-    const b = ownBooking(req, res);
+  router.get('/bookings/:id/guests.csv', host, async (req, res) => {
+    const b = await ownBooking(req, res);
     if (!b) return;
-    const rows = db.prepare('SELECT name, email, phone, rsvp_status, party_size, note, responded_at FROM guests WHERE booking_id = ? ORDER BY name').all(b.id);
+    const rows = await db.prepare('SELECT name, email, phone, rsvp_status, party_size, note, responded_at FROM guests WHERE booking_id = ? ORDER BY name').all(b.id);
     const lines = [['name', 'email', 'mobile', 'rsvp', 'party_size', 'note', 'responded_at'].join(',')]
       .concat(rows.map((r) => [r.name, r.email, r.phone, r.rsvp_status, r.party_size, r.note, r.responded_at].map(csvCell).join(',')));
     res.type('text/csv').attachment(`iftar-rsvps-${b.event_date}.csv`).send(`${lines.join('\n')}\n`);

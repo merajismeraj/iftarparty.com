@@ -1,9 +1,10 @@
 'use strict';
 const config = require('./config');
-const app = require('./app');
+const http = require('node:http');
+const handler = require('./app');
 const { whatsappProvider } = require('./services/notify');
 
-const server = app.listen(config.port, () => {
+const server = http.createServer(handler).listen(config.port, () => {
   console.log(`IftarParty running at ${config.baseUrl}`);
   console.log(config.cashfree.appId ? `  payments: Cashfree (${config.cashfree.env})` : '  payments: DEMO mode (set CASHFREE_APP_ID + CASHFREE_SECRET_KEY for Cashfree)');
   if (!config.smtp.host) console.log('  email:    DEMO mode (set SMTP_HOST to send real email)');
@@ -17,8 +18,7 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
   process.once(signal, () => {
     console.log(`${signal} received, shutting down`);
     server.close(() => {
-      try { app.db.close(); } catch {}
-      process.exit(0);
+      handler.db.close().catch(() => {}).finally(() => process.exit(0));
     });
     setTimeout(() => process.exit(0), 10_000).unref();
   });

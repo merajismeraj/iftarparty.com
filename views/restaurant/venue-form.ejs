@@ -20,7 +20,7 @@
         <div class="thumbs">
           <% images.forEach(img => { %>
             <figure>
-              <img src="/uploads/<%= img.filename %>" alt="">
+              <img src="<%= photoUrl(img.filename) %>" alt="">
               <button class="btn btn-small btn-ghost" formaction="/restaurant/venues/<%= venue.id %>/images/<%= img.id %>/delete?_csrf=<%= csrfToken %>" formnovalidate data-confirm="Remove this photo?">Remove</button>
             </figure>
           <% }) %>
@@ -28,8 +28,8 @@
       <% } %>
       <label class="field">
         <span><%= images.length ? 'Add more photos' : 'Photos of the hall' %></span>
-        <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple <%= editing ? '' : 'required' %>>
-        <small class="muted">Up to 8 images, 5 MB each. The first photo is the cover.</small>
+        <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple data-photo-input <%= editing ? '' : 'required' %>>
+        <small class="muted" data-upload-note>Up to 8 photos. The first one is the cover. Large photos are resized automatically.</small>
       </label>
       <button class="btn btn-gold btn-block"><%= editing ? 'Save changes' : 'Publish hall' %></button>
     </form>

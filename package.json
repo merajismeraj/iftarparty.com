@@ -2,7 +2,7 @@
   "name": "iftarparty",
   "version": "1.0.0",
   "private": true,
-  "description": "IftarParty.com \u2013 reserve restaurant party halls for Iftar and invite guests with WhatsApp/email RSVP.",
+  "description": "IftarParty.com – reserve restaurant party halls for Iftar and invite guests with WhatsApp/email RSVP.",
   "main": "src/server.js",
   "engines": {
     "node": "22.x"
@@ -16,6 +16,7 @@
   },
   "license": "UNLICENSED",
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "bcryptjs": "^3.0.3",
     "cookie-session": "^2.1.1",
     "csv-parse": "^7.0.3",
@@ -24,7 +25,8 @@
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "multer": "^2.4.0",
-    "nodemailer": "^10.0.14"
+    "nodemailer": "^10.0.14",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "supertest": "^7.3.1"

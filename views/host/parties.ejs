@@ -13,7 +13,7 @@
   <div class="party-list">
     <% parties.forEach(p => { const past = p.event_date < today; %>
       <article class="card party-card <%= past ? "past" : "" %> <%= p.status === "cancelled" ? "cancelled" : "" %>">
-        <% if (p.image) { %><img src="/uploads/<%= p.image %>" alt=""><% } %>
+        <% if (p.image) { %><img src="<%= photoUrl(p.image) %>" alt=""><% } %>
         <div class="party-body">
           <div class="party-top">
             <div>

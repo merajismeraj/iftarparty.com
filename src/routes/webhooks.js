@@ -25,7 +25,7 @@ module.exports = (db) => {
         // settleOrder re-fetches the order from Cashfree, so we never trust the payload's amount.
         await checkout.settleOrder(db, String(data.order.order_id));
       } else if (type === 'REFUND_STATUS_WEBHOOK' && data.refund?.refund_id) {
-        checkout.applyRefundWebhook(db, { orderId: String(data.refund.order_id), refundId: String(data.refund.refund_id), cfStatus: data.refund.refund_status });
+        await checkout.applyRefundWebhook(db, { orderId: String(data.refund.order_id), refundId: String(data.refund.refund_id), cfStatus: data.refund.refund_status });
       }
     } catch (err) {
       console.error(`[webhook] ${type} failed:`, err.message);

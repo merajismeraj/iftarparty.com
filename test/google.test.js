@@ -53,7 +53,7 @@ describe('Google sign-in', () => {
     assert.equal(g.calls[0].code_verifier.length > 40, true);
     assert.equal(g.calls[0].redirect_uri, `${config.baseUrl}/auth/google/callback`);
     assert.equal(res.headers.location, '/search');
-    const u = db.prepare(`SELECT * FROM users WHERE google_sub = 'g-1'`).get();
+    const u = await db.prepare(`SELECT * FROM users WHERE google_sub = 'g-1'`).get();
     assert.deepEqual([u.email, u.name, u.role, u.phone, u.password_hash], ['zara@gmail.com', 'Zara Khan', 'host', null, '']);
 
     const blocked = await agent.get('/search').expect(302);
@@ -63,7 +63,7 @@ describe('Google sign-in', () => {
     const done = await agent.post('/welcome').type('form').send({ _csrf: token, phone: '9876543210' }).expect(302);
     assert.equal(done.headers.location, '/search');
     await agent.get('/search').expect(200);
-    assert.match(db.prepare('SELECT phone FROM users WHERE id = ?').get(u.id).phone, /9876543210$/);
+    assert.match((await db.prepare('SELECT phone FROM users WHERE id = ?').get(u.id)).phone, /9876543210$/);
 
     // Password login is refused for a Google-only account, with a pointer to Google.
     const anon = request.agent(app);
@@ -75,13 +75,13 @@ describe('Google sign-in', () => {
   test('returning user signs straight in; existing email account gets linked', async () => {
     const again = await googleSignIn(request.agent(app), { sub: 'g-1', email: 'zara@gmail.com', name: 'Zara Khan' });
     assert.equal(again.res.headers.location, '/my-parties');
-    assert.equal(db.prepare(`SELECT COUNT(*) n FROM users WHERE email = 'zara@gmail.com'`).get().n, 1);
+    assert.equal((await db.prepare(`SELECT COUNT(*) n FROM users WHERE email = 'zara@gmail.com'`).get()).n, 1);
 
-    db.prepare(`INSERT INTO users (name, email, phone, password_hash, role) VALUES ('Old Host', 'old@example.com', '+919800000000', 'x', 'host')`).run();
+    await db.prepare(`INSERT INTO users (name, email, phone, password_hash, role) VALUES ('Old Host', 'old@example.com', '+919800000000', 'x', 'host')`).run();
     const agent = request.agent(app);
     const { res } = await googleSignIn(agent, { sub: 'g-2', email: 'old@example.com', name: 'Old Host' });
     assert.equal(res.headers.location, '/my-parties');
-    assert.equal(db.prepare(`SELECT google_sub FROM users WHERE email = 'old@example.com'`).get().google_sub, 'g-2');
+    assert.equal((await db.prepare(`SELECT google_sub FROM users WHERE email = 'old@example.com'`).get()).google_sub, 'g-2');
     await agent.get('/my-parties').expect(200);
     // The same email from a different Google account is not linked.
     const other = await googleSignIn(request.agent(app), { sub: 'g-evil', email: 'old@example.com' });
@@ -94,13 +94,13 @@ describe('Google sign-in', () => {
     assert.equal((await agent.get('/restaurant').expect(302)).headers.location, '/welcome');
     const token = await csrf(agent, '/welcome');
     await agent.post('/welcome').type('form').send({ _csrf: token, phone: '9876500000', restaurant_name: 'Ali’s Kitchen', city: 'Pune' }).expect(302);
-    const r = db.prepare(`SELECT r.* FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE u.google_sub = 'g-3'`).get();
+    const r = await db.prepare(`SELECT r.* FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE u.google_sub = 'g-3'`).get();
     assert.deepEqual([r.name, r.city, r.status], ['Ali’s Kitchen', 'Pune', 'pending']);
     await agent.get('/restaurant').expect(200);
   });
 
   test('forged state, wrong nonce, wrong audience, unverified email and suspended users are refused', async () => {
-    const before = db.prepare('SELECT COUNT(*) n FROM users').get().n;
+    const before = (await db.prepare('SELECT COUNT(*) n FROM users').get()).n;
     const cases = [
       [{ sub: 'x1', email: 'a@x.com' }, { tamper: true }],
       [{ sub: 'x2', email: 'b@x.com', nonce: 'replayed' }],
@@ -114,9 +114,9 @@ describe('Google sign-in', () => {
       assert.equal(res.headers.location, '/login', JSON.stringify(claims));
       assert.equal((await agent.get('/my-parties')).status, 302, 'not signed in');
     }
-    assert.equal(db.prepare('SELECT COUNT(*) n FROM users').get().n, before);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM users').get()).n, before);
 
-    db.prepare(`UPDATE users SET status = 'suspended' WHERE google_sub = 'g-2'`).run();
+    await db.prepare(`UPDATE users SET status = 'suspended' WHERE google_sub = 'g-2'`).run();
     const { res } = await googleSignIn(request.agent(app), { sub: 'g-2', email: 'old@example.com' });
     assert.equal(res.headers.location, '/login');
   });

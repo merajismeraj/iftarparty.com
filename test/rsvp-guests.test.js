@@ -14,19 +14,19 @@ describe('RSVP page: who is coming', () => {
   };
 
   before(async () => {
-    const fx = seedMarketplace(db);
+    const fx = await seedMarketplace(db);
     bookingId = await paidBooking(db, { ...fx, date: futureDate(12) });
-    const add = (name, email, phone, status, size) => {
+    const add = async (name, email, phone, status, size) => {
       const t = invites.newToken();
-      db.prepare(`INSERT INTO guests (booking_id, name, email, phone, rsvp_token, rsvp_status, party_size, invited_at, responded_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now', ?))`).run(bookingId, name, email, phone, t, status, size, `-${Object.keys(tokens).length} minutes`);
+      await db.prepare(`INSERT INTO guests (booking_id, name, email, phone, rsvp_token, rsvp_status, party_size, invited_at, responded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ts_now(), ts_now(?::interval))`).run(bookingId, name, email, phone, t, status, size, `-${Object.keys(tokens).length} minutes`);
       tokens[name] = t;
     };
-    add('Aisha Khan', 'aisha@g.test', '+919811111111', 'yes', 3);
-    add('Omar Siddiqui', null, '+919822222222', 'yes', 1);
-    add('Bilal Shaikh', 'bilal@g.test', null, 'no', 0);
-    add('Fatima Rahman', 'fatima@g.test', null, 'maybe', 1);
-    add('Zara Mirza', 'zara@g.test', null, 'pending', 1);
+    await add('Aisha Khan', 'aisha@g.test', '+919811111111', 'yes', 3);
+    await add('Omar Siddiqui', null, '+919822222222', 'yes', 1);
+    await add('Bilal Shaikh', 'bilal@g.test', null, 'no', 0);
+    await add('Fatima Rahman', 'fatima@g.test', null, 'maybe', 1);
+    await add('Zara Mirza', 'zara@g.test', null, 'pending', 1);
   });
 
   test('shows confirmed guests only, privacy-safe, with total heads', async () => {
@@ -60,7 +60,7 @@ describe('RSVP page: who is coming', () => {
     const host = await signin(app, 'host@fixture.test');
     let token = await csrf(host, `/bookings/${bookingId}`);
     await host.post(`/bookings/${bookingId}/details`).type('form').send({ _csrf: token, arrival_time: '18:00', invite_message: '' }).expect(302);
-    assert.equal(db.prepare('SELECT show_guest_list FROM bookings WHERE id = ?').get(bookingId).show_guest_list, 0);
+    assert.equal((await db.prepare('SELECT show_guest_list FROM bookings WHERE id = ?').get(bookingId)).show_guest_list, 0);
     assert.equal(section((await request(app).get(`/rsvp/${tokens['Zara Mirza']}`)).text), '');
     token = await csrf(host, `/bookings/${bookingId}`);
     await host.post(`/bookings/${bookingId}/details`).type('form').send({ _csrf: token, arrival_time: '18:00', invite_message: '', show_guest_list: 'on' }).expect(302);
@@ -68,9 +68,9 @@ describe('RSVP page: who is coming', () => {
   });
 
   test('cancelled parties do not show the list', async () => {
-    db.prepare(`UPDATE bookings SET status = 'cancelled', cancelled_at = datetime('now') WHERE id = ?`).run(bookingId);
+    await db.prepare(`UPDATE bookings SET status = 'cancelled', cancelled_at = ts_now() WHERE id = ?`).run(bookingId);
     const page = await request(app).get(`/rsvp/${tokens['Aisha Khan']}`).expect(200);
     assert.equal(section(page.text), '');
-    db.prepare(`UPDATE bookings SET status = 'confirmed', cancelled_at = NULL WHERE id = ?`).run(bookingId);
+    await db.prepare(`UPDATE bookings SET status = 'confirmed', cancelled_at = NULL WHERE id = ?`).run(bookingId);
   });
 });

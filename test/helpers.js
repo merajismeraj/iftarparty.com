@@ -14,14 +14,41 @@ process.env.WHATSAPP_TOKEN = '';
 process.env.PLATFORM_FEE_PERCENT = '5';
 
 const request = require('supertest');
-const { open } = require('../src/db');
+const { after } = require('node:test');
+const { openSync } = require('../src/db');
 const { createApp } = require('../src/create-app');
 
 // 1x1 PNG
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
+// Each app gets its own empty database: in-memory PGlite by default, or a fresh database on a real
+// Postgres server when TEST_DATABASE_URL is set (e.g. postgres://postgres@127.0.0.1:5432/postgres).
+const opened = [];
+const created = [];
+const serverUrl = process.env.TEST_DATABASE_URL;
+async function admin(sql) {
+  const { Client } = require('pg');
+  const client = new Client({ connectionString: serverUrl });
+  await client.connect();
+  try { await client.query(sql); } finally { await client.end(); }
+}
+after(async () => {
+  await Promise.all(opened.map((db) => db.close().catch(() => {})));
+  for (const name of created) await admin(`DROP DATABASE IF EXISTS "${name}"`).catch(() => {});
+});
+
 function makeApp() {
-  const db = open(':memory:');
+  let db;
+  if (serverUrl) {
+    const name = `iftar_test_${process.pid}_${opened.length}`;
+    const url = new URL(serverUrl);
+    url.pathname = `/${name}`;
+    created.push(name);
+    db = openSync(url.toString(), { init: () => admin(`CREATE DATABASE "${name}"`) });
+  } else {
+    db = openSync(':memory:');
+  }
+  opened.push(db);
   return { db, app: createApp(db) };
 }
 
@@ -59,8 +86,8 @@ async function signupHost(app, name = 'Meraj Ahmed', email = 'meraj@host.test') 
 /** Insert an admin directly (admins are never created through the web UI) and sign them in. */
 async function signinAdmin(app, db) {
   const bcrypt = require('bcryptjs');
-  if (!db.prepare(`SELECT 1 FROM users WHERE email = 'admin@test.local'`).get()) {
-    db.prepare(`INSERT INTO users (name, email, password_hash, role) VALUES ('Ops Admin', 'admin@test.local', ?, 'admin')`).run(bcrypt.hashSync('admin-password-123', 4));
+  if (!await db.prepare(`SELECT 1 FROM users WHERE email = 'admin@test.local'`).get()) {
+    await db.prepare(`INSERT INTO users (name, email, password_hash, role) VALUES ('Ops Admin', 'admin@test.local', ?, 'admin')`).run(bcrypt.hashSync('admin-password-123', 4));
   }
   const agent = request.agent(app);
   const token = await csrf(agent);
@@ -71,16 +98,16 @@ async function signinAdmin(app, db) {
 module.exports = { signinAdmin, request, makeApp, csrf, futureDate, signupRestaurant, signupHost, PNG };
 
 /** Approved restaurant with one hall and one menu, plus a host. Direct inserts for speed. */
-function seedMarketplace(db, { hostEmail = 'host@fixture.test' } = {}) {
-  const n = db.prepare('SELECT COUNT(*) n FROM users').get().n;
-  const ins = (sql, ...a) => Number(db.prepare(sql).run(...a).lastInsertRowid);
-  const ownerId = ins(`INSERT INTO users (name, email, phone, password_hash, role) VALUES ('Owner', ?, '+919800000000', 'x', 'restaurant')`, `owner${n}@fixture.test`);
-  const restaurantId = ins(`INSERT INTO restaurants (owner_id, name, city, area, status, payout_upi) VALUES (?, 'Fixture Kitchen', 'Mumbai', 'Kurla', 'approved', 'fixture@okicici')`, ownerId);
-  const venueId = ins(`INSERT INTO venues (restaurant_id, name, min_pax, max_pax, hire_fee) VALUES (?, 'Fixture Hall', 10, 100, 100000)`, restaurantId);
-  const menuId = ins(`INSERT INTO menus (restaurant_id, name, items, price_per_person) VALUES (?, 'Fixture Menu', 'Dates', 50000)`, restaurantId);
+async function seedMarketplace(db, { hostEmail = 'host@fixture.test' } = {}) {
+  const n = (await db.prepare('SELECT COUNT(*) n FROM users').get()).n;
+  const ins = async (sql, ...a) => Number((await db.prepare(sql).run(...a)).lastInsertRowid);
+  const ownerId = await ins(`INSERT INTO users (name, email, phone, password_hash, role) VALUES ('Owner', ?, '+919800000000', 'x', 'restaurant')`, `owner${n}@fixture.test`);
+  const restaurantId = await ins(`INSERT INTO restaurants (owner_id, name, city, area, status, payout_upi) VALUES (?, 'Fixture Kitchen', 'Mumbai', 'Kurla', 'approved', 'fixture@okicici')`, ownerId);
+  const venueId = await ins(`INSERT INTO venues (restaurant_id, name, min_pax, max_pax, hire_fee) VALUES (?, 'Fixture Hall', 10, 100, 100000)`, restaurantId);
+  const menuId = await ins(`INSERT INTO menus (restaurant_id, name, items, price_per_person) VALUES (?, 'Fixture Menu', 'Dates', 50000)`, restaurantId);
   const bcrypt = require('bcryptjs');
-  const hostId = db.prepare('SELECT id FROM users WHERE email = ?').get(hostEmail)?.id
-    ?? ins(`INSERT INTO users (name, email, phone, password_hash, role) VALUES ('Fixture Host', ?, '+919812312312', ?, 'host')`, hostEmail, bcrypt.hashSync('password123', 4));
+  const hostId = (await db.prepare('SELECT id FROM users WHERE email = ?').get(hostEmail))?.id
+    ?? await ins(`INSERT INTO users (name, email, phone, password_hash, role) VALUES ('Fixture Host', ?, '+919812312312', ?, 'host')`, hostEmail, bcrypt.hashSync('password123', 4));
   return { ownerId, restaurantId, venueId, menuId, hostId };
 }
 
@@ -88,8 +115,8 @@ function seedMarketplace(db, { hostEmail = 'host@fixture.test' } = {}) {
 async function paidBooking(db, { venueId, menuId, hostId, date, guests = 20 }) {
   const svc = require('../src/services/bookings');
   const checkout = require('../src/services/checkout');
-  const id = svc.createHold(db, { venueId, menuId, hostId, eventDate: date, guestCount: guests });
-  const b = svc.getDetailed(db, id);
+  const id = await svc.createHold(db, { venueId, menuId, hostId, eventDate: date, guestCount: guests });
+  const b = await svc.getDetailed(db, id);
   const { orderId } = await checkout.startPayment(db, b, { id: hostId, name: b.host_name, email: b.host_email, phone: b.host_phone });
   await checkout.settleOrder(db, orderId);
   return id;

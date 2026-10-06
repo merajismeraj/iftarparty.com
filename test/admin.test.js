@@ -15,7 +15,7 @@ describe('admin portal', () => {
   let fx;
 
   before(async () => {
-    fx = seedMarketplace(db);
+    fx = await seedMarketplace(db);
     admin = await signinAdmin(app, db);
   });
 
@@ -45,41 +45,41 @@ describe('admin portal', () => {
     const id = await paidBooking(db, { ...fx, date });
     let token = await csrf(admin, `/admin/bookings/${id}`);
     await admin.post(`/admin/bookings/${id}/cancel`).type('form').send({ _csrf: token, reason: '', refund: 'full' }).expect(302);
-    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'confirmed', 'reason required');
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(id)).status, 'confirmed', 'reason required');
 
-    const total = db.prepare('SELECT total_amount FROM bookings WHERE id = ?').get(id).total_amount;
+    const total = (await db.prepare('SELECT total_amount FROM bookings WHERE id = ?').get(id)).total_amount;
     token = await csrf(admin, `/admin/bookings/${id}`);
     await admin.post(`/admin/bookings/${id}/cancel`).type('form').send({ _csrf: token, reason: 'Kitchen fire', refund: 'partial', amount: String(total) }).expect(302);
-    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'confirmed', 'over-refund rejected');
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(id)).status, 'confirmed', 'over-refund rejected');
 
     token = await csrf(admin, `/admin/bookings/${id}`);
     await admin.post(`/admin/bookings/${id}/cancel`).type('form').send({ _csrf: token, reason: 'Kitchen fire', refund: 'full' }).expect(302);
-    const b = db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
+    const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
     assert.equal(b.status, 'cancelled');
     assert.equal(b.cancel_reason, 'Kitchen fire');
-    const p = db.prepare('SELECT * FROM payments WHERE order_id = ?').get(b.payment_ref);
+    const p = await db.prepare('SELECT * FROM payments WHERE order_id = ?').get(b.payment_ref);
     assert.deepEqual([p.refund_status, p.refund_amount], ['success', b.total_amount]);
     const avail = await request(app).get(`/api/venues/${fx.venueId}/availability?date=${date}`);
     assert.equal(avail.body.available, true);
-    assert.ok(db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'booking.cancel' AND entity_id = ?`).get(id));
+    assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'booking.cancel' AND entity_id = ?`).get(id));
 
     // Second cancel is refused; second refund impossible.
     token = await csrf(admin, `/admin/bookings/${id}`);
     await admin.post(`/admin/payments/${p.id}/refund-retry`).type('form').send({ _csrf: token }).expect(302);
-    assert.equal(db.prepare('SELECT refund_amount FROM payments WHERE id = ?').get(p.id).refund_amount, b.total_amount);
+    assert.equal((await db.prepare('SELECT refund_amount FROM payments WHERE id = ?').get(p.id)).refund_amount, b.total_amount);
   });
 
   test('cancelling tells invited guests on both channels and closes their RSVP links', async () => {
     const invites = require('../src/services/invites');
     const id = await paidBooking(db, { ...fx, date: futureDate(25) });
-    const add = (name, email, phone, status, invited = true) => db.prepare(
-      `INSERT INTO guests (booking_id, name, email, phone, rsvp_token, rsvp_status, invited_at) VALUES (?, ?, ?, ?, ?, ?, ${invited ? "datetime('now')" : 'NULL'})`
+    const add = async (name, email, phone, status, invited = true) => await db.prepare(
+      `INSERT INTO guests (booking_id, name, email, phone, rsvp_token, rsvp_status, invited_at) VALUES (?, ?, ?, ?, ?, ?, ${invited ? "ts_now()" : 'NULL'})`
     ).run(id, name, email, phone, invites.newToken(), status);
-    add('Aisha', 'aisha@g.test', '+919811111111', 'yes');
-    add('Omar', null, '+919822222222', 'pending');
-    add('Bilal', 'bilal@g.test', null, 'no');            // declined – not bothered again
-    add('Zara', 'zara@g.test', null, 'pending', false);  // never invited – never told
-    const aishaToken = db.prepare(`SELECT rsvp_token FROM guests WHERE name = 'Aisha'`).get().rsvp_token;
+    await add('Aisha', 'aisha@g.test', '+919811111111', 'yes');
+    await add('Omar', null, '+919822222222', 'pending');
+    await add('Bilal', 'bilal@g.test', null, 'no');            // declined – not bothered again
+    await add('Zara', 'zara@g.test', null, 'pending', false);  // never invited – never told
+    const aishaToken = (await db.prepare(`SELECT rsvp_token FROM guests WHERE name = 'Aisha'`).get()).rsvp_token;
 
     const token = await csrf(admin, `/admin/bookings/${id}`);
     const res = await admin.post(`/admin/bookings/${id}/cancel`).type('form')
@@ -87,10 +87,10 @@ describe('admin portal', () => {
     const flash = await admin.get(res.headers.location);
     assert.match(flash.text, /2 guests notified/);
 
-    const sent = db.prepare(
+    const sent = (await db.prepare(
       `SELECT g.name, ml.channel FROM message_log ml JOIN guests g ON g.id = ml.guest_id
        WHERE g.booking_id = ? AND ml.kind = 'cancellation' ORDER BY g.name, ml.channel`
-    ).all(id).map((r) => `${r.name}:${r.channel}`);
+    ).all(id)).map((r) => `${r.name}:${r.channel}`);
     assert.deepEqual(sent, ['Aisha:email', 'Aisha:whatsapp', 'Omar:whatsapp']);
 
     const page = await request(app).get(`/rsvp/${aishaToken}`).expect(200);
@@ -100,7 +100,7 @@ describe('admin portal', () => {
     const guest = request.agent(app);
     const t2 = await csrf(guest, "/login"); // the cancelled invite has no form; forge a POST anyway
     await guest.post(`/rsvp/${aishaToken}`).type('form').send({ _csrf: t2, status: 'no' }).expect(303);
-    assert.equal(db.prepare(`SELECT rsvp_status FROM guests WHERE name = 'Aisha'`).get().rsvp_status, 'yes', 'RSVP frozen');
+    assert.equal((await db.prepare(`SELECT rsvp_status FROM guests WHERE name = 'Aisha'`).get()).rsvp_status, 'yes', 'RSVP frozen');
 
     const host = await signin(app, 'host@fixture.test');
     const parties = await host.get('/my-parties').expect(200);
@@ -117,27 +117,27 @@ describe('admin portal', () => {
   test('cancelling without notifying leaves guests alone', async () => {
     const invites = require('../src/services/invites');
     const id = await paidBooking(db, { ...fx, date: futureDate(26) });
-    db.prepare(`INSERT INTO guests (booking_id, name, email, rsvp_token, invited_at) VALUES (?, 'Quiet', 'q@g.test', ?, datetime('now'))`).run(id, invites.newToken());
+    await db.prepare(`INSERT INTO guests (booking_id, name, email, rsvp_token, invited_at) VALUES (?, 'Quiet', 'q@g.test', ?, ts_now())`).run(id, invites.newToken());
     const token = await csrf(admin, `/admin/bookings/${id}`);
     await admin.post(`/admin/bookings/${id}/cancel`).type('form').send({ _csrf: token, reason: 'Duplicate booking', refund: 'none' }).expect(302);
-    assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(id).status, 'cancelled');
-    assert.equal(db.prepare(`SELECT COUNT(*) n FROM message_log ml JOIN guests g ON g.id = ml.guest_id WHERE g.booking_id = ?`).get(id).n, 0);
+    assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(id)).status, 'cancelled');
+    assert.equal((await db.prepare(`SELECT COUNT(*) n FROM message_log ml JOIN guests g ON g.id = ml.guest_id WHERE g.booking_id = ?`).get(id)).n, 0);
   });
 
   test('partial refund keeps the remainder and records the amount', async () => {
     const id = await paidBooking(db, { ...fx, date: futureDate(21) });
     const token = await csrf(admin, `/admin/bookings/${id}`);
     await admin.post(`/admin/bookings/${id}/cancel`).type('form').send({ _csrf: token, reason: 'Host request, 50% policy', refund: 'partial', amount: '1000' }).expect(302);
-    const b = db.prepare('SELECT payment_ref, status FROM bookings WHERE id = ?').get(id);
+    const b = await db.prepare('SELECT payment_ref, status FROM bookings WHERE id = ?').get(id);
     assert.equal(b.status, 'cancelled');
-    assert.equal(db.prepare('SELECT refund_amount FROM payments WHERE order_id = ?').get(b.payment_ref).refund_amount, 100000);
+    assert.equal((await db.prepare('SELECT refund_amount FROM payments WHERE order_id = ?').get(b.payment_ref)).refund_amount, 100000);
   });
 
   test('payouts: only completed Iftars, reference required, exact bookings only', async () => {
-    const pastId = db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, guest_count, title, price_per_person, food_total, hire_fee,
+    const pastId = (await db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, guest_count, title, price_per_person, food_total, hire_fee,
         platform_fee, total_amount, currency, status, hold_expires_at, payment_ref)
       VALUES (?, ?, ?, ?, 20, 'Iftar Party by Fixture Host', 50000, 1000000, 100000, 55000, 1155000, 'INR', 'confirmed', '2000-01-01', 'old')`)
-      .run(fx.venueId, fx.menuId, fx.hostId, pastDate(3)).lastInsertRowid;
+      .run(fx.venueId, fx.menuId, fx.hostId, pastDate(3))).lastInsertRowid;
     const futureId = await paidBooking(db, { ...fx, date: futureDate(30) });
 
     const page = await admin.get('/admin/payouts');
@@ -147,19 +147,19 @@ describe('admin portal', () => {
 
     let token = await csrf(admin, '/admin/payouts');
     await admin.post('/admin/payouts').type('form').send({ _csrf: token, restaurant_id: fx.restaurantId, booking_ids: `${pastId},${futureId}`, reference: '' }).expect(302);
-    assert.equal(db.prepare('SELECT payout_status FROM bookings WHERE id = ?').get(pastId).payout_status, 'unpaid');
+    assert.equal((await db.prepare('SELECT payout_status FROM bookings WHERE id = ?').get(pastId)).payout_status, 'unpaid');
 
     token = await csrf(admin, '/admin/payouts');
     await admin.post('/admin/payouts').type('form').send({ _csrf: token, restaurant_id: fx.restaurantId, booking_ids: `${pastId},${futureId}`, reference: 'UTR123456' }).expect(302);
-    assert.equal(db.prepare('SELECT payout_status, payout_ref FROM bookings WHERE id = ?').get(pastId).payout_ref, 'UTR123456');
-    assert.equal(db.prepare('SELECT payout_status FROM bookings WHERE id = ?').get(futureId).payout_status, 'unpaid', 'future event not paid out');
+    assert.equal((await db.prepare('SELECT payout_status, payout_ref FROM bookings WHERE id = ?').get(pastId)).payout_ref, 'UTR123456');
+    assert.equal((await db.prepare('SELECT payout_status FROM bookings WHERE id = ?').get(futureId)).payout_status, 'unpaid', 'future event not paid out');
   });
 
   test('suspending a host signs them out and blocks sign-in; admins can’t be suspended', async () => {
-    seedMarketplace(db, { hostEmail: 'trouble@fixture.test' });
+    await seedMarketplace(db, { hostEmail: 'trouble@fixture.test' });
     const user = await signin(app, 'trouble@fixture.test');
     await user.get('/my-parties').expect(200);
-    const uid = db.prepare(`SELECT id FROM users WHERE email = 'trouble@fixture.test'`).get().id;
+    const uid = (await db.prepare(`SELECT id FROM users WHERE email = 'trouble@fixture.test'`).get()).id;
     let token = await csrf(admin, '/admin/users');
     await admin.post(`/admin/users/${uid}/status`).type('form').send({ _csrf: token, status: 'suspended' }).expect(302);
     const kicked = await user.get('/my-parties').expect(302);
@@ -169,16 +169,16 @@ describe('admin portal', () => {
     const res = await again.post('/login').type('form').send({ _csrf: token, email: 'trouble@fixture.test', password: 'password123' }).expect(403);
     assert.match(res.text, /suspended/);
 
-    const adminId = db.prepare(`SELECT id FROM users WHERE role = 'admin'`).get().id;
+    const adminId = (await db.prepare(`SELECT id FROM users WHERE role = 'admin'`).get()).id;
     token = await csrf(admin, '/admin/users');
     await admin.post(`/admin/users/${adminId}/status`).type('form').send({ _csrf: token, status: 'suspended' }).expect(302);
-    assert.equal(db.prepare('SELECT status FROM users WHERE id = ?').get(adminId).status, 'active');
+    assert.equal((await db.prepare('SELECT status FROM users WHERE id = ?').get(adminId)).status, 'active');
   });
 
   test('restaurant moderation: reject needs a reason, suspension hides from search', async () => {
     let token = await csrf(admin, `/admin/restaurants/${fx.restaurantId}`);
     await admin.post(`/admin/restaurants/${fx.restaurantId}/status`).type('form').send({ _csrf: token, status: 'suspended' }).expect(302);
-    assert.equal(db.prepare('SELECT status FROM restaurants WHERE id = ?').get(fx.restaurantId).status, 'approved');
+    assert.equal((await db.prepare('SELECT status FROM restaurants WHERE id = ?').get(fx.restaurantId)).status, 'approved');
     const listed = async () => new RegExp(`href="/venues/${fx.venueId}["?]`).test((await request(app).get('/search')).text);
     assert.ok(await listed());
 
@@ -204,14 +204,14 @@ describe('admin portal', () => {
     token = await csrf(admin, '/admin/settings');
     await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '10' }).expect(302);
     const after = await paidBooking(db, { ...fx, date: futureDate(51) });
-    const fee = (id) => db.prepare('SELECT platform_fee, food_total + hire_fee AS sub FROM bookings WHERE id = ?').get(id);
-    assert.equal(fee(before).platform_fee, Math.round(fee(before).sub * 0.05));
-    assert.equal(fee(after).platform_fee, Math.round(fee(after).sub * 0.10));
+    const fee = async (id) => await db.prepare('SELECT platform_fee, food_total + hire_fee AS sub FROM bookings WHERE id = ?').get(id);
+    assert.equal((await fee(before)).platform_fee, Math.round((await fee(before)).sub * 0.05));
+    assert.equal((await fee(after)).platform_fee, Math.round((await fee(after)).sub * 0.10));
     assert.match((await request(app).get(`/venues/${fx.venueId}`)).text, /data-fee-percent="10"/);
   });
 
   test('bookings CSV export is filterable and formula-safe', async () => {
-    db.prepare(`UPDATE bookings SET cancel_reason = '=cmd()' WHERE status = 'cancelled'`).run();
+    await db.prepare(`UPDATE bookings SET cancel_reason = '=cmd()' WHERE status = 'cancelled'`).run();
     const res = await admin.get('/admin/bookings.csv?status=cancelled').expect(200);
     const lines = res.text.trim().split('\n');
     assert.match(lines[0], /^id,title,event_date,status/);

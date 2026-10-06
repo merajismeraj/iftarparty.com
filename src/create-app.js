@@ -10,6 +10,7 @@ const payments = require('./services/payments');
 const settings = require('./services/settings');
 const packages = require('./services/packages');
 const google = require('./services/google');
+const storage = require('./services/storage');
 const { loadUser, requireProfile } = require('./middleware/auth');
 const { flash, csrf } = require('./middleware/session-helpers');
 
@@ -26,7 +27,7 @@ function createApp(db) {
         'script-src': ["'self'", 'https://sdk.cashfree.com'],
         'connect-src': ["'self'", 'https://sdk.cashfree.com', 'https://*.cashfree.com'],
         'frame-src': ['https://*.cashfree.com'],
-        'img-src': ["'self'", 'data:'],
+        'img-src': ["'self'", 'data:', ...(config.supabase.url ? [config.supabase.url] : [])],
         'style-src': ["'self'", 'https://fonts.googleapis.com'],
         'font-src': ["'self'", 'https://fonts.gstatic.com'],
         // The Cashfree SDK hands off to its hosted checkout via a form post.
@@ -40,9 +41,9 @@ function createApp(db) {
   app.use('/webhooks', require('./routes/webhooks')(db));
 
   // Liveness for the platform's health check: the process is up and the database answers.
-  app.get('/healthz', (req, res) => {
+  app.get('/healthz', async (req, res) => {
     try {
-      db.prepare('SELECT 1').get();
+      await db.prepare('SELECT 1').get();
       res.type('text').send('ok');
     } catch {
       res.status(503).type('text').send('db unavailable');
@@ -60,11 +61,11 @@ function createApp(db) {
     secure: config.isProduction,
   }));
   app.use(flash);
-  app.use((req, res, next) => {
+  app.use(async (req, res, next) => {
     Object.assign(res.locals, {
       money, fmt, packages, path: req.path, query: req.query,
-      currency: config.currency, feePercent: settings.feePercent(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
-      paymentsLive: payments.isLive(), googleEnabled: google.enabled(), title: null, user: null, restaurant: null, csrfToken: '',
+      currency: config.currency, feePercent: await settings.feePercent(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
+      paymentsLive: payments.isLive(), googleEnabled: google.enabled(), photoUrl: storage.photoUrl, title: null, user: null, restaurant: null, csrfToken: '',
     });
     next();
   });
@@ -85,7 +86,7 @@ function createApp(db) {
       return res.status(413).render('error', { title: 'File too large', message: 'Images must be under 5 MB and guest lists under 1 MB.' });
     }
     if (err.status === 404 || err.statusCode === 404) return res.status(404).end();
-    console.error(err);
+    console.error(err.sql ? `${err.message}\n  in SQL: ${err.sql.replace(/\s+/g, " ").slice(0, 600)}` : err);
     if (res.headersSent) return next(err);
     res.status(500).render('error', { title: 'Something went wrong', message: 'Please try again in a moment.' });
   });
