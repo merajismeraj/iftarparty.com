@@ -42,9 +42,11 @@ function createApp(db) {
 
   // Liveness for the platform's health check: the process is up and the database answers.
   app.get('/healthz', async (req, res) => {
+    const t = process.hrtime.bigint();
     try {
       await db.prepare('SELECT 1').get();
-      res.type('text').send('ok');
+      // Database round trip in ms: ~1–3 when functions and database share a region.
+      res.set('X-DB-Time', (Number(process.hrtime.bigint() - t) / 1e6).toFixed(1)).type('text').send('ok');
     } catch {
       res.status(503).type('text').send('db unavailable');
     }

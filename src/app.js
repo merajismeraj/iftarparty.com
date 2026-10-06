@@ -27,10 +27,18 @@ function started() {
   });
   return startup;
 }
-started().catch((err) => console.error('[startup]', err.message));
+// Long-running servers warm up immediately. On Vercel an instance can be frozen between loading and
+// its first request, so a connection opened at load time may time out: start on the first request.
+if (!config.onVercel) started().catch((err) => console.error('[startup]', err.message));
+
+/** Startup with one immediate retry, so a transient connection failure never reaches a visitor. */
+const startedWithRetry = () => started().catch((err) => {
+  console.warn('[startup] retrying:', err.message);
+  return started();
+});
 
 function handler(req, res) {
-  started().then(() => app(req, res), (err) => {
+  startedWithRetry().then(() => app(req, res), (err) => {
     console.error('[startup]', err.message);
     res.statusCode = 503;
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
