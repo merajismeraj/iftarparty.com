@@ -3,23 +3,21 @@
  * Seeds demo restaurants, halls, menus, hosts, parties, guests and reviews. Safe to re-run (skips if data exists).
  * CLI: `npm run seed`. Also used to bootstrap the hosted demo (see src/app.js).
  */
-const fs = require('node:fs');
-const path = require('node:path');
 const bcrypt = require('bcryptjs');
 const config = require('../src/config');
 const { transaction } = require('../src/db');
 const { newToken } = require('../src/services/invites');
 const { partyTitle, todayISO } = require('../src/services/bookings');
 const pricing = require('../src/services/pricing');
+const storage = require('../src/services/storage');
 
 /** Seed `db` with demo data. Returns false (and does nothing) when the database already has users. */
-function seedDemo(db, { quiet = false } = {}) {
-if (db.prepare('SELECT COUNT(*) AS n FROM users').get().n > 0) {
-  if (!quiet) console.log('Database already has data – skipping seed. Delete', config.databasePath, 'to reseed.');
+async function seedDemo(db, { quiet = false } = {}) {
+if ((await db.prepare('SELECT COUNT(*) AS n FROM users').get()).n > 0) {
+  if (!quiet) console.log('Database already has data – skipping seed.');
   return false;
 }
 
-fs.mkdirSync(config.uploadDir, { recursive: true });
 /** Warm placeholder "photo" – an abstract dining room at dusk – until restaurants upload real images. */
 const MOODS = [
   ['#f6c9a8', '#e58a5c', '#fbe3cf', '#c76a45'],
@@ -28,7 +26,7 @@ const MOODS = [
   ['#cfe1d2', '#6f9f86', '#ecf5ee', '#4f7a63'],
   ['#d9cce9', '#8a6fb0', '#efe7f6', '#634b87'],
 ];
-function placeholder(label, seed) {
+async function placeholder(label, seed) {
   const file = `seed-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.svg`;
   const [wall, glow, cloth, floor] = MOODS[seed % MOODS.length];
   const lamps = Array.from({ length: 5 }, (_, i) => `<circle cx="${110 + i * 145}" cy="150" r="70" fill="url(#lamp)"/><circle cx="${110 + i * 145}" cy="150" r="9" fill="#fff6e8"/>`).join('');
@@ -43,8 +41,7 @@ function placeholder(label, seed) {
   <rect x="0" y="360" width="800" height="240" fill="${floor}" opacity=".55"/>
   ${tables}
   <text x="36" y="566" font-family="Arial, sans-serif" font-size="22" fill="#ffffff" opacity=".85">${label}</text></svg>`;
-  fs.writeFileSync(path.join(config.uploadDir, file), svg);
-  return file;
+  return storage.put(Buffer.from(svg), 'image/svg+xml', file);
 }
 
 const hash = bcrypt.hashSync('password123', 10);
@@ -125,89 +122,95 @@ const restaurants = [
   },
 ];
 
-transaction(db, () => {
+await transaction(db, async () => {
   const insUser = db.prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)');
   const venueIds = [];
-  restaurants.forEach((spec, ri) => {
-    const ownerId = Number(insUser.run(...spec.owner.slice(0, 3), hash, 'restaurant').lastInsertRowid);
-    const rid = Number(db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, area, city, address, description, phone, status, payout_name, payout_upi)
+  for (const [ri, spec] of restaurants.entries()) {
+    const ownerId = Number((await insUser.run(...spec.owner.slice(0, 3), hash, 'restaurant')).lastInsertRowid);
+    const rid = Number((await db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, area, city, address, description, phone, status, payout_name, payout_upi)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(ownerId, spec.r.name, spec.r.cuisine, spec.r.area, spec.r.city, spec.r.address, spec.r.description, spec.owner[2],
-        spec.status || 'approved', spec.status ? '' : spec.r.name, spec.status ? '' : `${spec.r.name.split(' ')[0].toLowerCase()}@okhdfc`).lastInsertRowid);
-    spec.venues.forEach((v, vi) => {
-      const vid = Number(db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee).lastInsertRowid);
+        spec.status || 'approved', spec.status ? '' : spec.r.name, spec.status ? '' : `${spec.r.name.split(' ')[0].toLowerCase()}@okhdfc`)).lastInsertRowid);
+    for (const [vi, v] of spec.venues.entries()) {
+      const vid = Number((await db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee)).lastInsertRowid);
       venueIds.push({ vid, rid, v, pending: Boolean(spec.status) });
-      ['', ' – Seating', ' – Décor'].forEach((suffix, i) => {
-        db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, placeholder(`${v.name}${suffix}`, ri * 2 + vi + i), i);
-      });
-    });
+      for (const [i, suffix] of ['', ' – Seating', ' – Décor'].entries()) {
+        await db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, await placeholder(`${v.name}${suffix}`, ri * 2 + vi + i), i);
+      }
+    }
     const dishIds = {};
-    Object.entries(spec.dishes || {}).forEach(([course, list]) => list.forEach(([name, diet]) => {
-      dishIds[name] = Number(db.prepare('INSERT INTO dishes (restaurant_id, name, course, diet) VALUES (?, ?, ?, ?)').run(rid, name, course, diet).lastInsertRowid);
-    }));
-    (spec.packages || []).forEach((pk) => {
-      const mid = Number(db.prepare(`INSERT INTO menus (restaurant_id, kind, name, description, items, diet, price_per_person, min_pax) VALUES (?, 'package', ?, ?, '', ?, ?, ?)`)
-        .run(rid, pk.name, pk.description, pk.diet, pk.price, pk.min).lastInsertRowid);
-      Object.entries(pk.rules).forEach(([course, [choose, ...names]]) => {
-        db.prepare('INSERT INTO menu_rules (menu_id, course, choose) VALUES (?, ?, ?)').run(mid, course, choose);
-        names.forEach((n) => db.prepare('INSERT INTO menu_dishes (menu_id, dish_id) VALUES (?, ?)').run(mid, dishIds[n]));
-      });
-    });
-    (spec.addons || []).forEach((a) => db.prepare('INSERT INTO addons (restaurant_id, name, description, category, pricing, price) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(rid, a.name, a.description, a.category, a.pricing, a.price));
-    spec.menus.forEach((m) => db.prepare('INSERT INTO menus (restaurant_id, name, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(rid, m.name, m.items, m.diet, m.price, m.min));
-  });
+    for (const [course, list] of Object.entries(spec.dishes || {})) {
+      for (const [name, diet] of list) {
+        dishIds[name] = Number((await db.prepare('INSERT INTO dishes (restaurant_id, name, course, diet) VALUES (?, ?, ?, ?)').run(rid, name, course, diet)).lastInsertRowid);
+      }
+    }
+    for (const pk of spec.packages || []) {
+      const mid = Number((await db.prepare(`INSERT INTO menus (restaurant_id, kind, name, description, items, diet, price_per_person, min_pax) VALUES (?, 'package', ?, ?, '', ?, ?, ?)`)
+        .run(rid, pk.name, pk.description, pk.diet, pk.price, pk.min)).lastInsertRowid);
+      for (const [course, [choose, ...names]] of Object.entries(pk.rules)) {
+        await db.prepare('INSERT INTO menu_rules (menu_id, course, choose) VALUES (?, ?, ?)').run(mid, course, choose);
+        for (const n of names) await db.prepare('INSERT INTO menu_dishes (menu_id, dish_id) VALUES (?, ?)').run(mid, dishIds[n]);
+      }
+    }
+    for (const a of spec.addons || []) {
+      await db.prepare('INSERT INTO addons (restaurant_id, name, description, category, pricing, price) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(rid, a.name, a.description, a.category, a.pricing, a.price);
+    }
+    for (const m of spec.menus) {
+      await db.prepare('INSERT INTO menus (restaurant_id, name, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(rid, m.name, m.items, m.diet, m.price, m.min);
+    }
+  }
 
-  insUser.run('Platform Admin', 'admin@demo.test', null, hash, 'admin');
-  const hostId = Number(insUser.run('Meraj Ahmed', 'host@demo.test', '+919800044444', hash, 'host').lastInsertRowid);
+  await insUser.run('Platform Admin', 'admin@demo.test', null, hash, 'admin');
+  const hostId = Number((await insUser.run('Meraj Ahmed', 'host@demo.test', '+919800044444', hash, 'host')).lastInsertRowid);
   const live = venueIds.filter((x) => !x.pending);
   const { vid, rid } = live[0];
-  const menu = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY id LIMIT 1').get(rid);
-  const venue = db.prepare('SELECT * FROM venues WHERE id = ?').get(vid);
+  const menu = await db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY id LIMIT 1').get(rid);
+  const venue = await db.prepare('SELECT * FROM venues WHERE id = ?').get(vid);
   const d = new Date(); d.setDate(d.getDate() + 21);
   const date = d.toISOString().slice(0, 10) > todayISO() ? d.toISOString().slice(0, 10) : todayISO();
   const q = pricing.quote({ pricePerPerson: menu.price_per_person, guestCount: 60, hireFee: venue.hire_fee });
-  const bid = Number(db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, arrival_time, guest_count, title, invite_message,
+  const bid = Number((await db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, arrival_time, guest_count, title, invite_message,
       price_per_person, food_total, hire_fee, platform_fee, total_amount, currency, status, hold_expires_at, payment_provider, payment_ref, paid_at)
-      VALUES (?, ?, ?, ?, '18:15', 60, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed', datetime('now'))`)
+      VALUES (?, ?, ?, ?, '18:15', 60, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed', ts_now())`)
     .run(vid, menu.id, hostId, date, partyTitle('Meraj Ahmed'), 'Join our family to break the fast together this Ramadan.',
-      q.pricePerPerson, q.foodTotal, q.hireFee, q.platformFee, q.total, config.currency, new Date().toISOString()).lastInsertRowid);
-  db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed', ?, ?, 'paid', datetime('now'))`)
+      q.pricePerPerson, q.foodTotal, q.hireFee, q.platformFee, q.total, config.currency, new Date().toISOString())).lastInsertRowid);
+  await db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed', ?, ?, 'paid', ts_now())`)
     .run(bid, q.total, config.currency);
 
   // A completed Iftar from last week, so the payouts queue has something to settle.
   const past = new Date(); past.setDate(past.getDate() - 7);
-  const v2 = db.prepare('SELECT * FROM venues WHERE id = ?').get(live[1].vid);
+  const v2 = await db.prepare('SELECT * FROM venues WHERE id = ?').get(live[1].vid);
   const q2 = pricing.quote({ pricePerPerson: menu.price_per_person, guestCount: 25, hireFee: v2.hire_fee });
-  const pastId = Number(db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, guest_count, title, price_per_person, food_total, hire_fee,
+  const pastId = Number((await db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, guest_count, title, price_per_person, food_total, hire_fee,
       platform_fee, total_amount, currency, status, hold_expires_at, payment_provider, payment_ref, paid_at)
-      VALUES (?, ?, ?, ?, 25, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed_past', datetime('now', '-20 days'))`)
+      VALUES (?, ?, ?, ?, 25, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed_past', ts_now('-20 days'))`)
     .run(v2.id, menu.id, hostId, past.toISOString().slice(0, 10), partyTitle('Meraj Ahmed'), q2.pricePerPerson, q2.foodTotal, q2.hireFee,
-      q2.platformFee, q2.total, config.currency, new Date().toISOString()).lastInsertRowid);
-  db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed_past', ?, ?, 'paid', datetime('now', '-20 days'))`)
+      q2.platformFee, q2.total, config.currency, new Date().toISOString())).lastInsertRowid);
+  await db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed_past', ?, ?, 'paid', ts_now('-20 days'))`)
     .run(pastId, q2.total, config.currency);
 
   // Reviews: one published (with an approved restaurant reply), one waiting in the moderation queue.
-  db.prepare(`INSERT INTO reviews (booking_id, restaurant_id, venue_id, host_id, rating, food_rating, service_rating, ambience_rating, title, body,
-      status, moderated_at, reply, reply_status, reply_at) VALUES (?, ?, ?, ?, 5, 5, 4, 5, ?, ?, 'approved', datetime('now'), ?, 'approved', datetime('now'))`)
+  await db.prepare(`INSERT INTO reviews (booking_id, restaurant_id, venue_id, host_id, rating, food_rating, service_rating, ambience_rating, title, body,
+      status, moderated_at, reply, reply_status, reply_at) VALUES (?, ?, ?, ?, 5, 5, 4, 5, ?, ?, 'approved', ts_now(), ?, 'approved', ts_now())`)
     .run(pastId, rid, v2.id, hostId, 'Sunset Iftar our guests still talk about',
       'The rooftop was ready well before Maghrib, dates and Rooh Afza were on every table, and the haleem was outstanding. Staff kept the prayer area clean and organised. Highly recommend for family gatherings.',
       'JazakAllah khair Meraj bhai – it was an honour to host your family. See you next Ramadan!');
-  const host2 = Number(insUser.run('Sana Sheikh', 'sana@demo.test', '+919800066666', hash, 'host').lastInsertRowid);
+  const host2 = Number((await insUser.run('Sana Sheikh', 'sana@demo.test', '+919800066666', hash, 'host')).lastInsertRowid);
   const arabian = venueIds.find((x) => x.v.name === 'Majlis Lounge');
-  const amenu = db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY id LIMIT 1').get(arabian.rid);
+  const amenu = await db.prepare('SELECT * FROM menus WHERE restaurant_id = ? ORDER BY id LIMIT 1').get(arabian.rid);
   const past2 = new Date(); past2.setDate(past2.getDate() - 3);
   const q3 = pricing.quote({ pricePerPerson: amenu.price_per_person, guestCount: 18, hireFee: 0 });
-  const past2Id = Number(db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, guest_count, title, price_per_person, food_total, hire_fee,
+  const past2Id = Number((await db.prepare(`INSERT INTO bookings (venue_id, menu_id, host_id, event_date, guest_count, title, price_per_person, food_total, hire_fee,
       platform_fee, total_amount, currency, status, hold_expires_at, payment_provider, payment_ref, paid_at)
-      VALUES (?, ?, ?, ?, 18, ?, ?, ?, 0, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed_past2', datetime('now', '-10 days'))`)
+      VALUES (?, ?, ?, ?, 18, ?, ?, ?, 0, ?, ?, ?, 'confirmed', ?, 'demo', 'demo_seed_past2', ts_now('-10 days'))`)
     .run(arabian.vid, amenu.id, host2, past2.toISOString().slice(0, 10), partyTitle('Sana Sheikh'), q3.pricePerPerson, q3.foodTotal,
-      q3.platformFee, q3.total, config.currency, new Date().toISOString()).lastInsertRowid);
-  db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed_past2', ?, ?, 'paid', datetime('now', '-10 days'))`)
+      q3.platformFee, q3.total, config.currency, new Date().toISOString())).lastInsertRowid);
+  await db.prepare(`INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at) VALUES (?, 'demo', 'demo_seed_past2', ?, ?, 'paid', ts_now('-10 days'))`)
     .run(past2Id, q3.total, config.currency);
-  db.prepare(`INSERT INTO reviews (booking_id, restaurant_id, venue_id, host_id, rating, food_rating, service_rating, title, body)
+  await db.prepare(`INSERT INTO reviews (booking_id, restaurant_id, venue_id, host_id, rating, food_rating, service_rating, title, body)
       VALUES (?, ?, ?, ?, 4, 5, 3, ?, ?)`)
     .run(past2Id, arabian.rid, arabian.vid, host2, 'Amazing mandi, service a bit slow',
       'The chicken mandi and kunafa were excellent and the majlis seating felt special. Service slowed down after Maghrib when everyone ate at once, but the staff were very polite.');
@@ -219,9 +222,9 @@ transaction(db, () => {
     ['Bilal Shaikh', 'bilal@example.com', '+919812345678', 'no', 0],
     ['Zara Mirza', 'zara@example.com', '+919898989898', 'pending', 1],
   ];
-  guests.forEach(([name, email, phone, status, size]) => db.prepare(`INSERT INTO guests (booking_id, name, email, phone, rsvp_token, rsvp_status, party_size, email_status, whatsapp_status, invited_at, responded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)`)
-    .run(bid, name, email, phone, newToken(), status, size, email ? 'logged' : 'not_sent', phone ? 'logged' : 'not_sent', status === 'pending' ? null : new Date().toISOString()));
+  for (const [name, email, phone, status, size] of guests) await db.prepare(`INSERT INTO guests (booking_id, name, email, phone, rsvp_token, rsvp_status, party_size, email_status, whatsapp_status, invited_at, responded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ts_now(), ?)`)
+    .run(bid, name, email, phone, newToken(), status, size, email ? 'logged' : 'not_sent', phone ? 'logged' : 'not_sent', status === 'pending' ? null : new Date().toISOString());
 });
 
 if (!quiet) console.log(`Seeded demo data.
@@ -233,5 +236,7 @@ return true;
 
 module.exports = { seedDemo };
 
-if (require.main === module) seedDemo(require('../src/db').open());
+if (require.main === module) {
+  require('../src/db').open().then(async (db) => { await seedDemo(db); await db.close(); }).catch((err) => { console.error(err); process.exit(1); });
+}
 

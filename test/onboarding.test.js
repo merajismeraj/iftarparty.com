@@ -6,7 +6,7 @@ const { makeApp, futureDate, seedMarketplace, request } = require('./helpers');
 describe('onboarding planner', () => {
   const { db, app } = makeApp();
   let fx;
-  before(() => { fx = seedMarketplace(db); });
+  before(async () => { fx = await seedMarketplace(db); });
 
   test('home asks guests and date first, then budget and location', async () => {
     const { text } = await request(app).get('/').expect(200);

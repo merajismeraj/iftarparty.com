@@ -1,5 +1,5 @@
 <div class="summary">
-  <% if (b.image) { %><img src="/uploads/<%= b.image %>" alt="<%= b.venue_name %>"><% } %>
+  <% if (b.image) { %><img src="<%= photoUrl(b.image) %>" alt="<%= b.venue_name %>"><% } %>
   <div>
     <h2 class="h3"><%= b.title %></h2>
     <p><strong><%= b.venue_name %></strong> · <%= b.restaurant_name %><br><span class="muted"><%= [b.address, b.area, b.city].filter(Boolean).join(', ') %></span></p>

@@ -2,7 +2,7 @@
 FROM node:22-slim
 ENV NODE_ENV=production \
     PORT=3000 \
-    DATABASE_PATH=/data/iftarparty.db \
+    DATABASE_PATH=/data/pglite \
     UPLOAD_DIR=/data/uploads
 WORKDIR /app
 COPY package.json package-lock.json ./

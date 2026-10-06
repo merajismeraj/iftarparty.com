@@ -8,7 +8,7 @@
   <% if (welcome) { %><ol class="progress-steps"><li class="done">Choose hall</li><li class="done">Pay</li><li class="on">Invite guests</li></ol><% } %>
   <p class="crumbs"><a href="/my-parties">My parties</a> › <%= b.title %></p>
   <div class="party-hero card">
-    <% if (b.image) { %><img src="/uploads/<%= b.image %>" alt=""><% } %>
+    <% if (b.image) { %><img src="<%= photoUrl(b.image) %>" alt=""><% } %>
     <div>
       <span class="pill pill-ok"><%= past ? 'Completed' : 'Reserved' %></span>
       <h1><%= b.title %></h1>

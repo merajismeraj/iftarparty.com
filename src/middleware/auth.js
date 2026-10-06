@@ -2,13 +2,13 @@
 
 /** Attach req.user (and req.restaurant for restaurant accounts) from the session. */
 function loadUser(db) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const id = req.session?.userId;
     if (id) {
-      req.user = db.prepare(`SELECT id, name, email, phone, role FROM users WHERE id = ? AND status = 'active'`).get(id) || null;
+      req.user = await db.prepare(`SELECT id, name, email, phone, role FROM users WHERE id = ? AND status = 'active'`).get(id) || null;
       if (!req.user) req.session.userId = null; // deleted or suspended: sign out everywhere
       else if (req.user.role === 'restaurant') {
-        req.restaurant = db.prepare('SELECT * FROM restaurants WHERE owner_id = ?').get(req.user.id) || null;
+        req.restaurant = await db.prepare('SELECT * FROM restaurants WHERE owner_id = ?').get(req.user.id) || null;
       }
     }
     if (req.user) {

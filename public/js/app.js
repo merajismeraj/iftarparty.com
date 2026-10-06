@@ -220,6 +220,51 @@ document.documentElement.classList.add('js');
     window.addEventListener('pageshow', () => form.querySelectorAll('input').forEach((i) => { i.disabled = false; }));
   }
 
+  // Hall photos: shrink in the browser before upload (phone photos are 3–8 MB; requests are capped at ~4.5 MB).
+  function initPhotoInput(input) {
+    const MAX_EDGE = 1600;
+    const BUDGET = 4 * 1024 * 1024;
+    const note = input.closest('label')?.querySelector('[data-upload-note]');
+    const original = note ? note.textContent : '';
+    async function shrink(file) {
+      if (file.size < 350 * 1024 && file.type === 'image/jpeg') return file;
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const scale = Math.min(1, MAX_EDGE / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * scale);
+      canvas.height = Math.round(bmp.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; // transparent PNGs become JPEGs on white
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((done) => canvas.toBlob(done, 'image/jpeg', 0.82));
+      return blob && blob.size < file.size ? new File([blob], `${file.name.replace(/\.\w+$/, '')}.jpg`, { type: 'image/jpeg' }) : file;
+    }
+    input.addEventListener('change', async () => {
+      const files = [...input.files];
+      if (!files.length || !window.DataTransfer || !window.createImageBitmap) return;
+      input.setCustomValidity('Preparing photos…');
+      if (note) note.textContent = 'Preparing photos…';
+      const out = new DataTransfer();
+      let total = 0;
+      for (const f of files) {
+        let file = f;
+        try { file = await shrink(f); } catch { /* keep the original */ }
+        total += file.size;
+        out.items.add(file);
+      }
+      input.files = out.files;
+      const mb = (total / 1048576).toFixed(1);
+      const tooBig = total > BUDGET;
+      input.setCustomValidity(tooBig ? `These photos add up to ${mb} MB. Add fewer at a time (max 4 MB per save).` : '');
+      if (note) {
+        note.textContent = tooBig ? `${mb} MB – too large together. Save a few now and add the rest after.`
+          : `${files.length} photo${files.length === 1 ? '' : 's'} ready (${mb} MB). ${original}`;
+        note.classList.toggle('bad', tooBig);
+      }
+    });
+  }
+
   // Phones: sticky "Reserve" bar, hidden while the booking form itself is on screen.
   function initMobileCta() {
     const cta = document.querySelector('[data-mobile-cta]');
@@ -234,6 +279,7 @@ document.documentElement.classList.add('js');
     initNav();
     labelTables();
     document.querySelectorAll('form[data-planner]').forEach(initPlanner);
+    document.querySelectorAll('input[data-photo-input]').forEach(initPhotoInput);
     initMobileCta();
     document.querySelectorAll('[data-cashfree-session]').forEach(initCashfree);
     // Restaurant menu form: show the set-menu or package section for the chosen type.

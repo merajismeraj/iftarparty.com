@@ -54,17 +54,17 @@ module.exports = (db) => {
       if (!String(b.restaurant_name || '').trim()) errors.push('Please enter your restaurant name.');
       if (!String(b.city || '').trim()) errors.push('Please enter the city.');
     }
-    if (email && db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
+    if (email && await db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) {
       errors.push('An account with this email already exists – try signing in.');
     }
     if (errors.length) return res.status(422).render('auth/signup', { title: 'Sign up', role, form, errors });
 
     const hash = await bcrypt.hash(String(b.password), 12);
-    const userId = transaction(db, () => {
-      const id = Number(db.prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)')
-        .run(name, email, phone, hash, role).lastInsertRowid);
+    const userId = await transaction(db, async () => {
+      const id = Number((await db.prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+        .run(name, email, phone, hash, role)).lastInsertRowid);
       if (role === 'restaurant') {
-        db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, address, area, city, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`)
+        await db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, address, area, city, phone, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`)
           .run(id, b.restaurant_name.trim(), String(b.cuisine || '').trim(), String(b.address || '').trim(),
             String(b.area || '').trim(), b.city.trim(), phone || '');
       }
@@ -84,7 +84,7 @@ module.exports = (db) => {
     if (rateLimited(`${req.ip}|${email}`)) {
       return res.status(429).render('auth/login', { title: 'Sign in', form: { email }, error: 'Too many attempts. Please wait 15 minutes and try again.' });
     }
-    const user = email && db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    const user = email && await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     const ok = user && (await bcrypt.compare(String(req.body.password || ''), user.password_hash));
     if (!ok) {
       const error = user && !user.password_hash ? 'This account signs in with Google – use “Continue with Google”.' : 'Incorrect email or password.';
@@ -123,20 +123,20 @@ module.exports = (db) => {
     const email = normalizeEmail(profile.email);
     if (!email) return fail('Your Google account has no usable email address.');
 
-    let user = db.prepare('SELECT * FROM users WHERE google_sub = ?').get(profile.sub);
+    let user = await db.prepare('SELECT * FROM users WHERE google_sub = ?').get(profile.sub);
     if (!user) {
-      user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+      user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
       if (user?.google_sub) return fail('This email is linked to a different Google account.');
       // Google has verified the address, so it is safe to link it to the existing account.
-      if (user) db.prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(profile.sub, user.id);
+      if (user) await db.prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(profile.sub, user.id);
     }
     if (user && user.status !== 'active') return fail('This account has been suspended. Please contact support@iftarparty.com.');
     let created = false;
     if (!user) {
       const name = profile.name.length >= 2 ? profile.name : email.split('@')[0];
-      const id = Number(db.prepare(`INSERT INTO users (name, email, phone, password_hash, role, google_sub) VALUES (?, ?, NULL, '', ?, ?)`)
-        .run(name, email, pending.role, profile.sub).lastInsertRowid);
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      const id = Number((await db.prepare(`INSERT INTO users (name, email, phone, password_hash, role, google_sub) VALUES (?, ?, NULL, '', ?, ?)`)
+        .run(name, email, pending.role, profile.sub)).lastInsertRowid);
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
       created = true;
     }
     req.session.userId = user.id;
@@ -153,7 +153,7 @@ module.exports = (db) => {
     res.render('auth/welcome', { title: 'Almost done', form: {}, errors: [] });
   });
 
-  router.post('/welcome', requireAuth(), (req, res) => {
+  router.post('/welcome', requireAuth(), async (req, res) => {
     if (!req.user.needsProfile) return res.redirect(homeFor(req.user));
     const b = req.body;
     const errors = [];
@@ -165,10 +165,10 @@ module.exports = (db) => {
       if (!String(b.city || '').trim()) errors.push('Please enter the city.');
     }
     if (errors.length) return res.status(422).render('auth/welcome', { title: 'Almost done', form: b, errors });
-    transaction(db, () => {
-      db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, req.user.id);
+    await transaction(db, async () => {
+      await db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, req.user.id);
       if (needsRestaurant) {
-        db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, area, city, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')`)
+        await db.prepare(`INSERT INTO restaurants (owner_id, name, cuisine, area, city, phone, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')`)
           .run(req.user.id, b.restaurant_name.trim(), String(b.cuisine || '').trim(), String(b.area || '').trim(), b.city.trim(), phone);
       }
     });

@@ -1,21 +1,13 @@
 'use strict';
-const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
 const multer = require('multer');
-const config = require('../config');
 
-fs.mkdirSync(config.uploadDir, { recursive: true });
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-const IMAGE_TYPES = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
-
+// Photos are held in memory and stored (Supabase Storage or local disk) only once the form is valid.
 const images = multer({
-  storage: multer.diskStorage({
-    destination: config.uploadDir,
-    filename: (req, file, cb) => cb(null, `${crypto.randomUUID()}${IMAGE_TYPES[file.mimetype]}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 8 },
-  fileFilter: (req, file, cb) => cb(null, Boolean(IMAGE_TYPES[file.mimetype])),
+  fileFilter: (req, file, cb) => cb(null, IMAGE_TYPES.has(file.mimetype)),
 });
 
 /** Guest lists are parsed in memory; never written to disk. */
@@ -24,9 +16,4 @@ const guestList = multer({
   limits: { fileSize: 1024 * 1024, files: 1 },
 });
 
-function removeUpload(filename) {
-  if (!filename || filename.includes('/') || filename.includes('..')) return;
-  fs.rm(path.join(config.uploadDir, filename), { force: true }, () => {});
-}
-
-module.exports = { images, guestList, removeUpload };
+module.exports = { images, guestList };

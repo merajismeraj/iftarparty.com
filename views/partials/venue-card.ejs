@@ -1,6 +1,6 @@
 <a class="card venue-card" href="/venues/<%= v.id %><%= locals.qs ? `?${qs}` : '' %>">
   <div class="venue-card-img">
-    <% if (v.image) { %><img src="/uploads/<%= v.image %>" alt="<%= v.name %>" loading="lazy"><% } else { %><div class="img-fallback">No photo</div><% } %>
+    <% if (v.image) { %><img src="<%= photoUrl(v.image) %>" alt="<%= v.name %>" loading="lazy"><% } else { %><div class="img-fallback">No photo</div><% } %>
     <span class="pill pill-dark">Up to <%= v.max_pax %> guests</span>
   </div>
   <div class="venue-card-body">

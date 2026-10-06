@@ -1,358 +1,521 @@
 'use strict';
-const fs = require('node:fs');
+/**
+ * Postgres data layer.
+ *
+ * Production uses Supabase (or any Postgres) through `pg` when DATABASE_URL / POSTGRES_URL is set.
+ * Without one, PGlite – Postgres compiled to WASM, running in-process – is used: in memory for tests
+ * and Vercel previews, or on disk for local development.
+ *
+ * The API mirrors the old SQLite one, made async:
+ *   await db.prepare('SELECT * FROM users WHERE id = ?').get(id)
+ *   await db.prepare('...').all(...params)
+ *   const { lastInsertRowid, changes } = await db.prepare('INSERT ...').run(...params)
+ *   await transaction(db, async () => { ... })   // statements inside use the transaction automatically
+ */
+const { AsyncLocalStorage } = require('node:async_hooks');
 const path = require('node:path');
-const { DatabaseSync } = require('node:sqlite');
 const config = require('./config');
 
-/** Version 1 schema. Never edit – add a migration instead. */
-const SCHEMA = `
-CREATE TABLE users (
-  id            INTEGER PRIMARY KEY,
-  name          TEXT NOT NULL,
-  email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  phone         TEXT,
-  password_hash TEXT NOT NULL,
-  role          TEXT NOT NULL CHECK (role IN ('host', 'restaurant')),
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-);
+/* ---------------------------------------------------------------- schema */
 
-CREATE TABLE restaurants (
-  id          INTEGER PRIMARY KEY,
-  owner_id    INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-  name        TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  cuisine     TEXT NOT NULL DEFAULT '',
-  address     TEXT NOT NULL DEFAULT '',
-  area        TEXT NOT NULL DEFAULT '',
-  city        TEXT NOT NULL DEFAULT '',
-  phone       TEXT NOT NULL DEFAULT '',
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE venues (
-  id            INTEGER PRIMARY KEY,
-  restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-  name          TEXT NOT NULL,
-  description   TEXT NOT NULL DEFAULT '',
-  min_pax       INTEGER NOT NULL CHECK (min_pax >= 1),
-  max_pax       INTEGER NOT NULL CHECK (max_pax >= min_pax),
-  hire_fee      INTEGER NOT NULL DEFAULT 0 CHECK (hire_fee >= 0),
-  amenities     TEXT NOT NULL DEFAULT '',
-  active        INTEGER NOT NULL DEFAULT 1,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE venue_images (
-  id         INTEGER PRIMARY KEY,
-  venue_id   INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
-  filename   TEXT NOT NULL,
-  sort_order INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE menus (
-  id               INTEGER PRIMARY KEY,
-  restaurant_id    INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-  name             TEXT NOT NULL,
-  description      TEXT NOT NULL DEFAULT '',
-  items            TEXT NOT NULL DEFAULT '',
-  diet             TEXT NOT NULL DEFAULT 'non-veg' CHECK (diet IN ('veg', 'non-veg', 'mixed')),
-  price_per_person INTEGER NOT NULL CHECK (price_per_person > 0),
-  min_pax          INTEGER NOT NULL DEFAULT 1 CHECK (min_pax >= 1),
-  active           INTEGER NOT NULL DEFAULT 1,
-  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE bookings (
-  id                INTEGER PRIMARY KEY,
-  venue_id          INTEGER NOT NULL REFERENCES venues(id),
-  menu_id           INTEGER NOT NULL REFERENCES menus(id),
-  host_id           INTEGER NOT NULL REFERENCES users(id),
-  event_date        TEXT NOT NULL,
-  arrival_time      TEXT NOT NULL DEFAULT '18:00',
-  guest_count       INTEGER NOT NULL,
-  title             TEXT NOT NULL,
-  invite_message    TEXT NOT NULL DEFAULT '',
-  price_per_person  INTEGER NOT NULL,
-  food_total        INTEGER NOT NULL,
-  hire_fee          INTEGER NOT NULL,
-  platform_fee      INTEGER NOT NULL,
-  total_amount      INTEGER NOT NULL,
-  currency          TEXT NOT NULL,
-  status            TEXT NOT NULL DEFAULT 'pending_payment'
-                    CHECK (status IN ('pending_payment', 'confirmed', 'cancelled', 'expired')),
-  hold_expires_at   TEXT NOT NULL,
-  payment_provider  TEXT,
-  payment_ref       TEXT,
-  paid_at           TEXT,
-  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
-);
--- A venue can only ever hold one confirmed Iftar per evening.
-CREATE UNIQUE INDEX bookings_one_confirmed_per_night
-  ON bookings (venue_id, event_date) WHERE status = 'confirmed';
-CREATE INDEX bookings_host ON bookings (host_id);
-CREATE INDEX bookings_venue_date ON bookings (venue_id, event_date);
-
-CREATE TABLE guests (
-  id              INTEGER PRIMARY KEY,
-  booking_id      INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  name            TEXT NOT NULL,
-  email           TEXT,
-  phone           TEXT,
-  rsvp_token      TEXT NOT NULL UNIQUE,
-  rsvp_status     TEXT NOT NULL DEFAULT 'pending' CHECK (rsvp_status IN ('pending', 'yes', 'no', 'maybe')),
-  party_size      INTEGER NOT NULL DEFAULT 1,
-  note            TEXT NOT NULL DEFAULT '',
-  email_status    TEXT NOT NULL DEFAULT 'not_sent',
-  whatsapp_status TEXT NOT NULL DEFAULT 'not_sent',
-  invited_at      TEXT,
-  responded_at    TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE UNIQUE INDEX guests_booking_email ON guests (booking_id, email COLLATE NOCASE) WHERE email IS NOT NULL;
-CREATE UNIQUE INDEX guests_booking_phone ON guests (booking_id, phone) WHERE phone IS NOT NULL;
-
-CREATE TABLE message_log (
-  id         INTEGER PRIMARY KEY,
-  guest_id   INTEGER REFERENCES guests(id) ON DELETE SET NULL,
-  channel    TEXT NOT NULL CHECK (channel IN ('email', 'whatsapp')),
-  recipient  TEXT NOT NULL,
-  status     TEXT NOT NULL,
-  detail     TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-`;
-
-/**
- * Ordered schema migrations. Index i upgrades user_version i+1 -> i+2 (the base SCHEMA is version 1).
- * Each runs in its own transaction with foreign keys off, per SQLite's table-rebuild procedure.
- */
+/** Ordered migrations; index i brings the schema to version i + 1. Never edit one that has shipped. */
 const MIGRATIONS = [
-  // v2: admin role + account suspension, restaurant approval & payout details,
-  // payments ledger (Cashfree orders/refunds), payouts, settings and admin audit log.
+  // v1: full schema (consolidated from the SQLite era).
   `
-  CREATE TABLE users_new (
-    id            INTEGER PRIMARY KEY,
-    name          TEXT NOT NULL,
-    email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    phone         TEXT,
-    password_hash TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('host', 'restaurant', 'admin')),
-    status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
-    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  -- Timestamps are stored as UTC text 'YYYY-MM-DD HH24:MI:SS' (sortable, same format as before).
+  CREATE OR REPLACE FUNCTION ts_now(shift interval DEFAULT '0') RETURNS text
+    LANGUAGE sql STABLE AS $$ SELECT to_char((now() AT TIME ZONE 'utc') + shift, 'YYYY-MM-DD HH24:MI:SS') $$;
+
+  CREATE TABLE users (
+    id            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    name          text NOT NULL,
+    email         text NOT NULL,
+    phone         text,
+    password_hash text NOT NULL,
+    role          text NOT NULL CHECK (role IN ('host', 'restaurant', 'admin')),
+    status        text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
+    google_sub    text,
+    created_at    text NOT NULL DEFAULT ts_now()
   );
-  INSERT INTO users_new (id, name, email, phone, password_hash, role, created_at)
-    SELECT id, name, email, phone, password_hash, role, created_at FROM users;
-  DROP TABLE users;
-  ALTER TABLE users_new RENAME TO users;
+  CREATE UNIQUE INDEX users_email ON users (lower(email));
+  CREATE UNIQUE INDEX users_google_sub ON users (google_sub) WHERE google_sub IS NOT NULL;
 
-  ALTER TABLE restaurants ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'
-    CHECK (status IN ('pending', 'approved', 'rejected', 'suspended'));
-  ALTER TABLE restaurants ADD COLUMN status_note TEXT NOT NULL DEFAULT '';
-  ALTER TABLE restaurants ADD COLUMN payout_name TEXT NOT NULL DEFAULT '';
-  ALTER TABLE restaurants ADD COLUMN payout_upi TEXT NOT NULL DEFAULT '';
-  ALTER TABLE restaurants ADD COLUMN payout_account TEXT NOT NULL DEFAULT '';
-  ALTER TABLE restaurants ADD COLUMN payout_ifsc TEXT NOT NULL DEFAULT '';
+  CREATE TABLE restaurants (
+    id             integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    owner_id       integer NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    name           text NOT NULL,
+    description    text NOT NULL DEFAULT '',
+    cuisine        text NOT NULL DEFAULT '',
+    address        text NOT NULL DEFAULT '',
+    area           text NOT NULL DEFAULT '',
+    city           text NOT NULL DEFAULT '',
+    phone          text NOT NULL DEFAULT '',
+    status         text NOT NULL DEFAULT 'approved' CHECK (status IN ('pending', 'approved', 'rejected', 'suspended')),
+    status_note    text NOT NULL DEFAULT '',
+    payout_name    text NOT NULL DEFAULT '',
+    payout_upi     text NOT NULL DEFAULT '',
+    payout_account text NOT NULL DEFAULT '',
+    payout_ifsc    text NOT NULL DEFAULT '',
+    created_at     text NOT NULL DEFAULT ts_now()
+  );
 
-  ALTER TABLE bookings ADD COLUMN cancelled_at TEXT;
-  ALTER TABLE bookings ADD COLUMN cancel_reason TEXT NOT NULL DEFAULT '';
-  ALTER TABLE bookings ADD COLUMN payout_status TEXT NOT NULL DEFAULT 'unpaid'
-    CHECK (payout_status IN ('unpaid', 'paid'));
-  ALTER TABLE bookings ADD COLUMN payout_ref TEXT;
-  ALTER TABLE bookings ADD COLUMN payout_at TEXT;
+  CREATE TABLE venues (
+    id            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    restaurant_id integer NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    name          text NOT NULL,
+    description   text NOT NULL DEFAULT '',
+    min_pax       integer NOT NULL CHECK (min_pax >= 1),
+    max_pax       integer NOT NULL CHECK (max_pax >= min_pax),
+    hire_fee      integer NOT NULL DEFAULT 0 CHECK (hire_fee >= 0),
+    amenities     text NOT NULL DEFAULT '',
+    active        integer NOT NULL DEFAULT 1,
+    created_at    text NOT NULL DEFAULT ts_now()
+  );
+  CREATE INDEX venues_restaurant ON venues (restaurant_id);
+
+  CREATE TABLE venue_images (
+    id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    venue_id   integer NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+    filename   text NOT NULL,
+    sort_order integer NOT NULL DEFAULT 0
+  );
+  CREATE INDEX venue_images_venue ON venue_images (venue_id);
+
+  CREATE TABLE menus (
+    id               integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    restaurant_id    integer NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    name             text NOT NULL,
+    description      text NOT NULL DEFAULT '',
+    items            text NOT NULL DEFAULT '',
+    diet             text NOT NULL DEFAULT 'non-veg' CHECK (diet IN ('veg', 'non-veg', 'mixed')),
+    price_per_person integer NOT NULL CHECK (price_per_person > 0),
+    min_pax          integer NOT NULL DEFAULT 1 CHECK (min_pax >= 1),
+    active           integer NOT NULL DEFAULT 1,
+    kind             text NOT NULL DEFAULT 'set' CHECK (kind IN ('set', 'package')),
+    created_at       text NOT NULL DEFAULT ts_now()
+  );
+  CREATE INDEX menus_restaurant ON menus (restaurant_id);
+
+  CREATE TABLE bookings (
+    id               integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    venue_id         integer NOT NULL REFERENCES venues(id),
+    menu_id          integer NOT NULL REFERENCES menus(id),
+    host_id          integer NOT NULL REFERENCES users(id),
+    event_date       text NOT NULL,
+    arrival_time     text NOT NULL DEFAULT '18:00',
+    guest_count      integer NOT NULL,
+    title            text NOT NULL,
+    invite_message   text NOT NULL DEFAULT '',
+    price_per_person integer NOT NULL,
+    food_total       integer NOT NULL,
+    hire_fee         integer NOT NULL,
+    platform_fee     integer NOT NULL,
+    addons_total     integer NOT NULL DEFAULT 0,
+    total_amount     integer NOT NULL,
+    currency         text NOT NULL,
+    status           text NOT NULL DEFAULT 'pending_payment'
+                     CHECK (status IN ('pending_payment', 'confirmed', 'cancelled', 'expired')),
+    hold_expires_at  text NOT NULL,
+    payment_provider text,
+    payment_ref      text,
+    paid_at          text,
+    cancelled_at     text,
+    cancel_reason    text NOT NULL DEFAULT '',
+    payout_status    text NOT NULL DEFAULT 'unpaid' CHECK (payout_status IN ('unpaid', 'paid')),
+    payout_ref       text,
+    payout_at        text,
+    show_guest_list  integer NOT NULL DEFAULT 1,
+    created_at       text NOT NULL DEFAULT ts_now()
+  );
+  -- A venue can only ever hold one confirmed Iftar per evening.
+  CREATE UNIQUE INDEX bookings_one_confirmed_per_night ON bookings (venue_id, event_date) WHERE status = 'confirmed';
+  CREATE INDEX bookings_host ON bookings (host_id);
+  CREATE INDEX bookings_venue_date ON bookings (venue_id, event_date);
+
+  CREATE TABLE guests (
+    id              integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    booking_id      integer NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    name            text NOT NULL,
+    email           text,
+    phone           text,
+    rsvp_token      text NOT NULL UNIQUE,
+    rsvp_status     text NOT NULL DEFAULT 'pending' CHECK (rsvp_status IN ('pending', 'yes', 'no', 'maybe')),
+    party_size      integer NOT NULL DEFAULT 1,
+    note            text NOT NULL DEFAULT '',
+    email_status    text NOT NULL DEFAULT 'not_sent',
+    whatsapp_status text NOT NULL DEFAULT 'not_sent',
+    invited_at      text,
+    responded_at    text,
+    created_at      text NOT NULL DEFAULT ts_now()
+  );
+  CREATE UNIQUE INDEX guests_booking_email ON guests (booking_id, lower(email)) WHERE email IS NOT NULL;
+  CREATE UNIQUE INDEX guests_booking_phone ON guests (booking_id, phone) WHERE phone IS NOT NULL;
+
+  CREATE TABLE message_log (
+    id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    guest_id   integer REFERENCES guests(id) ON DELETE SET NULL,
+    channel    text NOT NULL CHECK (channel IN ('email', 'whatsapp')),
+    kind       text NOT NULL DEFAULT 'invite' CHECK (kind IN ('invite', 'cancellation')),
+    recipient  text NOT NULL,
+    status     text NOT NULL,
+    detail     text NOT NULL DEFAULT '',
+    created_at text NOT NULL DEFAULT ts_now()
+  );
+  CREATE INDEX message_log_guest ON message_log (guest_id);
 
   CREATE TABLE payments (
-    id             INTEGER PRIMARY KEY,
-    booking_id     INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-    provider       TEXT NOT NULL,
-    order_id       TEXT NOT NULL UNIQUE,
-    amount         INTEGER NOT NULL,
-    currency       TEXT NOT NULL,
-    status         TEXT NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'paid', 'failed')),
-    provider_ref   TEXT,
-    paid_at        TEXT,
-    refund_id      TEXT,
-    refund_amount  INTEGER NOT NULL DEFAULT 0,
-    refund_status  TEXT NOT NULL DEFAULT 'none' CHECK (refund_status IN ('none', 'pending', 'success', 'failed')),
-    refund_reason  TEXT NOT NULL DEFAULT '',
-    refunded_at    TEXT,
-    created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+    id            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    booking_id    integer NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    provider      text NOT NULL,
+    order_id      text NOT NULL UNIQUE,
+    amount        integer NOT NULL,
+    currency      text NOT NULL,
+    status        text NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'paid', 'failed')),
+    provider_ref  text,
+    paid_at       text,
+    refund_id     text,
+    refund_amount integer NOT NULL DEFAULT 0,
+    refund_status text NOT NULL DEFAULT 'none' CHECK (refund_status IN ('none', 'pending', 'success', 'failed')),
+    refund_reason text NOT NULL DEFAULT '',
+    refunded_at   text,
+    created_at    text NOT NULL DEFAULT ts_now()
   );
   CREATE INDEX payments_booking ON payments (booking_id);
-  -- Backfill ledger rows for bookings paid before the ledger existed.
-  INSERT INTO payments (booking_id, provider, order_id, amount, currency, status, paid_at)
-    SELECT id, COALESCE(payment_provider, 'legacy'), 'legacy-' || id || '-' || COALESCE(payment_ref, ''),
-           total_amount, currency, 'paid', paid_at
-    FROM bookings WHERE status = 'confirmed';
 
   CREATE TABLE settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    key   text PRIMARY KEY,
+    value text NOT NULL
   );
 
   CREATE TABLE admin_actions (
-    id          INTEGER PRIMARY KEY,
-    admin_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    action      TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id   INTEGER,
-    detail      TEXT NOT NULL DEFAULT '',
-    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    id          integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    admin_id    integer REFERENCES users(id) ON DELETE SET NULL,
+    action      text NOT NULL,
+    entity_type text NOT NULL,
+    entity_id   integer,
+    detail      text NOT NULL DEFAULT '',
+    created_at  text NOT NULL DEFAULT ts_now()
   );
   CREATE INDEX admin_actions_entity ON admin_actions (entity_type, entity_id);
-  `,
-  // v3: distinguish invitation vs cancellation notices in the delivery log.
-  `
-  ALTER TABLE message_log ADD COLUMN kind TEXT NOT NULL DEFAULT 'invite' CHECK (kind IN ('invite', 'cancellation'));
-  `,
-  // v4: menu packages & add-ons, and admin-moderated verified reviews.
-  `
+
   CREATE TABLE addons (
-    id            INTEGER PRIMARY KEY,
-    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-    name          TEXT NOT NULL,
-    description   TEXT NOT NULL DEFAULT '',
-    category      TEXT NOT NULL DEFAULT 'food' CHECK (category IN ('food', 'decor', 'service', 'other')),
-    pricing       TEXT NOT NULL CHECK (pricing IN ('per_guest', 'flat')),
-    price         INTEGER NOT NULL CHECK (price > 0),
-    active        INTEGER NOT NULL DEFAULT 1,
-    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    id            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    restaurant_id integer NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    name          text NOT NULL,
+    description   text NOT NULL DEFAULT '',
+    category      text NOT NULL DEFAULT 'food' CHECK (category IN ('food', 'decor', 'service', 'other')),
+    pricing       text NOT NULL CHECK (pricing IN ('per_guest', 'flat')),
+    price         integer NOT NULL CHECK (price > 0),
+    active        integer NOT NULL DEFAULT 1,
+    created_at    text NOT NULL DEFAULT ts_now()
   );
   CREATE INDEX addons_restaurant ON addons (restaurant_id);
 
-  -- Snapshot of what was bought, so later price edits never change a paid booking.
   CREATE TABLE booking_addons (
-    id         INTEGER PRIMARY KEY,
-    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-    addon_id   INTEGER REFERENCES addons(id) ON DELETE SET NULL,
-    name       TEXT NOT NULL,
-    pricing    TEXT NOT NULL,
-    unit_price INTEGER NOT NULL,
-    quantity   INTEGER NOT NULL,
-    total      INTEGER NOT NULL
+    id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    booking_id integer NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    addon_id   integer REFERENCES addons(id) ON DELETE SET NULL,
+    name       text NOT NULL,
+    pricing    text NOT NULL,
+    unit_price integer NOT NULL,
+    quantity   integer NOT NULL,
+    total      integer NOT NULL
   );
   CREATE INDEX booking_addons_booking ON booking_addons (booking_id);
-  ALTER TABLE bookings ADD COLUMN addons_total INTEGER NOT NULL DEFAULT 0;
 
   CREATE TABLE reviews (
-    id               INTEGER PRIMARY KEY,
-    booking_id       INTEGER NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
-    restaurant_id    INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-    venue_id         INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
-    host_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    rating           INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    food_rating      INTEGER CHECK (food_rating BETWEEN 1 AND 5),
-    service_rating   INTEGER CHECK (service_rating BETWEEN 1 AND 5),
-    ambience_rating  INTEGER CHECK (ambience_rating BETWEEN 1 AND 5),
-    title            TEXT NOT NULL DEFAULT '',
-    body             TEXT NOT NULL,
-    status           TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-    moderation_note  TEXT NOT NULL DEFAULT '',
-    moderated_at     TEXT,
-    reply            TEXT NOT NULL DEFAULT '',
-    reply_status     TEXT NOT NULL DEFAULT 'none' CHECK (reply_status IN ('none', 'pending', 'approved', 'rejected')),
-    reply_note       TEXT NOT NULL DEFAULT '',
-    reply_at         TEXT,
-    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+    id              integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    booking_id      integer NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
+    restaurant_id   integer NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    venue_id        integer NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+    host_id         integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rating          integer NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    food_rating     integer CHECK (food_rating BETWEEN 1 AND 5),
+    service_rating  integer CHECK (service_rating BETWEEN 1 AND 5),
+    ambience_rating integer CHECK (ambience_rating BETWEEN 1 AND 5),
+    title           text NOT NULL DEFAULT '',
+    body            text NOT NULL,
+    status          text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    moderation_note text NOT NULL DEFAULT '',
+    moderated_at    text,
+    reply           text NOT NULL DEFAULT '',
+    reply_status    text NOT NULL DEFAULT 'none' CHECK (reply_status IN ('none', 'pending', 'approved', 'rejected')),
+    reply_note      text NOT NULL DEFAULT '',
+    reply_at        text,
+    created_at      text NOT NULL DEFAULT ts_now(),
+    updated_at      text NOT NULL DEFAULT ts_now()
   );
   CREATE INDEX reviews_restaurant_status ON reviews (restaurant_id, status);
   CREATE INDEX reviews_status ON reviews (status);
-  `,
-  // v5: budget/tier packages – a menu is either a fixed set menu or a package with
-  // per-course quotas ("choose 3 starters") over an eligible list of the restaurant's dishes.
-  `
+
   CREATE TABLE dishes (
-    id            INTEGER PRIMARY KEY,
-    restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
-    name          TEXT NOT NULL,
-    course        TEXT NOT NULL CHECK (course IN ('openers', 'starters', 'mains', 'rice', 'breads', 'desserts', 'beverages')),
-    diet          TEXT NOT NULL DEFAULT 'non-veg' CHECK (diet IN ('veg', 'non-veg')),
-    description   TEXT NOT NULL DEFAULT '',
-    active        INTEGER NOT NULL DEFAULT 1,
-    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    id            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    restaurant_id integer NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    name          text NOT NULL,
+    course        text NOT NULL CHECK (course IN ('openers', 'starters', 'mains', 'rice', 'breads', 'desserts', 'beverages')),
+    diet          text NOT NULL DEFAULT 'non-veg' CHECK (diet IN ('veg', 'non-veg')),
+    description   text NOT NULL DEFAULT '',
+    active        integer NOT NULL DEFAULT 1,
+    created_at    text NOT NULL DEFAULT ts_now()
   );
   CREATE INDEX dishes_restaurant ON dishes (restaurant_id, course);
 
-  ALTER TABLE menus ADD COLUMN kind TEXT NOT NULL DEFAULT 'set' CHECK (kind IN ('set', 'package'));
-
   CREATE TABLE menu_rules (
-    menu_id INTEGER NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
-    course  TEXT NOT NULL,
-    choose  INTEGER NOT NULL CHECK (choose BETWEEN 1 AND 20),
+    menu_id integer NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+    course  text NOT NULL,
+    choose  integer NOT NULL CHECK (choose BETWEEN 1 AND 20),
     PRIMARY KEY (menu_id, course)
   );
 
   CREATE TABLE menu_dishes (
-    menu_id INTEGER NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
-    dish_id INTEGER NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
+    menu_id integer NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+    dish_id integer NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
     PRIMARY KEY (menu_id, dish_id)
   );
 
-  -- The host's dish picks, snapshotted so the kitchen sees exactly what was ordered.
   CREATE TABLE booking_dishes (
-    id         INTEGER PRIMARY KEY,
-    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-    dish_id    INTEGER REFERENCES dishes(id) ON DELETE SET NULL,
-    name       TEXT NOT NULL,
-    course     TEXT NOT NULL,
-    diet       TEXT NOT NULL
+    id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    booking_id integer NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    dish_id    integer REFERENCES dishes(id) ON DELETE SET NULL,
+    name       text NOT NULL,
+    course     text NOT NULL,
+    diet       text NOT NULL
   );
   CREATE INDEX booking_dishes_booking ON booking_dishes (booking_id);
-  `,
-  // v6: hosts choose whether guests can see who else has confirmed.
-  `
-  ALTER TABLE bookings ADD COLUMN show_guest_list INTEGER NOT NULL DEFAULT 1;
-  `,
-  // v7: Google sign-in. Google-only accounts have an empty password_hash (password login never matches).
-  `
-  ALTER TABLE users ADD COLUMN google_sub TEXT;
-  CREATE UNIQUE INDEX users_google_sub ON users (google_sub) WHERE google_sub IS NOT NULL;
+
+  -- Supabase exposes the public schema over its REST API. RLS with no policies shuts that door;
+  -- the app connects as the table owner, which RLS does not restrict.
+  DO $$ DECLARE t record; BEGIN
+    FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename <> 'schema_migrations' LOOP
+      EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t.tablename);
+    END LOOP;
+  END $$;
   `,
 ];
 
-function migrate(db) {
-  let version = db.prepare('PRAGMA user_version').get().user_version;
-  if (version === 0) {
-    // Databases created before versioning already hold the v1 tables.
-    const legacy = db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'`).get();
-    if (!legacy) db.exec(SCHEMA);
-    db.exec('PRAGMA user_version = 1');
-    version = 1;
-  }
-  for (let v = version; v <= MIGRATIONS.length; v++) {
-    db.exec('PRAGMA foreign_keys = OFF');
-    try {
-      transaction(db, () => {
-        db.exec(MIGRATIONS[v - 1]);
-        const broken = db.prepare('PRAGMA foreign_key_check').all();
-        if (broken.length) throw new Error(`migration ${v + 1} broke foreign keys: ${JSON.stringify(broken[0])}`);
-        db.exec(`PRAGMA user_version = ${v + 1}`);
-      });
-    } finally {
-      db.exec('PRAGMA foreign_keys = ON');
+/* --------------------------------------------------------------- drivers */
+
+const INT8 = 20;
+const NUMERIC = 1700;
+// COUNT/SUM return bigint and AVG/ROUND return numeric; our values fit comfortably in a JS number.
+const toNumber = (v) => (v === null ? null : Number(v));
+
+function pgDriver(url) {
+  const pg = require('pg');
+  pg.types.setTypeParser(INT8, toNumber);
+  pg.types.setTypeParser(NUMERIC, toNumber);
+  // Supabase requires TLS; its pooler certificate isn't in Node's default CA bundle, so verify only
+  // when a CA is supplied (DATABASE_CA_CERT), otherwise encrypt without verification.
+  const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url) || /sslmode=disable/.test(url);
+  const ca = process.env.DATABASE_CA_CERT;
+  const pool = new pg.Pool({
+    connectionString: url.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, ''),
+    ssl: local ? false : ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false },
+    max: Number(process.env.DATABASE_POOL_MAX || (config.onVercel ? 3 : 10)),
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+  });
+  pool.on('error', (err) => console.error('[db] idle client error:', err.message));
+  return {
+    kind: 'postgres',
+    query: (sql, params) => pool.query(sql, params),
+    exec: (sql) => pool.query(sql),
+    async session() {
+      const client = await pool.connect();
+      return { query: (sql, params) => client.query(sql, params), exec: (sql) => client.query(sql), release: () => client.release() };
+    },
+    close: () => pool.end(),
+  };
+}
+
+function pgliteDriver(dataDir) {
+  const { PGlite, types } = require('@electric-sql/pglite');
+  const parsers = { [types.INT8]: toNumber, [types.NUMERIC]: toNumber };
+  const lite = new PGlite(dataDir ? { dataDir, parsers } : { parsers });
+  // One connection: a transaction must hold it exclusively, so other callers queue behind it.
+  let gate = Promise.resolve();
+  const exclusive = (fn) => {
+    const run = gate.then(fn);
+    gate = run.catch(() => {});
+    return run;
+  };
+  const wrap = (r) => ({ rows: r.rows, rowCount: r.affectedRows ?? r.rows.length });
+  return {
+    kind: 'pglite',
+    query: (sql, params) => exclusive(() => lite.query(sql, params).then(wrap)),
+    exec: (sql) => exclusive(() => lite.exec(sql)),
+    async session() {
+      let release;
+      const held = new Promise((r) => { release = r; });
+      await new Promise((ready) => { exclusive(() => { ready(); return held; }); });
+      return { query: (sql, params) => lite.query(sql, params).then(wrap), exec: (sql) => lite.exec(sql), release };
+    },
+    close: () => exclusive(() => lite.close()), // after any in-flight query
+  };
+}
+
+/* --------------------------------------------------------------- adapter */
+
+const txContext = new AsyncLocalStorage();
+
+/** Turn SQLite-style `?` placeholders into `$1, $2…`, leaving quoted text alone. */
+function numberParams(sql) {
+  let n = 0;
+  let out = '';
+  let quote = null;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    if (quote) {
+      out += c;
+      if (c === quote) quote = null;
+    } else if (c === "'" || c === '"') {
+      quote = c;
+      out += c;
+    } else if (c === '?') {
+      out += `$${++n}`;
+    } else {
+      out += c;
     }
+  }
+  return out;
+}
+
+function cleanParams(params) {
+  return params.map((p) => {
+    // A Promise here means a missing `await` upstream – fail loudly instead of storing "[object Promise]".
+    if (p && typeof p.then === 'function') throw new TypeError('SQL parameter is a Promise (missing await?)');
+    return p === undefined ? null : p;
+  });
+}
+
+class Statement {
+  constructor(db, sql) {
+    this.db = db;
+    this.sql = numberParams(sql);
+    // INSERTs report the new row's id like SQLite's lastInsertRowid.
+    this.returning = /^\s*insert\b/i.test(sql) && !/\breturning\b/i.test(sql);
+  }
+
+  query(params) {
+    const sql = this.sql + (this.returning ? ' RETURNING *' : '');
+    return this.db.query(sql, cleanParams(params)).catch((err) => {
+      err.sql ??= sql; // for server logs; never rendered to users
+      throw err;
+    });
+  }
+
+  async get(...params) {
+    return (await this.query(params)).rows[0];
+  }
+
+  async all(...params) {
+    return (await this.query(params)).rows;
+  }
+
+  async run(...params) {
+    const r = await this.query(params);
+    return { changes: r.rowCount, lastInsertRowid: r.rows?.[0]?.id };
   }
 }
 
-function open(file = config.databasePath) {
-  if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
-  const db = new DatabaseSync(file);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
-  migrate(db);
+class Database {
+  constructor(driver, { init } = {}) {
+    this.driver = driver;
+    this.kind = driver.kind;
+    this.init = init; // optional async step before migrating (tests create their database here)
+    this.readyPromise = null;
+  }
+
+  /** Resolves once the schema is migrated. A failed attempt (e.g. database unreachable) is retried next time. */
+  ready() {
+    this.readyPromise ??= Promise.resolve(this.init?.()).then(() => migrate(this)).catch((err) => {
+      this.readyPromise = null;
+      throw err;
+    });
+    return this.readyPromise;
+  }
+
+  /** Queries run on the current transaction's connection when inside transaction(). */
+  async query(sql, params) {
+    const tx = txContext.getStore();
+    if (tx) return tx.query(sql, params);
+    await this.ready();
+    return this.driver.query(sql, params);
+  }
+
+  prepare(sql) {
+    return new Statement(this, sql);
+  }
+
+  async exec(sql) {
+    const tx = txContext.getStore();
+    if (tx) return tx.exec(sql);
+    await this.ready();
+    return this.driver.exec(sql);
+  }
+
+  /** Close after any in-progress migration, so shutting down never interrupts a statement. */
+  async close() {
+    await this.readyPromise?.catch(() => {});
+    return this.driver.close();
+  }
+}
+
+/**
+ * Run fn inside a transaction; rolls back on throw. Transactions are serialised with an advisory
+ * lock, matching SQLite's single-writer semantics the booking logic was written for (check-then-insert
+ * of venue holds stays race-free). Nested calls join the outer transaction.
+ */
+async function transaction(db, fn, { migrating = false } = {}) {
+  if (txContext.getStore()) return fn();
+  if (!migrating) await db.ready();
+  const session = await db.driver.session();
+  try {
+    await session.query('BEGIN');
+    await session.query('SELECT pg_advisory_xact_lock(7212601)');
+    const result = await txContext.run(session, fn);
+    await session.query('COMMIT');
+    return result;
+  } catch (err) {
+    await session.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    session.release();
+  }
+}
+
+async function migrate(db) {
+  await transaction(db, async () => {
+    // Serialise concurrent cold starts (several serverless instances booting at once).
+    await db.exec('SELECT pg_advisory_xact_lock(7212602)');
+    await db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
+    await db.exec('ALTER TABLE schema_migrations ENABLE ROW LEVEL SECURITY');
+    const { v } = await db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations').get();
+    for (let i = v; i < MIGRATIONS.length; i++) {
+      await db.exec(MIGRATIONS[i]);
+      await db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(i + 1);
+    }
+  }, { migrating: true });
+}
+
+/**
+ * Create the database handle immediately; the schema migrates in the background and every query
+ * waits for it. `target`: a postgres:// URL, ':memory:', or a directory for an on-disk PGlite database.
+ */
+function openSync(target = config.databaseUrl || config.databasePath, options = {}) {
+  const driver = /^postgres(ql)?:\/\//.test(target)
+    ? pgDriver(target)
+    : pgliteDriver(target === ':memory:' ? null : path.resolve(target));
+  const db = new Database(driver, options);
+  db.ready().catch((err) => console.error('[db] not ready yet:', err.message));
   return db;
 }
 
-/** Run fn inside a transaction; rolls back on throw. fn must be synchronous. */
-function transaction(db, fn) {
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const result = fn();
-    db.exec('COMMIT');
-    return result;
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
+/** Open and wait until the schema is up to date. */
+async function open(target) {
+  const db = openSync(target);
+  await db.ready();
+  return db;
 }
 
-module.exports = { open, transaction };
+module.exports = { open, openSync, transaction, numberParams };

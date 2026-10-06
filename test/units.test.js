@@ -39,30 +39,46 @@ test('pricing quote', () => {
   assert.equal(q.total, 1000000 + 650000 + 165000);
 });
 
-test('expired holds release the venue; a late payment cannot double-book', () => {
+test('expired holds release the venue; a late payment cannot double-book', async () => {
   const { db } = makeApp();
-  db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES (1, 'R', 'r@x', 'x', 'restaurant'), (2, 'H1', 'h1@x', 'x', 'host'), (3, 'H2', 'h2@x', 'x', 'host');
+  await db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES (1, 'R', 'r@x', 'x', 'restaurant'), (2, 'H1', 'h1@x', 'x', 'host'), (3, 'H2', 'h2@x', 'x', 'host');
     INSERT INTO restaurants (id, owner_id, name, city) VALUES (1, 1, 'R', 'Mumbai');
     INSERT INTO venues (id, restaurant_id, name, min_pax, max_pax) VALUES (1, 1, 'Hall', 1, 50);
     INSERT INTO menus (id, restaurant_id, name, price_per_person) VALUES (1, 1, 'M', 1000);`);
   const date = '2099-03-01';
-  const first = svc.createHold(db, { venueId: 1, menuId: 1, hostId: 2, eventDate: date, guestCount: 10 });
-  assert.throws(() => svc.createHold(db, { venueId: 1, menuId: 1, hostId: 3, eventDate: date, guestCount: 10 }), /already reserved/);
+  const first = await svc.createHold(db, { venueId: 1, menuId: 1, hostId: 2, eventDate: date, guestCount: 10 });
+  await assert.rejects(svc.createHold(db, { venueId: 1, menuId: 1, hostId: 3, eventDate: date, guestCount: 10 }), /already reserved/);
 
-  db.prepare(`UPDATE bookings SET hold_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?`).run(first);
-  const second = svc.createHold(db, { venueId: 1, menuId: 1, hostId: 3, eventDate: date, guestCount: 10 });
-  assert.equal(db.prepare('SELECT status FROM bookings WHERE id = ?').get(first).status, 'expired');
+  await db.prepare(`UPDATE bookings SET hold_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?`).run(first);
+  const second = await svc.createHold(db, { venueId: 1, menuId: 1, hostId: 3, eventDate: date, guestCount: 10 });
+  assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(first)).status, 'expired');
 
-  assert.deepEqual(svc.confirmPayment(db, second, { provider: 'demo', ref: 'b' }), { ok: true, conflict: false });
-  assert.deepEqual(svc.confirmPayment(db, first, { provider: 'demo', ref: 'a' }), { ok: false, conflict: true });
-  assert.deepEqual(svc.confirmPayment(db, second, { provider: 'demo', ref: 'b' }), { ok: true, conflict: false }, 'idempotent');
-  assert.equal(db.prepare(`SELECT COUNT(*) n FROM bookings WHERE status = 'confirmed'`).get().n, 1);
+  assert.deepEqual(await svc.confirmPayment(db, second, { provider: 'demo', ref: 'b' }), { ok: true, conflict: false });
+  assert.deepEqual(await svc.confirmPayment(db, first, { provider: 'demo', ref: 'a' }), { ok: false, conflict: true });
+  assert.deepEqual(await svc.confirmPayment(db, second, { provider: 'demo', ref: 'b' }), { ok: true, conflict: false }, 'idempotent');
+  assert.equal((await db.prepare(`SELECT COUNT(*) n FROM bookings WHERE status = 'confirmed'`).get()).n, 1);
 });
 
-test('past dates and invalid dates are refused', () => {
+test('simultaneous reservations for the same night: exactly one hold wins', async () => {
   const { db } = makeApp();
-  assert.throws(() => svc.createHold(db, { venueId: 1, menuId: 1, hostId: 1, eventDate: '2000-01-01', guestCount: 5 }), /future/);
-  assert.throws(() => svc.createHold(db, { venueId: 1, menuId: 1, hostId: 1, eventDate: '2099-02-30', guestCount: 5 }), /valid date/);
+  const ins = async (sql, ...a) => (await db.prepare(sql).run(...a)).lastInsertRowid;
+  const owner = await ins(`INSERT INTO users (name, email, password_hash, role) VALUES ('R', 'race-r@x', 'x', 'restaurant')`);
+  const rid = await ins(`INSERT INTO restaurants (owner_id, name, city) VALUES (?, 'R', 'Mumbai')`, owner);
+  const venueId = await ins(`INSERT INTO venues (restaurant_id, name, min_pax, max_pax) VALUES (?, 'Hall', 1, 50)`, rid);
+  const menuId = await ins(`INSERT INTO menus (restaurant_id, name, price_per_person) VALUES (?, 'M', 1000)`, rid);
+  const hosts = [];
+  for (let i = 0; i < 6; i++) hosts.push(await ins(`INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, 'x', 'host')`, `H${i}`, `race${i}@x`));
+  const results = await Promise.allSettled(hosts.map((hostId) =>
+    svc.createHold(db, { venueId, menuId, hostId, eventDate: '2099-04-01', guestCount: 10 })));
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, 'one hold');
+  assert.ok(results.filter((r) => r.status === 'rejected').every((r) => /already reserved/.test(r.reason.message)));
+  assert.equal((await db.prepare(`SELECT COUNT(*) n FROM bookings WHERE venue_id = ? AND event_date = '2099-04-01'`).get(venueId)).n, 1);
+});
+
+test('past dates and invalid dates are refused', async () => {
+  const { db } = makeApp();
+  await assert.rejects(svc.createHold(db, { venueId: 1, menuId: 1, hostId: 1, eventDate: '2000-01-01', guestCount: 5 }), /future/);
+  await assert.rejects(svc.createHold(db, { venueId: 1, menuId: 1, hostId: 1, eventDate: '2099-02-30', guestCount: 5 }), /valid date/);
 });
 
 test('refunds never silently succeed for providers we cannot refund through', async () => {

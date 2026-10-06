@@ -50,8 +50,8 @@ async function renderEmail(booking, guest, invite) {
   return ejs.renderFile(EMAIL_TEMPLATE, { booking, guest, invite, fmt, venueLine: venueLine(booking) });
 }
 
-function log(db, guestId, channel, recipient, result, kind = 'invite') {
-  db.prepare('INSERT INTO message_log (guest_id, channel, recipient, status, detail, kind) VALUES (?, ?, ?, ?, ?, ?)')
+async function log(db, guestId, channel, recipient, result, kind = 'invite') {
+  await db.prepare('INSERT INTO message_log (guest_id, channel, recipient, status, detail, kind) VALUES (?, ?, ?, ?, ?, ?)')
     .run(guestId, channel, recipient, result.status, String(result.detail || '').slice(0, 500), kind);
 }
 
@@ -62,19 +62,19 @@ async function sendOne(db, booking, guest) {
     tasks.push((async () => {
       const html = await renderEmail(booking, guest, invite);
       const r = await notify.sendEmail({ to: guest.email, subject: invite.subject, html, text: invite.text });
-      log(db, guest.id, 'email', guest.email, r);
-      db.prepare('UPDATE guests SET email_status = ? WHERE id = ?').run(r.status, guest.id);
+      await log(db, guest.id, 'email', guest.email, r);
+      await db.prepare('UPDATE guests SET email_status = ? WHERE id = ?').run(r.status, guest.id);
     })());
   }
   if (guest.phone) {
     tasks.push((async () => {
       const r = await notify.sendWhatsApp({ to: guest.phone, params: invite.whatsappParams, previewText: invite.text });
-      log(db, guest.id, 'whatsapp', guest.phone, r);
-      db.prepare('UPDATE guests SET whatsapp_status = ? WHERE id = ?').run(r.status, guest.id);
+      await log(db, guest.id, 'whatsapp', guest.phone, r);
+      await db.prepare('UPDATE guests SET whatsapp_status = ? WHERE id = ?').run(r.status, guest.id);
     })());
   }
   await Promise.all(tasks);
-  db.prepare(`UPDATE guests SET invited_at = datetime('now') WHERE id = ?`).run(guest.id);
+  await db.prepare(`UPDATE guests SET invited_at = ts_now() WHERE id = ?`).run(guest.id);
 }
 
 /**
@@ -83,9 +83,9 @@ async function sendOne(db, booking, guest) {
  */
 async function sendInvites(db, booking, scope = 'new', concurrency = 5) {
   let guests;
-  if (scope === 'new') guests = db.prepare('SELECT * FROM guests WHERE booking_id = ? AND invited_at IS NULL').all(booking.id);
-  else if (scope === 'pending') guests = db.prepare(`SELECT * FROM guests WHERE booking_id = ? AND rsvp_status = 'pending'`).all(booking.id);
-  else guests = db.prepare('SELECT * FROM guests WHERE booking_id = ? AND id = ?').all(booking.id, Number(scope));
+  if (scope === 'new') guests = await db.prepare('SELECT * FROM guests WHERE booking_id = ? AND invited_at IS NULL').all(booking.id);
+  else if (scope === 'pending') guests = await db.prepare(`SELECT * FROM guests WHERE booking_id = ? AND rsvp_status = 'pending'`).all(booking.id);
+  else guests = await db.prepare('SELECT * FROM guests WHERE booking_id = ? AND id = ?').all(booking.id, Number(scope));
 
   let i = 0;
   const worker = async () => {
@@ -127,7 +127,7 @@ function buildCancellation(booking, guest) {
  * Uses the same bounded concurrency as invites; each attempt is logged with kind 'cancellation'.
  */
 async function sendCancellations(db, booking, concurrency = 5) {
-  const guests = db.prepare(
+  const guests = await db.prepare(
     `SELECT * FROM guests WHERE booking_id = ? AND invited_at IS NOT NULL AND rsvp_status <> 'no'`
   ).all(booking.id);
   const sendOneCancel = async (guest) => {
@@ -136,13 +136,13 @@ async function sendCancellations(db, booking, concurrency = 5) {
     if (guest.email) {
       tasks.push((async () => {
         const html = await ejs.renderFile(CANCEL_TEMPLATE, { booking, guest, notice, fmt, venueLine: venueLine(booking) });
-        log(db, guest.id, 'email', guest.email, await notify.sendEmail({ to: guest.email, subject: notice.subject, html, text: notice.text }), 'cancellation');
+        await log(db, guest.id, 'email', guest.email, await notify.sendEmail({ to: guest.email, subject: notice.subject, html, text: notice.text }), 'cancellation');
       })());
     }
     if (guest.phone) {
       tasks.push((async () => {
         const r = await notify.sendWhatsApp({ to: guest.phone, params: notice.whatsappParams, previewText: notice.text, template: config.whatsapp.cancelTemplateName });
-        log(db, guest.id, 'whatsapp', guest.phone, r, 'cancellation');
+        await log(db, guest.id, 'whatsapp', guest.phone, r, 'cancellation');
       })());
     }
     await Promise.all(tasks);
