@@ -139,6 +139,11 @@ module.exports = (db) => {
       user = await db.prepare('SELECT * FROM users WHERE id = ?').get(id);
       created = true;
     }
+    if (await require('../services/bootstrap').claimFirstAdmin(db, user)) {
+      user = await db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+      created = false;
+      req.flash('success', 'You are the IftarParty administrator.');
+    }
     req.session.userId = user.id;
     if (created) req.flash('success', `Welcome, ${user.name.split(' ')[0]}!`);
     // Missing details (mobile, restaurant) are collected by requireProfile on the next request.

@@ -19,6 +19,8 @@ function started() {
     await db.ready();
     if (config.demoMode) await require('../scripts/seed').seedDemo(db, { quiet: true });
     await require('./services/bootstrap').ensureAdmin(db);
+    // Surface storage misconfiguration in the logs at boot rather than on the first upload.
+    require('./services/storage').ensureBucket().catch((err) => console.error('[storage]', err.message));
   })().catch((err) => {
     startup = null; // retry on the next request (e.g. the database was briefly unreachable)
     throw err;

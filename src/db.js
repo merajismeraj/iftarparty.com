@@ -308,8 +308,10 @@ function pgDriver(url) {
   // when a CA is supplied (DATABASE_CA_CERT), otherwise encrypt without verification.
   const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url) || /sslmode=disable/.test(url);
   const ca = process.env.DATABASE_CA_CERT;
+  const parsed = new URL(url);
+  for (const key of [...parsed.searchParams.keys()]) if (!['application_name', 'options'].includes(key)) parsed.searchParams.delete(key);
   const pool = new pg.Pool({
-    connectionString: url.replace(/[?&]sslmode=[^&]*/g, '').replace(/\?$/, ''),
+    connectionString: parsed.toString(),
     ssl: local ? false : ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false },
     max: Number(process.env.DATABASE_POOL_MAX || (config.onVercel ? 3 : 10)),
     idleTimeoutMillis: 10_000,

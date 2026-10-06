@@ -27,4 +27,20 @@ async function ensureAdmin(db, env = process.env) {
   return email;
 }
 
-module.exports = { ensureAdmin };
+/**
+ * Passwordless alternative: while no admin exists, the person who signs in with Google using
+ * ADMIN_EMAIL (an address Google has verified) becomes the admin. Returns true if promoted.
+ */
+async function claimFirstAdmin(db, user, env = process.env) {
+  const email = normalizeEmail(env.ADMIN_EMAIL);
+  if (!email || normalizeEmail(user.email) !== email || user.role === 'admin' || user.role === 'restaurant') return false;
+  const { transaction } = require('../db');
+  return transaction(db, async () => {
+    if (await db.prepare(`SELECT 1 FROM users WHERE role = 'admin' LIMIT 1`).get()) return false;
+    await db.prepare(`UPDATE users SET role = 'admin' WHERE id = ?`).run(user.id);
+    console.log(`[bootstrap] ${email} claimed the first admin account via Google sign-in`);
+    return true;
+  });
+}
+
+module.exports = { ensureAdmin, claimFirstAdmin };

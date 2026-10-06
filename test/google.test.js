@@ -121,6 +121,23 @@ describe('Google sign-in', () => {
     assert.equal(res.headers.location, '/login');
   });
 
+  test('ADMIN_EMAIL: the first Google sign-in with that address becomes admin, once', async () => {
+    process.env.ADMIN_EMAIL = 'Boss@IftarParty.com';
+    try {
+      const agent = request.agent(app);
+      const { res } = await googleSignIn(agent, { sub: 'g-boss', email: 'boss@iftarparty.com', name: 'The Boss' });
+      assert.equal(res.headers.location, '/admin');
+      assert.equal((await db.prepare(`SELECT role FROM users WHERE google_sub = 'g-boss'`).get()).role, 'admin');
+      await agent.get('/admin').expect(200); // admins aren't asked for a mobile number
+      // Once an admin exists nobody else can claim it, even with the same configured address.
+      await db.prepare(`UPDATE users SET email = 'renamed@iftarparty.com' WHERE google_sub = 'g-boss'`).run();
+      await googleSignIn(request.agent(app), { sub: 'g-boss-2', email: 'boss@iftarparty.com', name: 'Impostor' });
+      assert.equal((await db.prepare(`SELECT role FROM users WHERE google_sub = 'g-boss-2'`).get()).role, 'host');
+    } finally {
+      delete process.env.ADMIN_EMAIL;
+    }
+  });
+
   test('callback without a started sign-in is refused; cancel goes back to login', async () => {
     assert.equal((await request(app).get('/auth/google/callback?code=x&state=y').expect(302)).headers.location, '/login');
     assert.equal((await request(app).get('/auth/google/callback?error=access_denied').expect(302)).headers.location, '/login');
