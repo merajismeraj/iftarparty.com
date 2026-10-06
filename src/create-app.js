@@ -39,6 +39,15 @@ function createApp(db) {
   // Payment webhooks need the raw body to verify signatures, so mount before body parsers.
   app.use('/webhooks', require('./routes/webhooks')(db));
 
+  // Liveness for the platform's health check: the process is up and the database answers.
+  app.get('/healthz', (req, res) => {
+    try {
+      db.prepare('SELECT 1').get();
+      res.type('text').send('ok');
+    } catch {
+      res.status(503).type('text').send('db unavailable');
+    }
+  });
   app.use('/static', express.static(path.join(config.root, 'public'), { maxAge: config.isProduction ? '7d' : 0 }));
   app.use('/uploads', express.static(config.uploadDir, { maxAge: '30d', fallthrough: false }));
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));

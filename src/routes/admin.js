@@ -467,6 +467,22 @@ module.exports = (db) => {
   });
 
   // ---------- Settings & audit ----------
+  /** Consistent snapshot of the live SQLite database (VACUUM INTO), streamed as a download. */
+  router.get('/backup', (req, res, next) => {
+    const os = require('node:os');
+    const path = require('node:path');
+    const fs = require('node:fs');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const file = path.join(os.tmpdir(), `iftarparty-${stamp}-${process.pid}.db`);
+    try {
+      db.prepare('VACUUM INTO ?').run(file);
+    } catch (err) {
+      return next(err);
+    }
+    audit.log(db, req.user.id, 'database.backup', 'system', 0, '');
+    res.download(file, `iftarparty-${stamp}.db`, () => fs.rm(file, { force: true }, () => {}));
+  });
+
   router.get('/settings', (req, res) => {
     res.render('admin/settings', { title: 'Settings', fee: settings.feePercent(db), minDishes: settings.minPackageDishes(db), live: payments.isLive(), wa: require('../services/notify').whatsappProvider(), errors: [] });
   });

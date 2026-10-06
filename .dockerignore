@@ -1,0 +1,12 @@
+node_modules
+data
+uploads
+test
+api
+.git
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+vercel.json
