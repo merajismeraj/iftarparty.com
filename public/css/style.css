@@ -704,3 +704,9 @@ th { background: #fbf5ee; }
 @media (min-width: 640px) {
   .coming { margin: 0 28px 20px; }
 }
+
+/* Google sign-in */
+.btn-google { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: var(--ink); border: 1px solid var(--line); box-shadow: none; font-weight: 600; min-height: 48px; }
+.btn-google:hover { background: #fdfaf6; border-color: #d9cbbb; }
+.or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: .85rem; margin: 16px 0; }
+.or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }

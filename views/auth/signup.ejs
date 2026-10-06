@@ -8,6 +8,7 @@
     <h1 class="h2"><%= role === 'restaurant' ? 'List your restaurant' : 'Create your host account' %></h1>
     <p class="muted"><%= role === 'restaurant' ? 'Add your party halls and Iftar menus. Hosts book and pay online.' : 'Your name appears on the venue as “Iftar Party by …” once you reserve.' %></p>
     <%- include('../partials/errors') %>
+    <%- include('../partials/google-button', { role }) %>
     <form method="post" action="/signup">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <input type="hidden" name="role" value="<%= role %>">

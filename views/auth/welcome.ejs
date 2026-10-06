@@ -1,0 +1,25 @@
+<%- include('../partials/head') %>
+<section class="wrap narrow page-pad">
+  <div class="card form-card">
+    <h1 class="h2">Almost done, <%= user.name.split(' ')[0] %></h1>
+    <p class="muted"><%= user.role === 'restaurant' && !restaurant ? 'Tell us about your restaurant. Your listing goes live once our team approves it.' : 'We send payment receipts and party updates to your mobile.' %></p>
+    <%- include('../partials/errors') %>
+    <form method="post" action="/welcome">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% if (!user.phone) { %>
+        <label class="field"><span>Mobile</span><input type="tel" name="phone" required autocomplete="tel" inputmode="tel" placeholder="+91 98765 43210" value="<%= form.phone || '' %>"></label>
+      <% } %>
+      <% if (user.role === 'restaurant' && !restaurant) { %>
+        <label class="field"><span>Restaurant name</span><input name="restaurant_name" required value="<%= form.restaurant_name || '' %>"></label>
+        <div class="row-2">
+          <label class="field"><span>Area / locality</span><input name="area" value="<%= form.area || '' %>"></label>
+          <label class="field"><span>City</span><input name="city" required value="<%= form.city || '' %>"></label>
+        </div>
+        <label class="field"><span>Cuisine</span><input name="cuisine" placeholder="Mughlai, Hyderabadi, Arabic…" value="<%= form.cuisine || '' %>"></label>
+      <% } %>
+      <button class="btn btn-gold btn-block">Continue</button>
+    </form>
+    <form method="post" action="/logout" class="center"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="link small muted">Not you? Sign out</button></form>
+  </div>
+</section>
+<%- include('../partials/foot') %>

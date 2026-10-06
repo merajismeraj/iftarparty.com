@@ -9,7 +9,8 @@ const fmt = require('./services/format');
 const payments = require('./services/payments');
 const settings = require('./services/settings');
 const packages = require('./services/packages');
-const { loadUser } = require('./middleware/auth');
+const google = require('./services/google');
+const { loadUser, requireProfile } = require('./middleware/auth');
 const { flash, csrf } = require('./middleware/session-helpers');
 
 function createApp(db) {
@@ -54,13 +55,14 @@ function createApp(db) {
     Object.assign(res.locals, {
       money, fmt, packages, path: req.path, query: req.query,
       currency: config.currency, feePercent: settings.feePercent(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
-      paymentsLive: payments.isLive(), title: null, user: null, restaurant: null, csrfToken: '',
+      paymentsLive: payments.isLive(), googleEnabled: google.enabled(), title: null, user: null, restaurant: null, csrfToken: '',
     });
     next();
   });
 
   app.use(csrf);
   app.use(loadUser(db));
+  app.use(requireProfile);
   app.use(require('./routes/public')(db));
   app.use(require('./routes/auth')(db));
   app.use('/restaurant', require('./routes/restaurant')(db));
