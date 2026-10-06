@@ -36,7 +36,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 78 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 88 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -49,6 +49,7 @@ Each integration runs in **demo mode** until you add its keys, so you can use th
 |---|---|---|
 | Payments | Simulated checkout. Refunds succeed instantly | **Cashfree Payment Gateway**: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox\|production` |
 | Email | Printed to the server log | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (any SMTP provider, e.g. SES, Postmark, SendGrid) |
+| Google sign-in | Button hidden; email + password only | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (see below) |
 | WhatsApp | Printed to the server log | **OpenWA** self-hosted gateway (default): `OPENWA_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`. Or the official Meta Cloud API with `WHATSAPP_PROVIDER=meta` |
 
 ### Cashfree
@@ -60,6 +61,15 @@ Each integration runs in **demo mode** until you add its keys, so you can use th
 5. **Order ids look like `IP-<bookingId>-<random>`**, so a webhook can always be matched to its booking.
 
 Test it with Cashfree **sandbox** keys and their test UPI ID or cards before switching `CASHFREE_ENV=production`.
+
+### Google sign-in
+
+1. In *Google Cloud Console → APIs & Services → Credentials*, create an **OAuth client ID** of type **Web application**.
+2. **Authorized JavaScript origin:** your `BASE_URL` (e.g. `https://iftarparty.com`).
+3. **Authorized redirect URI:** **`<BASE_URL>/auth/google/callback`**. It must match `BASE_URL` exactly, so set `BASE_URL` in production. Add `http://localhost:3000/auth/google/callback` for local development.
+4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. The *Continue with Google* button then appears on sign-in and sign-up.
+
+How it works: authorization-code flow with PKCE, `state` and `nonce` held in the session. The ID token is fetched server-to-server and its issuer, audience, expiry, nonce and `email_verified` are checked. A verified Google email that matches an existing account is linked to it. Google gives no mobile number, so new users are asked for one once (restaurants also give their name and city) before they can continue.
 
 ### WhatsApp (OpenWA)
 

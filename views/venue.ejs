@@ -45,11 +45,6 @@
             <% if (m.description) { %><p class="muted"><%= m.description %></p><% } %>
             <% if (m.kind === 'package') { %>
               <p class="small"><strong>Choose <%= packages.summary(m.rules) %></strong> <span class="muted">· minimum <%= minDishes %> dishes</span></p>
-              <div class="package-courses">
-                <% m.rules.forEach(r => { %>
-                  <div class="course-line"><span class="muted"><%= r.label %> (pick <%= r.choose %>):</span> <%= r.dishes.map(d => d.name).join(' · ') %></div>
-                <% }) %>
-              </div>
             <% } else { %>
               <ul class="dishes"><% m.items.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean).forEach(d => { %><li><%= d %></li><% }) %></ul>
             <% } %>
@@ -81,13 +76,13 @@
         <div class="review-list"><% reviewList.forEach(r => { %><%- include('partials/review-card', { r }) %><% }) %></div>
       <% } %>
 
-      <h2 class="h3">Reserved evenings</h2>
-      <% if (!reservations.length) { %>
-        <p class="muted">No evenings booked yet — every date is open.</p>
-      <% } else { %>
-        <ul class="reserved-list">
-          <% reservations.forEach(r => { %><li><span class="date-badge"><%= fmt.shortDate(r.event_date) %></span> Reserved · <strong><%= r.title %></strong></li><% }) %>
-        </ul>
+      <% if (reservations.length) { %>
+        <details class="more">
+          <summary>Reserved evenings (<%= reservations.length %>)</summary>
+          <ul class="reserved-list">
+            <% reservations.forEach(r => { %><li><span class="date-badge"><%= fmt.shortDate(r.event_date) %></span> Reserved · <strong><%= r.title %></strong></li><% }) %>
+          </ul>
+        </details>
       <% } %>
     </div>
 
@@ -98,25 +93,23 @@
             <% if (budget) { %>data-budget="<%= budget.amount %>" data-budget-type="<%= budget.type %>"<% } %>>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <h2 class="h3">Reserve this hall</h2>
+        <div class="row-2">
         <label class="field">
-          <span>Date of Iftar</span>
+          <span>Date</span>
           <input type="date" name="date" required min="<%= today %>" value="<%= form.date %>" data-availability>
           <small class="availability <%= taken ? 'bad' : form.date ? 'good' : '' %>" data-availability-msg>
             <%= taken ? (taken.status === 'confirmed' ? `Reserved · ${taken.title}` : 'On hold – payment in progress') : form.date ? 'Available ✓' : '' %>
           </small>
         </label>
-        <div class="row-2">
-          <label class="field">
-            <span>Guests</span>
-            <input type="number" name="guests" required min="<%= venue.min_pax %>" max="<%= venue.max_pax %>" value="<%= form.guests %>" placeholder="<%= venue.min_pax %>–<%= venue.max_pax %>">
-          </label>
-          <label class="field">
-            <span>Arrival</span>
-            <input type="time" name="arrival_time" value="<%= form.arrival_time %>">
-          </label>
+        <label class="field">
+          <span>Guests</span>
+          <input type="number" name="guests" required min="<%= venue.min_pax %>" max="<%= venue.max_pax %>" inputmode="numeric" value="<%= form.guests %>" placeholder="<%= venue.min_pax %>–<%= venue.max_pax %>">
+        </label>
         </div>
+        <%# Arrival time can be changed later on the party's details page. %>
+        <input type="hidden" name="arrival_time" value="<%= form.arrival_time %>">
         <fieldset class="field">
-          <legend>Menu or package</legend>
+          <legend>Menu</legend>
           <% menus.forEach((m, i) => { const on = String(form.menu_id) === String(m.id) || (!form.menu_id && i === 0); %>
             <label class="radio-card">
               <input type="radio" name="menu_id" value="<%= m.id %>" required data-price="<%= m.price_per_person %>" data-min="<%= m.min_pax %>" <%= on ? 'checked' : '' %>>
@@ -142,15 +135,15 @@
         </fieldset>
 
         <% if (addons.length) { %>
-          <fieldset class="field">
-            <legend>Extras <span class="muted small">(optional)</span></legend>
+          <details class="field more" <%= picked.size ? 'open' : '' %>>
+            <summary>Add extras <span class="muted small">(optional)</span></summary>
             <% addons.forEach(a => { %>
               <label class="radio-card">
                 <input type="checkbox" name="addon_ids" value="<%= a.id %>" data-addon-price="<%= a.price %>" data-addon-pricing="<%= a.pricing %>" <%= picked.has(String(a.id)) ? 'checked' : '' %>>
                 <span><%= a.name %></span><strong class="small"><%= money.format(a.price) %><%= a.pricing === 'flat' ? '' : '/guest' %></strong>
               </label>
             <% }) %>
-          </fieldset>
+          </details>
         <% } %>
 
         <div class="quote" data-quote-box hidden>

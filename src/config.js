@@ -30,6 +30,11 @@ const config = {
     env: env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox',
     apiVersion: env.CASHFREE_API_VERSION || '2023-08-01',
   },
+  // Google sign-in (OAuth 2.0 / OpenID Connect). Register `${baseUrl}/auth/google/callback` as a redirect URI.
+  google: {
+    clientId: env.GOOGLE_CLIENT_ID || '',
+    clientSecret: env.GOOGLE_CLIENT_SECRET || '',
+  },
   smtp: {
     host: env.SMTP_HOST || '',
     port: Number(env.SMTP_PORT || 587),

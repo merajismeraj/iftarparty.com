@@ -11,10 +11,21 @@ function loadUser(db) {
         req.restaurant = db.prepare('SELECT * FROM restaurants WHERE owner_id = ?').get(req.user.id) || null;
       }
     }
+    if (req.user) {
+      // Google sign-ups arrive without a mobile number (and partners without a restaurant).
+      req.user.needsProfile = (req.user.role !== 'admin' && !req.user.phone) || (req.user.role === 'restaurant' && !req.restaurant);
+    }
     res.locals.user = req.user || null;
     res.locals.restaurant = req.restaurant || null;
     next();
   };
+}
+
+/** Send signed-in users with an incomplete profile to /welcome before anything else. */
+function requireProfile(req, res, next) {
+  if (!req.user?.needsProfile || /^\/(welcome|logout)$/.test(req.path)) return next();
+  if (req.method === 'GET' && !req.session.returnTo && !/^\/(login|signup|auth\/)/.test(req.path)) req.session.returnTo = req.originalUrl;
+  res.redirect('/welcome');
 }
 
 /** For a form POST we can't replay, send the user back to the page the form was on. */
@@ -46,4 +57,4 @@ function requireAuth(role) {
   };
 }
 
-module.exports = { loadUser, requireAuth };
+module.exports = { loadUser, requireAuth, requireProfile };

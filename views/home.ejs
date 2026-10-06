@@ -1,42 +1,62 @@
 <%- include('partials/head') %>
-<section class="hero">
-  <div class="wrap">
-    <p class="eyebrow">Ramadan gatherings, made effortless</p>
-    <h1>Host your Iftar party at the perfect restaurant hall</h1>
-    <p class="lead">Compare private halls by location, menu, price and capacity. Pay online, then invite your guests on WhatsApp and email — and watch the RSVPs roll in.</p>
-    <%- include('partials/search-form', { q: {}, compact: false }) %>
-    <% if (cities.length) { %>
-      <p class="chips">Popular: <% cities.forEach(c => { %><a class="chip" href="/search?location=<%= encodeURIComponent(c.city) %>"><%= c.city %></a><% }) %></p>
-    <% } %>
-  </div>
-</section>
+<%
+  const budgets = [...[600, 900, 1200].map(n => [String(n), `Up to ${money.format(n * 100)}`]), ['', 'Any']];
+  const pickedBudget = q.budget_type === 'total' ? '' : (q.budget || '');
+  if (pickedBudget && !budgets.some(([v]) => v === pickedBudget) && Number(pickedBudget) > 0) budgets.splice(3, 0, [pickedBudget, `Up to ${money.format(Math.round(Number(pickedBudget) * 100))}`]);
+%>
+<section class="plan">
+  <div class="wrap plan-wrap">
+    <h1>Plan your Iftar party</h1>
+    <p class="lead">Two quick questions. We’ll show halls that are free.</p>
 
-<section class="wrap section">
-  <h2 class="section-title">How it works</h2>
-  <ol class="steps">
-    <li><span class="step-n">1</span><h3>Find a hall</h3><p class="muted">Filter by area, date, guest count, menu and budget.</p></li>
-    <li><span class="step-n">2</span><h3>Pick the menu</h3><p class="muted">See the full price instantly — no back-and-forth calls.</p></li>
-    <li><span class="step-n">3</span><h3>Pay &amp; reserve</h3><p class="muted">The hall is held for you as <em>“Iftar Party by you”</em>.</p></li>
-    <li><span class="step-n">4</span><h3>Invite &amp; track</h3><p class="muted">Upload your guest list; we send WhatsApp &amp; email invites and count RSVPs.</p></li>
-  </ol>
-</section>
+    <form class="planner" method="get" action="/search" data-planner data-currency="<%= currency %>">
+      <ol class="plan-progress" aria-hidden="true"><li class="on"></li><li></li></ol>
 
-<% if (featured.length) { %>
-<section class="wrap section">
-  <div class="section-head"><h2 class="section-title">Newly listed venues</h2><a href="/search">See all →</a></div>
-  <div class="grid cards">
-    <% featured.forEach(v => { %><%- include('partials/venue-card', { v }) %><% }) %>
-  </div>
-</section>
-<% } %>
+      <fieldset class="plan-step" data-step="1">
+        <legend class="plan-q"><span class="plan-n">1 of 2</span>How many guests, and when?</legend>
+        <label class="field">
+          <span>Guests</span>
+          <input type="number" name="guests" required min="1" max="2000" inputmode="numeric" placeholder="e.g. 50" value="<%= q.guests || '' %>">
+        </label>
+        <div class="quick" data-quick="guests">
+          <% ['25', '50', '100', '200'].forEach(n => { %><button type="button" class="chip" data-value="<%= n %>"><%= n %></button><% }) %>
+        </div>
+        <label class="field">
+          <span>Date</span>
+          <input type="date" name="date" required min="<%= today %>" value="<%= q.date || '' %>">
+        </label>
+        <button type="button" class="btn btn-gold btn-block plan-next" data-next>Next</button>
+      </fieldset>
 
-<section class="wrap section">
-  <div class="cta-band">
-    <div>
-      <h2>Own a restaurant with a party hall?</h2>
-      <p>List your halls and Iftar menus for free. Get paid bookings with the guest count confirmed up front.</p>
-    </div>
-    <a class="btn btn-gold" href="/signup?role=restaurant">List your restaurant</a>
+      <fieldset class="plan-step" data-step="2">
+        <legend class="plan-q"><span class="plan-n">2 of 2</span>Budget and area</legend>
+        <div class="field">
+          <span>Food budget per guest</span>
+          <div class="seg">
+            <% budgets.forEach(([v, label]) => { %>
+              <label><input type="radio" name="budget" value="<%= v %>" <%= pickedBudget === v ? 'checked' : '' %>><span><%= label %></span></label>
+            <% }) %>
+          </div>
+          <small class="muted" data-plan-estimate></small>
+        </div>
+        <label class="field">
+          <span>Location <span class="muted">(optional)</span></span>
+          <input name="location" placeholder="City or area" list="plan-cities" autocomplete="off" value="<%= q.location || '' %>">
+          <datalist id="plan-cities"><% cities.forEach(c => { %><option value="<%= c.city %>"><% }) %></datalist>
+        </label>
+        <% if (cities.length) { %>
+          <div class="quick" data-quick="location">
+            <% cities.slice(0, 4).forEach(c => { %><button type="button" class="chip" data-value="<%= c.city %>"><%= c.city %></button><% }) %>
+          </div>
+        <% } %>
+        <div class="plan-actions">
+          <button type="button" class="btn btn-ghost" data-back>Back</button>
+          <button class="btn btn-gold">Show halls</button>
+        </div>
+      </fieldset>
+    </form>
+
+    <p class="plan-trust small">Pay online · Hall reserved instantly · WhatsApp &amp; email invites</p>
   </div>
 </section>
 <%- include('partials/foot') %>
