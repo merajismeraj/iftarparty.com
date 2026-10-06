@@ -20,6 +20,9 @@
       <dt>WhatsApp</dt><dd><%= { openwa: 'OpenWA gateway (self-hosted)', meta: 'Meta WhatsApp Cloud API', demo: 'Demo – set OPENWA_URL, OPENWA_API_KEY, OPENWA_SESSION_ID' }[wa] %></dd>
     </dl>
     <p class="small muted">Credentials live in environment variables, never in the database.</p>
+    <h2 class="h3">Backup</h2>
+    <p class="small muted">Download a consistent copy of the whole database (bookings, guests, payments). Photos are not included.</p>
+    <a class="btn btn-ghost btn-block" href="/admin/backup">Download database backup</a>
   </div>
 </div>
 <%- include('_close') %>

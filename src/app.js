@@ -10,6 +10,7 @@ const { createApp } = require('./create-app');
 const { expireStaleHolds } = require('./services/bookings');
 
 if (config.demoMode) require('../scripts/seed').seedDemo(db, { quiet: true });
+require('./services/bootstrap').ensureAdmin(db);
 
 const app = createApp(db);
 setInterval(() => expireStaleHolds(db), 60_000).unref();

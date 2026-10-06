@@ -36,7 +36,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, halls, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 88 integration + unit tests (Cashfree is exercised against a fake gateway)
+npm test                  # 92 integration + unit tests (Cashfree is exercised against a fake gateway)
 ```
 
 Demo logins (password `password123`): admin `admin@demo.test`; host `host@demo.test`; restaurants `owner@noor.test`, `owner@charminar.test`, `owner@arabian.test`, plus `owner@zaffran.test`, which is pending approval.
@@ -142,10 +142,29 @@ On Vercel the app runs in **demo mode**:
 
 Use it to click through the product. Don't take real bookings on it.
 
-### Production
-Real bookings need durable storage and a long-running process:
-- **Simplest:** run `npm start` on any VM or container host with a persistent disk (Render, Railway, Fly.io, a VPS). Mount it for `DATABASE_PATH`/`UPLOAD_DIR`, put HTTPS in front, and set `NODE_ENV=production`, `SESSION_SECRET`, `BASE_URL` and the Cashfree, SMTP and OpenWA keys. OpenWA can run on the same machine via Docker.
-- **Serverless (Vercel):** swap SQLite for Postgres (e.g. Neon) and local uploads for Vercel Blob. The data layer is concentrated in `src/db.js` and `src/services/*`, and uploads in `src/middleware/uploads.js`.
+### Production (Railway, recommended)
+The repo ships a `Dockerfile` and `railway.json`. One container runs the app, and SQLite plus uploaded photos live on a persistent volume at `/data`.
+
+1. **New project → Deploy from GitHub repo** → pick this repository (branch `main`). Railway builds the `Dockerfile` and health-checks `/healthz`.
+2. **Add a volume** to the service, mounted at **`/data`**. Without it, every deploy wipes the data.
+3. **Variables:**
+
+   | Variable | Value |
+   |---|---|
+   | `SESSION_SECRET` | a long random string (`openssl rand -hex 32`) |
+   | `BASE_URL` | `https://iftarparty.com` |
+   | `ADMIN_EMAIL`, `ADMIN_PASSWORD` (12+ chars), `ADMIN_NAME` | first-boot admin. Created only if no admin exists. Remove `ADMIN_PASSWORD` after you sign in |
+   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | same values as before |
+   | `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox` | Cashfree test keys first |
+   | `SMTP_*`, `OPENWA_*` | when ready |
+
+   `NODE_ENV=production`, `DATABASE_PATH` and `UPLOAD_DIR` are already set in the image. Demo data is off by default outside Vercel.
+4. **Domain:** under Settings → Networking, add `iftarparty.com` and `www.iftarparty.com`. At your DNS provider, replace the Vercel records with the ones Railway shows. The Google sign-in and Cashfree URLs stay the same because the domain doesn't change.
+5. **Backups:** use *Admin → Settings → Download database backup* (a consistent SQLite snapshot), and/or Railway's volume backups.
+
+Keep it at **one replica**: SQLite on a single volume. For multi-instance scale, move to Postgres (`src/db.js`) and object storage (`src/middleware/uploads.js`).
+
+Any other Docker host works the same way (Render, Fly.io, a VPS): mount a persistent disk at `/data` and set the variables above.
 
 ## Production notes
 
