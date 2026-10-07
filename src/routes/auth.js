@@ -72,7 +72,7 @@ module.exports = (db) => {
     });
     req.session.userId = userId;
     req.flash('success', role === 'restaurant'
-      ? 'Welcome aboard! Add your halls and menus now – your listing goes live once our team approves it (usually within 24 hours).'
+      ? 'Welcome aboard! Add your venues and menus now – your listing goes live once our team approves it (usually within 24 hours).'
       : `Welcome, ${name.split(' ')[0]}! Find the perfect venue for your Iftar.`);
     res.redirect(role === 'restaurant' ? '/restaurant' : safeReturn(req.session.returnTo, '/search'));
   });
@@ -177,7 +177,7 @@ module.exports = (db) => {
           .run(req.user.id, b.restaurant_name.trim(), String(b.cuisine || '').trim(), String(b.area || '').trim(), b.city.trim(), phone);
       }
     });
-    if (needsRestaurant) req.flash('success', 'Welcome aboard! Add your halls and menus now – your listing goes live once our team approves it.');
+    if (needsRestaurant) req.flash('success', 'Welcome aboard! Add your venues and menus now – your listing goes live once our team approves it.');
     const returnTo = req.session.returnTo;
     req.session.returnTo = null;
     res.redirect(safeReturn(returnTo, homeFor(req.user)));

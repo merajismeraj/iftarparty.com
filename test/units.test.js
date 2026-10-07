@@ -43,7 +43,7 @@ test('expired holds release the venue; a late payment cannot double-book', async
   const { db } = makeApp();
   await db.exec(`INSERT INTO users (id, name, email, password_hash, role) VALUES (1, 'R', 'r@x', 'x', 'restaurant'), (2, 'H1', 'h1@x', 'x', 'host'), (3, 'H2', 'h2@x', 'x', 'host');
     INSERT INTO restaurants (id, owner_id, name, city) VALUES (1, 1, 'R', 'Mumbai');
-    INSERT INTO venues (id, restaurant_id, name, min_pax, max_pax) VALUES (1, 1, 'Hall', 1, 50);
+    INSERT INTO venues (id, restaurant_id, name, min_pax, max_pax) VALUES (1, 1, 'Main Venue', 1, 50);
     INSERT INTO menus (id, restaurant_id, name, price_per_person) VALUES (1, 1, 'M', 1000);`);
   const date = '2099-03-01';
   const first = await svc.createHold(db, { venueId: 1, menuId: 1, hostId: 2, eventDate: date, guestCount: 10 });
@@ -64,7 +64,7 @@ test('simultaneous reservations for the same night: exactly one hold wins', asyn
   const ins = async (sql, ...a) => (await db.prepare(sql).run(...a)).lastInsertRowid;
   const owner = await ins(`INSERT INTO users (name, email, password_hash, role) VALUES ('R', 'race-r@x', 'x', 'restaurant')`);
   const rid = await ins(`INSERT INTO restaurants (owner_id, name, city) VALUES (?, 'R', 'Mumbai')`, owner);
-  const venueId = await ins(`INSERT INTO venues (restaurant_id, name, min_pax, max_pax) VALUES (?, 'Hall', 1, 50)`, rid);
+  const venueId = await ins(`INSERT INTO venues (restaurant_id, name, min_pax, max_pax) VALUES (?, 'Main Venue', 1, 50)`, rid);
   const menuId = await ins(`INSERT INTO menus (restaurant_id, name, price_per_person) VALUES (?, 'M', 1000)`, rid);
   const hosts = [];
   for (let i = 0; i < 6; i++) hosts.push(await ins(`INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, 'x', 'host')`, `H${i}`, `race${i}@x`));

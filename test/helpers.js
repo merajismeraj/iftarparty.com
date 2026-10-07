@@ -97,13 +97,13 @@ async function signinAdmin(app, db) {
 
 module.exports = { signinAdmin, request, makeApp, csrf, futureDate, signupRestaurant, signupHost, PNG };
 
-/** Approved restaurant with one hall and one menu, plus a host. Direct inserts for speed. */
+/** Approved restaurant with one venue and one menu, plus a host. Direct inserts for speed. */
 async function seedMarketplace(db, { hostEmail = 'host@fixture.test' } = {}) {
   const n = (await db.prepare('SELECT COUNT(*) n FROM users').get()).n;
   const ins = async (sql, ...a) => Number((await db.prepare(sql).run(...a)).lastInsertRowid);
   const ownerId = await ins(`INSERT INTO users (name, email, phone, password_hash, role) VALUES ('Owner', ?, '+919800000000', 'x', 'restaurant')`, `owner${n}@fixture.test`);
   const restaurantId = await ins(`INSERT INTO restaurants (owner_id, name, city, area, status, payout_upi) VALUES (?, 'Fixture Kitchen', 'Mumbai', 'Kurla', 'approved', 'fixture@okicici')`, ownerId);
-  const venueId = await ins(`INSERT INTO venues (restaurant_id, name, min_pax, max_pax, hire_fee) VALUES (?, 'Fixture Hall', 10, 100, 100000)`, restaurantId);
+  const venueId = await ins(`INSERT INTO venues (restaurant_id, name, min_pax, max_pax, hire_fee) VALUES (?, 'Fixture Venue', 10, 100, 100000)`, restaurantId);
   const menuId = await ins(`INSERT INTO menus (restaurant_id, name, items, price_per_person) VALUES (?, 'Fixture Menu', 'Dates', 50000)`, restaurantId);
   const bcrypt = require('bcryptjs');
   const hostId = (await db.prepare('SELECT id FROM users WHERE email = ?').get(hostEmail))?.id

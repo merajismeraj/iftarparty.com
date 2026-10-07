@@ -19,10 +19,10 @@
       <div class="row-3">
         <%- include('../partials/star-input', { name: 'food_rating', label: 'Food', value: review.food_rating }) %>
         <%- include('../partials/star-input', { name: 'service_rating', label: 'Service', value: review.service_rating }) %>
-        <%- include('../partials/star-input', { name: 'ambience_rating', label: 'Hall & ambience', value: review.ambience_rating }) %>
+        <%- include('../partials/star-input', { name: 'ambience_rating', label: 'Venue & ambience', value: review.ambience_rating }) %>
       </div>
       <label class="field"><span>Headline (optional)</span><input name="title" maxlength="120" value="<%= review.title || '' %>" placeholder="Perfect for a family Iftar"></label>
-      <label class="field"><span>Your review</span><textarea name="body" rows="6" minlength="20" maxlength="2000" required placeholder="How were the food, the hall and the staff? Was everything ready for Maghrib?"><%= review.body || '' %></textarea></label>
+      <label class="field"><span>Your review</span><textarea name="body" rows="6" minlength="20" maxlength="2000" required placeholder="How were the food, the venue and the staff? Was everything ready for Maghrib?"><%= review.body || '' %></textarea></label>
       <p class="small muted">Reviews are checked by our team before they’re published. Only your first name and last initial are shown.</p>
       <button class="btn btn-gold btn-block"><%= existing ? 'Update review' : 'Submit review' %></button>
     </form>

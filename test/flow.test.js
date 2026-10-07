@@ -13,12 +13,12 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     host = await signupHost(app);
   });
 
-  test('restaurant adds a hall with photos and a menu', async () => {
+  test('restaurant adds a venue with photos and a menu', async () => {
     let token = await csrf(restaurant, '/restaurant/venues/new');
     await restaurant.post(`/restaurant/venues?_csrf=${token}`)
       .field('name', 'Shahi Darbar').field('min_pax', '20').field('max_pax', '100').field('hire_fee', '10000')
-      .field('description', 'Grand hall').field('amenities', 'AC, Prayer area')
-      .attach('images', PNG, { filename: 'hall.png', contentType: 'image/png' })
+      .field('description', 'Grand venue').field('amenities', 'AC, Prayer area')
+      .attach('images', PNG, { filename: 'venue.png', contentType: 'image/png' })
       .expect(302);
     venueId = (await db.prepare('SELECT id FROM venues').get()).id;
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM venue_images WHERE venue_id = ?').get(venueId)).n, 1);
@@ -31,10 +31,10 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     menuId = (await db.prepare('SELECT id FROM menus').get()).id;
   });
 
-  test('a hall without photos is rejected', async () => {
+  test('a venue without photos is rejected', async () => {
     const token = await csrf(restaurant, '/restaurant/venues/new');
     const res = await restaurant.post(`/restaurant/venues?_csrf=${token}`)
-      .field('name', 'No Photo Hall').field('min_pax', '10').field('max_pax', '20').expect(422);
+      .field('name', 'No Photo Venue').field('min_pax', '10').field('max_pax', '20').expect(422);
     assert.match(res.text, /at least one photo/);
   });
 
@@ -50,7 +50,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     assert.equal((await db.prepare('SELECT status FROM restaurants').get()).status, 'approved');
   });
 
-  test('search finds the hall by location, menu, price and capacity', async () => {
+  test('search finds the venue by location, menu, price and capacity', async () => {
     const hit = (q) => request(app).get(`/search?${new URLSearchParams(q)}`).then((r) => r.text.includes('Shahi Darbar'));
     assert.ok(await hit({ location: 'bandra' }));
     assert.ok(await hit({ menu: 'haleem' }));
@@ -111,7 +111,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     const avail = await request(app).get(`/api/venues/${venueId}/availability?date=${date}`);
     assert.deepEqual(avail.body, { date, available: false, label: 'Iftar Party by Meraj Ahmed' });
     const search = await request(app).get(`/search?date=${date}`);
-    assert.ok(!search.text.includes('Shahi Darbar'), 'booked hall hidden from date search');
+    assert.ok(!search.text.includes('Shahi Darbar'), 'booked venue hidden from date search');
   });
 
   test('host uploads invite list (CSV) and invites go out on both channels', async () => {
@@ -201,10 +201,10 @@ describe('security & edge cases', () => {
     await request(app).get('/restaurant').expect(302);
   });
 
-  test('a restaurant cannot edit another restaurant’s hall', async () => {
+  test('a restaurant cannot edit another restaurant’s venue', async () => {
     const a = await signupRestaurant(app);
     const token = await csrf(a, '/restaurant/venues/new');
-    await a.post(`/restaurant/venues?_csrf=${token}`).field('name', 'Hall A').field('min_pax', '1').field('max_pax', '10')
+    await a.post(`/restaurant/venues?_csrf=${token}`).field('name', 'Venue A').field('min_pax', '1').field('max_pax', '10')
       .attach('images', PNG, { filename: 'a.png', contentType: 'image/png' }).expect(302);
     const vid = (await db.prepare('SELECT id FROM venues').get()).id;
 

@@ -7,7 +7,7 @@
       <p class="muted"><%= [restaurant.area, restaurant.city].filter(Boolean).join(', ') %> · <a href="/restaurant/profile">Edit profile</a> · <a href="/restaurant/reviews">Reviews<%= rating.count ? ` (★ ${rating.avg})` : '' %></a></p>
     </div>
     <div class="btn-row">
-      <a class="btn" href="/restaurant/venues/new">+ Add hall</a>
+      <a class="btn" href="/restaurant/venues/new">+ Add venue</a>
       <a class="btn btn-ghost" href="/restaurant/menus/new">+ Set menu</a>
       <a class="btn btn-ghost" href="/restaurant/menus/new?kind=package">+ Package</a>
       <a class="btn btn-ghost" href="/restaurant/dishes">Dish catalogue</a>
@@ -16,15 +16,15 @@
   </div>
 
   <% if (restaurant.status === 'pending') { %>
-    <div class="flash flash-info"><strong>Your listing is under review.</strong> Add your halls, menus and payout details now – hosts will see you as soon as our team approves your restaurant.</div>
+    <div class="flash flash-info"><strong>Your listing is under review.</strong> Add your venues, menus and payout details now – hosts will see you as soon as our team approves your restaurant.</div>
   <% } else if (restaurant.status !== 'approved') { %>
-    <div class="flash flash-error"><strong>Your listing is <%= restaurant.status %>.</strong> Hosts can’t find or book your halls.<%= restaurant.status_note ? ` Reason: ${restaurant.status_note}` : '' %> Contact support@iftarparty.com.</div>
+    <div class="flash flash-error"><strong>Your listing is <%= restaurant.status %>.</strong> Hosts can’t find or book your venues.<%= restaurant.status_note ? ` Reason: ${restaurant.status_note}` : '' %> Contact support@iftarparty.com.</div>
   <% } %>
   <% if (!restaurant.payout_upi && !restaurant.payout_account) { %>
     <div class="flash flash-info">Add your <a href="/restaurant/profile#payout">payout details</a> (UPI or bank account) so we can transfer your earnings after each Iftar.</div>
   <% } %>
   <div class="stats">
-    <div class="stat"><span class="stat-n"><%= venues.filter(v => v.active).length %></span><span class="muted">Live halls</span></div>
+    <div class="stat"><span class="stat-n"><%= venues.filter(v => v.active).length %></span><span class="muted">Live venues</span></div>
     <div class="stat"><span class="stat-n"><%= menus.filter(m => m.active).length %></span><span class="muted">Menus offered</span></div>
     <div class="stat"><span class="stat-n"><%= bookings.length %></span><span class="muted">Upcoming parties</span></div>
     <div class="stat"><span class="stat-n"><%= money.format(stats.revenue) %></span><span class="muted">Booked revenue</span></div>
@@ -34,7 +34,7 @@
   <% if (!venues.length || !menus.length) { %>
     <div class="flash flash-info">
       <strong>Finish setting up:</strong>
-      <%= !venues.length ? 'add at least one hall with photos' : '' %><%= !venues.length && !menus.length ? ' and ' : '' %><%= !menus.length ? 'add an Iftar menu with a per-guest price' : '' %> — then you’ll appear in search.
+      <%= !venues.length ? 'add at least one venue with photos' : '' %><%= !venues.length && !menus.length ? ' and ' : '' %><%= !menus.length ? 'add an Iftar menu with a per-guest price' : '' %> — then you’ll appear in search.
     </div>
   <% } %>
 
@@ -44,7 +44,7 @@
   <% } else { %>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Date</th><th>Party</th><th>Hall</th><th>Menu</th><th>Guests booked</th><th>RSVP yes (heads)</th><th>Payout</th></tr></thead>
+        <thead><tr><th>Date</th><th>Party</th><th>Venue</th><th>Menu</th><th>Guests booked</th><th>RSVP yes (heads)</th><th>Payout</th></tr></thead>
         <tbody>
           <% bookings.forEach(b => { %>
             <tr>
@@ -62,7 +62,7 @@
     </div>
   <% } %>
 
-  <h2 class="h3">Party halls</h2>
+  <h2 class="h3">Party venues</h2>
   <div class="grid cards">
     <% venues.forEach(v => { %>
       <div class="card venue-card <%= v.active ? '' : 'inactive' %>">
@@ -72,7 +72,7 @@
         </div>
         <div class="venue-card-body">
           <h3><%= v.name %></h3>
-          <p class="muted small"><%= v.min_pax %>–<%= v.max_pax %> guests · <%= v.hire_fee ? `${money.format(v.hire_fee)} hall fee` : 'no hall fee' %> · <%= v.upcoming %> upcoming</p>
+          <p class="muted small"><%= v.min_pax %>–<%= v.max_pax %> guests · <%= v.hire_fee ? `${money.format(v.hire_fee)} venue fee` : 'no venue fee' %> · <%= v.upcoming %> upcoming</p>
           <div class="btn-row">
             <a class="btn btn-small btn-ghost" href="/restaurant/venues/<%= v.id %>/edit">Edit</a>
             <a class="btn btn-small btn-ghost" href="/venues/<%= v.id %>">View</a>
@@ -84,7 +84,7 @@
         </div>
       </div>
     <% }) %>
-    <a class="card add-card" href="/restaurant/venues/new"><span>+</span>Add a hall</a>
+    <a class="card add-card" href="/restaurant/venues/new"><span>+</span>Add a venue</a>
   </div>
 
   <h2 class="h3" id="menus">Menus &amp; packages</h2>

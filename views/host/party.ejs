@@ -5,7 +5,7 @@
   const chanIcon = (s) => ({ sent: '✓', logged: '✓ (demo)', failed: '✗ failed', not_sent: '—' }[s] || s);
 %>
 <section class="wrap section">
-  <% if (welcome) { %><ol class="progress-steps"><li class="done">Choose hall</li><li class="done">Pay</li><li class="on">Invite guests</li></ol><% } %>
+  <% if (welcome) { %><ol class="progress-steps"><li class="done">Choose venue</li><li class="done">Pay</li><li class="on">Invite guests</li></ol><% } %>
   <p class="crumbs"><a href="/my-parties">My parties</a> › <%= b.title %></p>
   <div class="party-hero card">
     <% if (b.image) { %><img src="<%= photoUrl(b.image) %>" alt=""><% } %>

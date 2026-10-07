@@ -161,7 +161,7 @@ describe('budget / tier packages with dish choices', () => {
     assert.ok(!(await listed('menu=galouti')), 'unavailable dish no longer matches');
     assert.ok(await listed('budget=500&budget_type=guest'), 'set menu at ₹500 fits');
     assert.ok(!(await listed('budget=400&budget_type=guest')));
-    // 20 guests × ₹500 + ₹1,000 hall = ₹11,000 + 5% = ₹11,550
+    // 20 guests × ₹500 + ₹1,000 venue = ₹11,000 + 5% = ₹11,550
     assert.ok(await listed('guests=20&budget=11550&budget_type=total'));
     assert.ok(!(await listed('guests=20&budget=11549&budget_type=total')));
     const res = await request(app).get('/search?budget=11550&budget_type=total');

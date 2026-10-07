@@ -29,7 +29,7 @@
 <% if (pending.length) { %>
   <h2 class="h3">Awaiting approval</h2>
   <div class="table-wrap"><table>
-    <thead><tr><th>Restaurant</th><th>Owner</th><th>Halls</th><th>Signed up</th><th></th></tr></thead>
+    <thead><tr><th>Restaurant</th><th>Owner</th><th>Venues</th><th>Signed up</th><th></th></tr></thead>
     <tbody><% pending.forEach(r => { %>
       <tr>
         <td><a href="/admin/restaurants/<%= r.id %>"><strong><%= r.name %></strong></a><br><span class="muted small"><%= [r.area, r.city].filter(Boolean).join(', ') %></span></td>

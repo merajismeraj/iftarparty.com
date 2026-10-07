@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Seeds demo restaurants, halls, menus, hosts, parties, guests and reviews. Safe to re-run (skips if data exists).
+ * Seeds demo restaurants, venues, menus, hosts, parties, guests and reviews. Safe to re-run (skips if data exists).
  * CLI: `npm run seed`. Also used to bootstrap the hosted demo (see src/app.js).
  */
 const bcrypt = require('bcryptjs');
@@ -56,7 +56,7 @@ const restaurants = [
     owner: ['Imran Qureshi', 'owner@noor.test', '+919820011111'],
     r: { name: 'Noor Mahal Kitchen', cuisine: 'Mughlai, Awadhi', area: 'Bandra West', city: 'Mumbai', address: '14 Hill Road', description: 'Family-run Mughlai restaurant serving Lucknowi classics since 1986.' },
     venues: [
-      { name: 'Shahi Darbar Hall', min: 30, max: 150, fee: 1500000, amen: 'Air-conditioned, Prayer area, Valet parking, Stage & mic', desc: 'Grand banquet hall with chandeliers and a separate prayer room for Maghrib.' },
+      { name: 'Shahi Darbar', min: 30, max: 150, fee: 1500000, amen: 'Air-conditioned, Prayer area, Valet parking, Stage & mic', desc: 'Grand banquet venue with chandeliers and a separate prayer room for Maghrib.' },
       { name: 'Rooftop Mehfil', min: 15, max: 60, fee: 800000, amen: 'Open air, Sea view, Prayer mats', desc: 'Breezy rooftop terrace — watch the sunset before breaking your fast.' },
     ],
     menus: [
@@ -98,7 +98,7 @@ const restaurants = [
     owner: ['Ayesha Fatima', 'owner@charminar.test', '+919849022222'],
     r: { name: 'Charminar Grand', cuisine: 'Hyderabadi', area: 'Banjara Hills', city: 'Hyderabad', address: 'Road No. 12', description: 'Authentic Hyderabadi haleem and dum biryani in an elegant setting.' },
     venues: [
-      { name: 'Nizam Banquet', min: 50, max: 300, fee: 2500000, amen: 'Air-conditioned, Separate family seating, Prayer hall, Parking', desc: 'Our largest hall, ideal for community Iftars and corporate gatherings.' },
+      { name: 'Nizam Banquet', min: 50, max: 300, fee: 2500000, amen: 'Air-conditioned, Separate family seating, Prayer room, Parking', desc: 'Our largest venue, ideal for community Iftars and corporate gatherings.' },
     ],
     menus: [
       { name: 'Hyderabadi Haleem Iftar', price: 120000, diet: 'non-veg', min: 50, items: 'Dates & sherbet\nPathar ka gosht\nHaleem\nKachi gosht biryani\nDouble ka meetha\nIrani chai' },

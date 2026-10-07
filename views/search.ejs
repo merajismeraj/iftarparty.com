@@ -15,14 +15,14 @@
 %>
 <section class="results-bar">
   <div class="wrap results-bar-in">
-    <p class="crit"><strong><%= crit.length ? crit.join(' · ') : 'All halls' %></strong></p>
+    <p class="crit"><strong><%= crit.length ? crit.join(' · ') : 'All venues' %></strong></p>
     <a class="btn btn-small btn-ghost" href="/<%= planQs ? `?${planQs}` : '' %>"><%= crit.length ? 'Change' : 'Plan' %></a>
   </div>
 </section>
 
 <section class="wrap section">
   <div class="results-head">
-    <h1 class="h2"><%= total %> hall<%= total === 1 ? '' : 's' %> available</h1>
+    <h1 class="h2"><%= total %> venue<%= total === 1 ? '' : 's' %> available</h1>
     <details class="refine" <%= refined ? 'open' : '' %>>
       <summary><%= sortLabel %><%= q.diet === 'veg' ? ' · Veg' : '' %><%= q.menu ? ` · “${q.menu}”` : '' %></summary>
       <div class="refine-body">
@@ -43,12 +43,12 @@
 
   <% if (budgetNeedsGuests) { %><div class="flash flash-info">Add the number of guests to filter by a total budget.</div><% } %>
   <% if (!(q.guests && q.date)) { %>
-    <p class="nudge small"><a href="/<%= planQs ? `?${planQs}` : '' %>">Add your guest count and date</a> to see only halls that fit and are free.</p>
+    <p class="nudge small"><a href="/<%= planQs ? `?${planQs}` : '' %>">Add your guest count and date</a> to see only venues that fit and are free.</p>
   <% } %>
 
   <% if (!rows.length) { %>
     <div class="empty">
-      <p class="lead">No halls match.</p>
+      <p class="lead">No venues match.</p>
       <p class="muted">Try another date, a nearby area or a higher budget.</p>
       <a class="btn btn-ghost" href="/<%= planQs ? `?${planQs}` : '' %>">Change search</a>
     </div>

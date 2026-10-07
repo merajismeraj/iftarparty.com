@@ -32,9 +32,9 @@
   </div>
 </div>
 
-<h2 class="h3">Halls</h2>
+<h2 class="h3">Venues</h2>
 <div class="table-wrap"><table>
-  <thead><tr><th></th><th>Hall</th><th>Capacity</th><th>Hall fee</th><th>Photos</th><th>Visible</th><th></th></tr></thead>
+  <thead><tr><th></th><th>Venue</th><th>Capacity</th><th>Venue fee</th><th>Photos</th><th>Visible</th><th></th></tr></thead>
   <tbody><% venues.forEach(v => { %>
     <tr class="<%= v.active ? '' : 'inactive' %>">
       <td><% if (v.image) { %><img class="thumb" src="<%= photoUrl(v.image) %>" alt=""><% } %></td>
@@ -44,7 +44,7 @@
       <td><form method="post" action="/admin/venues/<%= v.id %>/toggle" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small btn-ghost"><%= v.active ? 'Hide' : 'Show' %></button></form></td>
     </tr>
   <% }) %>
-  <% if (!venues.length) { %><tr><td colspan="7" class="muted">No halls added yet.</td></tr><% } %></tbody>
+  <% if (!venues.length) { %><tr><td colspan="7" class="muted">No venues added yet.</td></tr><% } %></tbody>
 </table></div>
 
 <h2 class="h3">Menus</h2>
@@ -59,7 +59,7 @@
 
 <h2 class="h3">Bookings</h2>
 <div class="table-wrap"><table>
-  <thead><tr><th>#</th><th>Party</th><th>Date</th><th>Hall</th><th>Status</th><th>Total</th><th>Payout</th></tr></thead>
+  <thead><tr><th>#</th><th>Party</th><th>Date</th><th>Venue</th><th>Status</th><th>Total</th><th>Payout</th></tr></thead>
   <tbody><% bookings.forEach(b => { %>
     <tr><td><a href="/admin/bookings/<%= b.id %>">#<%= b.id %></a></td><td><%= b.title %></td><td class="nowrap"><%= b.event_date %></td><td><%= b.venue_name %></td>
       <td><%- include('_status', { s: b.status }) %></td><td class="nowrap"><%= money.format(b.total_amount, b.currency) %></td>
