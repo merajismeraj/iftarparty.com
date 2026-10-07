@@ -135,9 +135,9 @@ test/
 ## Deploying
 
 ### Production: Vercel + Supabase
-The app runs as one Vercel function in **Mumbai (`bom1`)**, set in `vercel.json`. Data lives in Supabase Postgres and photos in Supabase Storage.
+The app runs as one Vercel function, and data lives in Supabase Postgres with photos in Supabase Storage. **The function region in `vercel.json` must match the Supabase project's region.** Each page makes several sequential queries, so a cross-region database adds ~190 ms per query. `/healthz` reports the round trip in `X-DB-Time`: 1–3 ms means the regions match. The project currently runs in `iad1`, next to its Supabase database (US East). For Indian users, move both to Mumbai (`bom1` + Supabase `ap-south-1`).
 
-1. **Create the Supabase project in Mumbai (`ap-south-1`)**, next to the functions. The easiest way is Vercel → Project → **Storage → Supabase** (Marketplace), which creates the project and adds its variables. **Connect it to Production only.** If previews shared it, they would write into the live database.
+1. **Create the Supabase project in the same region as the functions.** Mumbai (`ap-south-1`, with `bom1`) is best for Indian users. The easiest way is Vercel → Project → **Storage → Supabase** (Marketplace), which creates the project and adds its variables. **Connect it to Production only.** If previews shared it, they would write into the live database.
 2. **Variables (Production):**
 
    | Variable | Value |
