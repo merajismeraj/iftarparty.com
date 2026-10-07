@@ -1,11 +1,11 @@
 # IftarParty.com
 
-Reserve private party halls at local restaurants for Iftar gatherings, pay online, and invite guests on WhatsApp and email with RSVP tracking.
+Reserve private party venues at local restaurants for Iftar gatherings, pay online, and invite guests on WhatsApp and email with RSVP tracking.
 
 ## What it does
 
 **Restaurants**
-- Sign up as a restaurant partner. Add halls with min/max guest count (pax), a hall hire fee and photos (JPG/PNG/WebP, up to 8).
+- Sign up as a restaurant partner. Add venues with min/max guest count (pax), a venue hire fee and photos (JPG/PNG/WebP, up to 8).
 - Add Iftar menus with a per-guest price, minimum guests, veg/non-veg flag and the dishes included.
 - Build a **dish catalogue** (openers, starters, mains, biryani & rice, breads, desserts, beverages; veg or non-veg).
 - Offer **set menus** (a fixed list of dishes) and/or **packages**: budget tiers like *Silver ₹699 · Gold ₹999 · Platinum ₹1,499* per guest. Each package sets how many dishes the host chooses per course (e.g. *3 starters · 2 mains · 2 desserts*) and which dishes are eligible, so premium dishes can be kept for higher tiers. Marking a dish unavailable removes it from every package at once.
@@ -14,10 +14,10 @@ Reserve private party halls at local restaurants for Iftar gatherings, pay onlin
 - The dashboard shows upcoming parties, each host's contact details, the RSVP headcount and the payout.
 
 **Hosts**
-- Search by **location**, **date**, **guest count**, **menu, dish or cuisine** (dish names inside packages match too), **budget** and diet. The budget can be **per guest** or a **total for the event**: food + hall + service fee for your guest count, before extras. Cards show a *Fits budget* estimate. Sort by price, top rated, size or newest.
+- Search by **location**, **date**, **guest count**, **menu, dish or cuisine** (dish names inside packages match too), **budget** and diet. The budget can be **per guest** or a **total for the event**: food + venue + service fee for your guest count, before extras. Cards show a *Fits budget* estimate. Sort by price, top rated, size or newest.
 - On a venue page, every menu and package is marked **Within budget** or **Over budget by ₹X**. Pick a date, guest count and menu or package, choose dishes per course (the picker stops at each course's limit) and any extras. Hosts must pick **at least 4 dishes in total** (at least one from every course in the package). The minimum is an admin setting, and packages that can't reach it are hidden. The **full price shows live**, along with how much of your budget is left.
 - Dish picks and extras are saved with the booking at their quoted prices. Hosts can **change dishes until 2 days before the Iftar**; after that the menu is final for the kitchen. Picks appear on the checkout page, the host's party page, the restaurant dashboard, the admin booking page and the guests' invitations. The server recalculates it, so a client can't change the price.
-- Reserving holds the hall for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
+- Reserving holds the venue for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
 - After payment you're sent straight to **upload your invite list** as a CSV or pasted rows with name, email and mobile. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
 - Guests reply Yes, Maybe or No with the number of people coming and a note. The host's dashboard shows **attending, total heads, maybe, declined and awaiting reply**, plus a bar comparing confirmed heads to guests booked. You can send reminders to anyone who hasn't replied and export the RSVPs to CSV.
 - The RSVP page shows **who's coming**: the confirmed guests as "First L." with any "+N" family members, plus a total headcount. The guest viewing it appears first as "You". Contact details, declines and maybes are never shown, and the host can switch the list off in their invitation settings.
@@ -34,7 +34,7 @@ Requires Node.js 22. The database is **Postgres**: Supabase in production. Local
 ```bash
 npm install
 cp .env.example .env      # optional – works with defaults
-npm run seed              # demo restaurants, halls, menus and a booked party
+npm run seed              # demo restaurants, venues, menus and a booked party
 npm start                 # http://localhost:3000
 npm test                  # 98 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
 TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test   # same suite on a real Postgres server
@@ -102,7 +102,7 @@ npm run admin -- promote someone@example.com
 | Section | What it does |
 |---|---|
 | **Overview** | GMV, platform revenue, refunds, live restaurants and upcoming RSVPs. A *Needs attention* queue lists pending approvals, payouts owed, failed or processing refunds, unrefunded payments and failed invites. |
-| **Restaurants** | Approve, reject, suspend or reinstate. New sign-ups stay **pending** and hidden from search until approved. Rejecting or suspending needs a reason, which the restaurant sees. Hide individual halls. View payout details. |
+| **Restaurants** | Approve, reject, suspend or reinstate. New sign-ups stay **pending** and hidden from search until approved. Rejecting or suspending needs a reason, which the restaurant sees. Hide individual venues. View payout details. |
 | **Bookings** | Filter by status, refund state, event dates or free text, including the order id. Export to CSV for accounting. Each booking shows the event, RSVPs, the money breakdown and the full **payments ledger**. **Cancel with a full, partial or no refund** through Cashfree. The host is emailed, invited guests are told by WhatsApp and email (optional), their RSVP links show the cancellation, and the night becomes free again. Re-check stuck orders with the gateway and retry failed refunds. |
 | **Reviews** | Moderation queue for reviews and restaurant replies: approve, reject or unpublish, with a reason the author sees. Includes booking context and the reviewer's history. |
 | **Payouts** | Lists what each restaurant is owed (total minus platform fee) for Iftars that have already happened, with their UPI and bank details. Record the bank reference (UTR) to mark them paid; the payout history is kept. |

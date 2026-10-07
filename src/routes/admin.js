@@ -139,13 +139,13 @@ module.exports = (db) => {
     }
     await db.prepare('UPDATE restaurants SET status = ?, status_note = ? WHERE id = ?').run(status, status === 'approved' ? '' : note, r.id);
     await audit.log(db, req.user.id, `restaurant.${status}`, 'restaurant', r.id, note);
-    req.flash('success', `${r.name} is now ${status}.${status === 'approved' ? ' Its halls appear in search.' : ''}`);
+    req.flash('success', `${r.name} is now ${status}.${status === 'approved' ? ' Its venues appear in search.' : ''}`);
     res.redirect(back(req, `/admin/restaurants/${r.id}`));
   });
 
   router.post('/venues/:id/toggle', async (req, res) => {
     const v = await db.prepare('SELECT * FROM venues WHERE id = ?').get(req.params.id);
-    if (!v) return notFound(res, 'Hall');
+    if (!v) return notFound(res, 'Venue');
     await db.prepare('UPDATE venues SET active = 1 - active WHERE id = ?').run(v.id);
     await audit.log(db, req.user.id, v.active ? 'venue.hide' : 'venue.show', 'restaurant', v.restaurant_id, `${v.name} (#${v.id})`);
     req.flash('success', `${v.name} is now ${v.active ? 'hidden from' : 'visible in'} search.`);
@@ -198,12 +198,12 @@ module.exports = (db) => {
   router.get('/bookings.csv', async (req, res) => {
     const f = bookingFilters(req.query);
     const rows = await db.prepare(
-      `SELECT b.id, b.title, b.event_date, b.status, u.name AS host, u.email AS host_email, r.name AS restaurant, v.name AS hall,
+      `SELECT b.id, b.title, b.event_date, b.status, u.name AS host, u.email AS host_email, r.name AS restaurant, v.name AS venue,
               m.name AS menu, b.guest_count, b.food_total, b.hire_fee, b.addons_total, b.platform_fee, b.total_amount, b.currency,
               b.payment_ref, b.paid_at, b.payout_status, b.payout_ref, b.cancel_reason
        ${f.sql} ORDER BY b.id`
     ).all(...f.params);
-    const cols = ['id', 'title', 'event_date', 'status', 'host', 'host_email', 'restaurant', 'hall', 'menu', 'guest_count',
+    const cols = ['id', 'title', 'event_date', 'status', 'host', 'host_email', 'restaurant', 'venue', 'menu', 'guest_count',
       'food_total', 'hire_fee', 'addons_total', 'platform_fee', 'total_amount', 'currency', 'payment_ref', 'paid_at', 'payout_status', 'payout_ref', 'cancel_reason'];
     const amount = new Set(['food_total', 'hire_fee', 'addons_total', 'platform_fee', 'total_amount']);
     const lines = [cols.join(',')].concat(rows.map((r) => cols.map((c) => csvCell(amount.has(c) ? money.toMajor(r[c]).toFixed(2) : r[c])).join(',')));

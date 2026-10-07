@@ -83,7 +83,7 @@ describe('admin portal', () => {
 
     const token = await csrf(admin, `/admin/bookings/${id}`);
     const res = await admin.post(`/admin/bookings/${id}/cancel`).type('form')
-      .send({ _csrf: token, reason: 'Hall flooded', refund: 'full', notify_guests: 'on' }).expect(302);
+      .send({ _csrf: token, reason: 'Venue flooded', refund: 'full', notify_guests: 'on' }).expect(302);
     const flash = await admin.get(res.headers.location);
     assert.match(flash.text, /2 guests notified/);
 
@@ -95,7 +95,7 @@ describe('admin portal', () => {
 
     const page = await request(app).get(`/rsvp/${aishaToken}`).expect(200);
     assert.match(page.text, /This Iftar has been cancelled/);
-    assert.match(page.text, /Reason: Hall flooded/);
+    assert.match(page.text, /Reason: Venue flooded/);
     assert.doesNotMatch(page.text, /Yes, I’ll be there/);
     const guest = request.agent(app);
     const t2 = await csrf(guest, "/login"); // the cancelled invite has no form; forge a POST anyway
@@ -105,7 +105,7 @@ describe('admin portal', () => {
     const host = await signin(app, 'host@fixture.test');
     const parties = await host.get('/my-parties').expect(200);
     assert.match(parties.text, /Cancelled/);
-    assert.match(parties.text, /Reason: Hall flooded/);
+    assert.match(parties.text, /Reason: Venue flooded/);
     assert.match(parties.text, /Refund: ₹[\d,]+ – completed/);
     assert.match(parties.text, /We notified 2 of your guests/);
     await host.get(`/bookings/${id}`).expect(302);

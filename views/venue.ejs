@@ -9,7 +9,7 @@
     </div>
     <div class="pill-row">
       <span class="pill"><%= venue.min_pax %>–<%= venue.max_pax %> guests</span>
-      <span class="pill"><%= venue.hire_fee ? `Hall fee ${money.format(venue.hire_fee)}` : 'No hall fee' %></span>
+      <span class="pill"><%= venue.hire_fee ? `Venue fee ${money.format(venue.hire_fee)}` : 'No venue fee' %></span>
     </div>
   </div>
 
@@ -22,7 +22,7 @@
 
   <div class="venue-layout">
     <div class="venue-main">
-      <% if (venue.description) { %><h2 class="h3">About the hall</h2><p class="prewrap"><%= venue.description %></p><% } %>
+      <% if (venue.description) { %><h2 class="h3">About the venue</h2><p class="prewrap"><%= venue.description %></p><% } %>
       <% if (venue.amenities) { %>
         <div class="pill-row">
           <% venue.amenities.split(',').map(s => s.trim()).filter(Boolean).forEach(a => { %><span class="pill pill-soft"><%= a %></span><% }) %>
@@ -31,7 +31,7 @@
 
       <h2 class="h3" id="menus">Menus &amp; packages</h2>
       <% if (budget) { %>
-        <p class="small muted">Showing fit for your budget of <strong><%= money.format(budget.amount) %></strong> <%= budget.type === 'total' ? `total${form.guests ? ` for ${form.guests} guests` : ''}` : 'per guest' %><%= budget.type === 'total' ? ' (food + hall + service fee, before extras)' : '' %>.</p>
+        <p class="small muted">Showing fit for your budget of <strong><%= money.format(budget.amount) %></strong> <%= budget.type === 'total' ? `total${form.guests ? ` for ${form.guests} guests` : ''}` : 'per guest' %><%= budget.type === 'total' ? ' (food + venue + service fee, before extras)' : '' %>.</p>
       <% } %>
       <% if (!menus.length) { %><p class="muted">This restaurant hasn’t published a menu yet.</p><% } %>
       <div class="menu-list">
@@ -92,7 +92,7 @@
             data-min-pax="<%= venue.min_pax %>" data-max-pax="<%= venue.max_pax %>" data-venue="<%= venue.id %>"
             <% if (budget) { %>data-budget="<%= budget.amount %>" data-budget-type="<%= budget.type %>"<% } %>>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <h2 class="h3">Reserve this hall</h2>
+        <h2 class="h3">Reserve this venue</h2>
         <div class="row-2">
         <label class="field">
           <span>Date</span>
@@ -149,7 +149,7 @@
         <div class="quote" data-quote-box hidden>
           <div><span data-q-food-label>Food</span><span data-q-food></span></div>
           <div data-q-addons-row hidden><span>Extras</span><span data-q-addons></span></div>
-          <div><span>Hall fee</span><span data-q-hire></span></div>
+          <div><span>Venue fee</span><span data-q-hire></span></div>
           <div><span>Service fee (<%= feePercent %>%)</span><span data-q-fee></span></div>
           <div class="total"><span>Total</span><span data-q-total></span></div>
         </div>
@@ -162,7 +162,7 @@
           <button class="btn btn-block" disabled>Menus coming soon</button>
         <% } else { %>
           <button class="btn btn-gold btn-block" <%= taken ? 'disabled' : '' %> data-reserve-btn>Reserve &amp; continue to payment</button>
-          <p class="small muted center">Your hall is held for <%= locals.holdMinutes || 30 %> minutes while you pay. <%= user ? '' : 'You’ll be asked to sign in.' %></p>
+          <p class="small muted center">Your venue is held for <%= locals.holdMinutes || 30 %> minutes while you pay. <%= user ? '' : 'You’ll be asked to sign in.' %></p>
         <% } %>
       </form>
     </aside>

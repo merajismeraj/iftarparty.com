@@ -23,7 +23,7 @@ document.documentElement.classList.add('js');
       const menu = form.querySelector('input[name="menu_id"]:checked');
       const guests = Number.parseInt(guestsInput.value, 10);
       let problem = '';
-      if (guests && (guests < minPax || guests > maxPax)) problem = `This hall takes ${minPax}–${maxPax} guests.`;
+      if (guests && (guests < minPax || guests > maxPax)) problem = `This venue takes ${minPax}–${maxPax} guests.`;
       else if (menu && guests && guests < Number(menu.dataset.min)) problem = `This menu needs at least ${menu.dataset.min} guests.`;
       err.hidden = !problem;
       err.textContent = problem;
@@ -220,7 +220,7 @@ document.documentElement.classList.add('js');
     window.addEventListener('pageshow', () => form.querySelectorAll('input').forEach((i) => { i.disabled = false; }));
   }
 
-  // Hall photos: shrink in the browser before upload (phone photos are 3–8 MB; requests are capped at ~4.5 MB).
+  // Venue photos: shrink in the browser before upload (phone photos are 3–8 MB; requests are capped at ~4.5 MB).
   function initPhotoInput(input) {
     const MAX_EDGE = 1600;
     const BUDGET = 4 * 1024 * 1024;

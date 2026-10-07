@@ -10,7 +10,7 @@
     <h2 class="h3">Event</h2>
     <dl class="kv">
       <dt>Date</dt><dd><%= fmt.longDate(b.event_date) %>, <%= fmt.time12(b.arrival_time) %></dd>
-      <dt>Hall</dt><dd><%= b.venue_name %>, <%= b.restaurant_name %> (<%= b.city %>)</dd>
+      <dt>Venue</dt><dd><%= b.venue_name %>, <%= b.restaurant_name %> (<%= b.city %>)</dd>
       <dt>Menu</dt><dd><%= b.menu_name %> · <%= b.guest_count %> guests<% dishes.forEach(g => { %><br><span class="small"><span class="muted"><%= g.label %>:</span> <%= g.dishes.map(d => d.name).join(', ') %></span><% }) %></dd>
       <dt>Host</dt><dd><%= b.host_name %><br><%= b.host_email %> · <%= b.host_phone || '—' %></dd>
       <dt>RSVPs</dt><dd><%= rsvp.yes %> yes (<%= rsvp.headcount %> heads) · <%= rsvp.maybe %> maybe · <%= rsvp.no %> no · <%= rsvp.pending %> awaiting · <%= rsvp.invited %> invited</dd>
@@ -23,7 +23,7 @@
     <div class="quote">
       <div><span><%= b.guest_count %> × <%= money.format(b.price_per_person, b.currency) %></span><span><%= money.format(b.food_total, b.currency) %></span></div>
       <% addons.forEach(a => { %><div><span><%= a.name %><%= a.pricing === 'per_guest' ? ` (${a.quantity} × ${money.format(a.unit_price, b.currency)})` : '' %></span><span><%= money.format(a.total, b.currency) %></span></div><% }) %>
-      <div><span>Hall fee</span><span><%= money.format(b.hire_fee, b.currency) %></span></div>
+      <div><span>Venue fee</span><span><%= money.format(b.hire_fee, b.currency) %></span></div>
       <div><span>Platform fee</span><span><%= money.format(b.platform_fee, b.currency) %></span></div>
       <div class="total"><span>Total</span><span><%= money.format(b.total_amount, b.currency) %></span></div>
     </div>

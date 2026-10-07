@@ -6,7 +6,7 @@
   <button class="btn btn-small">Filter</button>
 </form>
 <div class="table-wrap"><table>
-  <thead><tr><th>Restaurant</th><th>Owner</th><th>Status</th><th>Halls</th><th>Menus</th><th>Bookings</th><th>GMV</th></tr></thead>
+  <thead><tr><th>Restaurant</th><th>Owner</th><th>Status</th><th>Venues</th><th>Menus</th><th>Bookings</th><th>GMV</th></tr></thead>
   <tbody><% rows.forEach(r => { %>
     <tr>
       <td><a href="/admin/restaurants/<%= r.id %>"><strong><%= r.name %></strong></a><br><span class="muted small"><%= [r.area, r.city].filter(Boolean).join(', ') %></span></td>

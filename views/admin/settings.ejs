@@ -5,7 +5,7 @@
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <h2 class="h3">Commission</h2>
     <%- include('../partials/errors') %>
-    <label class="field"><span>Platform fee (% added on top of food + hall fee)</span><input type="number" name="platform_fee_percent" min="0" max="30" step="0.01" value="<%= fee %>"></label>
+    <label class="field"><span>Platform fee (% added on top of food + venue fee)</span><input type="number" name="platform_fee_percent" min="0" max="30" step="0.01" value="<%= fee %>"></label>
     <p class="small muted">Applies to new reservations only; each booking stores the fee it was quoted.</p>
     <h2 class="h3">Packages</h2>
     <label class="field"><span>Minimum dishes a host must pick in a package (all courses combined)</span><input type="number" name="min_package_dishes" min="1" max="30" step="1" value="<%= minDishes %>"></label>

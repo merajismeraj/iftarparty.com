@@ -10,7 +10,7 @@ function addonLine(addon, guestCount) {
 /**
  * Authoritative price for a booking. All amounts are integer minor units.
  * The same formula is mirrored client-side (public/js/app.js) for the live quote.
- * The platform fee applies to everything the restaurant supplies: food, hall and add-ons.
+ * The platform fee applies to everything the restaurant supplies: food, venue and add-ons.
  */
 function quote({ pricePerPerson, guestCount, hireFee, addons = [], feePercent = config.platformFeePercent }) {
   const foodTotal = pricePerPerson * guestCount;
@@ -22,7 +22,7 @@ function quote({ pricePerPerson, guestCount, hireFee, addons = [], feePercent = 
 
 /**
  * Interpret a host's budget. type 'guest' compares the per-guest menu price; type 'total'
- * compares the full estimate (food + hall + platform fee, before optional extras) and needs a guest count.
+ * compares the full estimate (food + venue + platform fee, before optional extras) and needs a guest count.
  * Returns null when no usable budget was given.
  */
 function parseBudget(query, toMinor) {

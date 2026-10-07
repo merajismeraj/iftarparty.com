@@ -47,7 +47,7 @@ async function searchVenues(db, q, feePercent = 0) {
     where.push('m.price_per_person <= ?');
     params.push(budget.amount);
   } else if (budget?.type === 'total' && guests > 0) {
-    // Full estimate before optional extras: (food + hall) plus the platform fee.
+    // Full estimate before optional extras: (food + venue) plus the platform fee.
     where.push('(m.price_per_person * ?::integer + v.hire_fee) * (100 + ?::numeric) <= ?::numeric * 100');
     params.push(guests, feePercent, budget.amount);
   }

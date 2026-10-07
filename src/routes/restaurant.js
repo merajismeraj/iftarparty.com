@@ -19,10 +19,10 @@ function venueFromBody(b) {
     min_pax: int(b.min_pax), max_pax: int(b.max_pax), hire_fee: b.hire_fee === '' || b.hire_fee == null ? 0 : money.toMinor(b.hire_fee),
   };
   const errors = [];
-  if (!v.name) errors.push('Give the hall a name, e.g. “Noor Banquet Hall”.');
+  if (!v.name) errors.push('Give the venue a name, e.g. “Noor Rooftop Lounge”.');
   if (!(v.min_pax >= 1)) errors.push('Minimum guests must be at least 1.');
   if (!(v.max_pax >= v.min_pax)) errors.push('Maximum guests must be at least the minimum.');
-  if (!Number.isFinite(v.hire_fee)) errors.push('Hall hire fee must be a number (use 0 if included in the menu price).');
+  if (!Number.isFinite(v.hire_fee)) errors.push('Venue hire fee must be a number (use 0 if included in the menu price).');
   return { v, errors };
 }
 
@@ -128,14 +128,14 @@ module.exports = (db) => {
     res.redirect('/restaurant');
   });
 
-  // ---- Venues / halls ----
-  router.get('/venues/new', (req, res) => res.render('restaurant/venue-form', { title: 'Add a party hall', venue: { min_pax: 20, max_pax: 100 }, images: [], errors: [] }));
+  // ---- Venues ----
+  router.get('/venues/new', (req, res) => res.render('restaurant/venue-form', { title: 'Add a party venue', venue: { min_pax: 20, max_pax: 100 }, images: [], errors: [] }));
 
   router.post('/venues', imageUpload.array('images', 8), async (req, res) => {
     const { v, errors } = venueFromBody(req.body);
-    if (!req.files?.length) errors.push('Add at least one photo of the hall (JPG, PNG or WebP, up to 5 MB each).');
+    if (!req.files?.length) errors.push('Add at least one photo of the venue (JPG, PNG or WebP, up to 5 MB each).');
     if (errors.length) {
-      return res.status(422).render('restaurant/venue-form', { title: 'Add a party hall', venue: { ...req.body, hire_fee: req.body.hire_fee }, images: [], errors, rawFee: true });
+      return res.status(422).render('restaurant/venue-form', { title: 'Add a party venue', venue: { ...req.body, hire_fee: req.body.hire_fee }, images: [], errors, rawFee: true });
     }
     const id = Number((await db.prepare(
       'INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -167,7 +167,7 @@ module.exports = (db) => {
       .run(v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee, venue.id);
     const ins = db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)');
     for (const [i, name] of (await storage.saveImages(req.files)).entries()) await ins.run(venue.id, name, images.length + i);
-    req.flash('success', 'Hall updated.');
+    req.flash('success', 'Venue updated.');
     res.redirect(`/restaurant/venues/${venue.id}/edit`);
   });
 

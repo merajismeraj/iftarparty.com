@@ -55,7 +55,7 @@ describe('venue photos on Supabase Storage', () => {
   test('uploads go to a public bucket (created once) and pages link to the CDN URL', async () => {
     const token = await csrf(restaurant, '/restaurant/venues/new');
     await restaurant.post(`/restaurant/venues?_csrf=${token}`)
-      .field('name', 'Cloud Hall').field('min_pax', '10').field('max_pax', '80').field('hire_fee', '0')
+      .field('name', 'Cloud Venue').field('min_pax', '10').field('max_pax', '80').field('hire_fee', '0')
       .attach('images', PNG, { filename: 'a.png', contentType: 'image/png' })
       .attach('images', PNG, { filename: 'b.png', contentType: 'image/png' })
       .expect(302);
