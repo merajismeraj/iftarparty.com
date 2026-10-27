@@ -436,8 +436,46 @@ document.documentElement.classList.add('js');
     new IntersectionObserver(([entry]) => cta.classList.toggle('hide', entry.isIntersecting), { threshold: 0.15 }).observe(target);
   }
 
+  /** Horizontal snap scroller: report which slide is showing (1-based). */
+  function trackSlides(track, onChange) {
+    let last = 0;
+    track.addEventListener('scroll', () => {
+      const slide = track.firstElementChild;
+      if (!slide) return;
+      const i = Math.round(track.scrollLeft / (slide.getBoundingClientRect().width + (parseFloat(getComputedStyle(track).columnGap) || 0)));
+      if (i !== last) onChange((last = i) + 1);
+    }, { passive: true });
+  }
+
+  // Search results deck: "2 of 12" as cards are swiped.
+  function initDeck(deck) {
+    const pos = document.querySelector('[data-deck-pos]');
+    if (pos) trackSlides(deck, (n) => { pos.textContent = String(Math.min(n, deck.children.length)); });
+  }
+
+  // Venue hero: photo counter, desktop arrows, and "back" returns to the same spot in the deck.
+  function initHero(track) {
+    const pos = document.querySelector('[data-hero-pos]');
+    if (pos) trackSlides(track, (n) => { pos.textContent = String(n); });
+    document.querySelectorAll('[data-hero-step]').forEach((btn) => btn.addEventListener('click', () => {
+      track.scrollBy({ left: Number(btn.dataset.heroStep) * track.clientWidth, behavior: 'smooth' });
+    }));
+    const back = document.querySelector('[data-hero-back]');
+    back?.addEventListener('click', (e) => {
+      try {
+        const ref = new URL(document.referrer);
+        if (ref.origin === location.origin && ref.pathname === '/search' && history.length > 1) {
+          e.preventDefault();
+          history.back();
+        }
+      } catch { /* no referrer: follow the link */ }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initNav();
+    document.querySelectorAll('[data-deck]').forEach(initDeck);
+    document.querySelectorAll('[data-hero-track]').forEach(initHero);
     labelTables();
     document.querySelectorAll('form[data-planner]').forEach(initPlanner);
     document.querySelectorAll('input[data-photo-input]').forEach(initPhotoInput);

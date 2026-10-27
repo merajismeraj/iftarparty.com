@@ -72,6 +72,8 @@ async function searchVenues(db, q, feePercent = 0) {
             r.name AS restaurant_name, r.area, r.city, r.cuisine,
             MIN(m.price_per_person) AS from_price, COUNT(DISTINCT m.id) AS menu_count,
             string_agg(DISTINCT m.name, ',') AS menu_names,
+            (array_agg(m.name ORDER BY m.price_per_person, m.id))[1] AS top_menu,
+            (SELECT COUNT(*) FROM venue_images vi WHERE vi.venue_id = v.id) AS image_count,
             (SELECT ROUND(AVG(rv.rating), 1) FROM reviews rv WHERE rv.restaurant_id = r.id AND rv.status = 'approved') AS rating,
             (SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id AND rv.status = 'approved') AS review_count,
             (SELECT filename FROM venue_images vi WHERE vi.venue_id = v.id ORDER BY sort_order, id LIMIT 1) AS image

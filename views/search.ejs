@@ -20,7 +20,7 @@
   </div>
 </section>
 
-<section class="wrap section">
+<section class="wrap section results">
   <div class="results-head">
     <h1 class="h2"><%= total %> venue<%= total === 1 ? '' : 's' %> available</h1>
     <details class="refine" <%= refined ? 'open' : '' %>>
@@ -42,9 +42,6 @@
   </div>
 
   <% if (budgetNeedsGuests) { %><div class="flash flash-info">Add the number of guests to filter by a total budget.</div><% } %>
-  <% if (!(q.guests && q.date)) { %>
-    <p class="nudge small"><a href="/<%= planQs ? `?${planQs}` : '' %>">Add your guest count and date</a> to see only venues that fit and are free.</p>
-  <% } %>
 
   <% if (!rows.length) { %>
     <div class="empty">
@@ -53,9 +50,10 @@
       <a class="btn btn-ghost" href="/<%= planQs ? `?${planQs}` : '' %>">Change search</a>
     </div>
   <% } else { %>
-    <div class="grid cards">
-      <% rows.forEach(v => { %><%- include('partials/venue-card', { v, qs: venueQs, est: budget && budget.type === 'total' && Number(q.guests) > 0 ? Math.round((v.from_price * Number(q.guests) + v.hire_fee) * (100 + feePercent) / 100) : null }) %><% }) %>
+    <div class="deck" data-deck>
+      <% rows.forEach((v, i) => { %><%- include('partials/swipe-card', { v, i, qs: venueQs, est: budget && budget.type === 'total' && Number(q.guests) > 0 ? Math.round((v.from_price * Number(q.guests) + v.hire_fee) * (100 + feePercent) / 100) : null }) %><% }) %>
     </div>
+    <% if (rows.length > 1) { %><p class="deck-hint small muted" aria-live="polite"><span data-deck-pos>1</span> of <%= rows.length %> · swipe for more, tap for details</p><% } %>
     <% if (pages > 1) { %>
       <nav class="pager">
         <% if (page > 1) { %><a class="btn btn-ghost" href="<%= withParam('page', page - 1) %>">← Previous</a><% } %>
@@ -63,6 +61,9 @@
         <% if (page < pages) { %><a class="btn btn-ghost" href="<%= withParam('page', page + 1) %>">Next →</a><% } %>
       </nav>
     <% } %>
+  <% } %>
+  <% if (!(q.guests && q.date)) { %>
+    <p class="nudge small"><a href="/<%= planQs ? `?${planQs}` : '' %>">Add your guest count and date</a> to see only venues that fit and are free.</p>
   <% } %>
 </section>
 <%- include('partials/foot') %>
