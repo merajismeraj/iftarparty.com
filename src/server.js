@@ -2,14 +2,13 @@
 const config = require('./config');
 const http = require('node:http');
 const handler = require('./app');
-const { whatsappProvider } = require('./services/notify');
+const { whatsappEnabled } = require('./services/notify');
 
 const server = http.createServer(handler).listen(config.port, () => {
   console.log(`IftarParty running at ${config.baseUrl}`);
   console.log(config.cashfree.appId ? `  payments: Cashfree (${config.cashfree.env})` : '  payments: DEMO mode (set CASHFREE_APP_ID + CASHFREE_SECRET_KEY for Cashfree)');
   if (!config.smtp.host) console.log('  email:    DEMO mode (set SMTP_HOST to send real email)');
-  const wa = whatsappProvider();
-  console.log(wa === 'demo' ? '  whatsapp: DEMO mode (set OPENWA_URL + OPENWA_API_KEY + OPENWA_SESSION_ID)' : `  whatsapp: ${wa === 'openwa' ? 'OpenWA gateway' : 'Meta Cloud API'}`);
+  console.log(whatsappEnabled() ? '  whatsapp: Meta WhatsApp Cloud API' : '  whatsapp: DEMO mode (set WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID)');
   if (config.demoMode) console.log('  data:     DEMO mode (sample data seeded into an empty database)');
 });
 

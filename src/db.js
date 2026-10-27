@@ -291,6 +291,11 @@ const MIGRATIONS = [
     END LOOP;
   END $$;
   `,
+  // v2: WhatsApp Cloud API message id (wamid), so delivery/read/failed webhooks can update the log.
+  `
+  ALTER TABLE message_log ADD COLUMN provider_id text;
+  CREATE INDEX message_log_provider_id ON message_log (provider_id) WHERE provider_id IS NOT NULL;
+  `,
 ];
 
 /* --------------------------------------------------------------- drivers */

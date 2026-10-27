@@ -6,7 +6,7 @@
   <% }) %>
 </div>
 <form class="admin-filters" method="get">
-  <select name="status"><option value="">All results</option><% ['failed', 'sent', 'logged'].forEach(s => { %><option <%= q.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
+  <select name="status"><option value="">All results</option><% ['failed', 'sent', 'delivered', 'read', 'logged'].forEach(s => { %><option <%= q.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
   <select name="kind"><option value="">Invites &amp; cancellations</option><% ['invite', 'cancellation'].forEach(s => { %><option <%= q.kind === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
   <select name="channel"><option value="">Both channels</option><% ['whatsapp', 'email'].forEach(s => { %><option <%= q.channel === s ? 'selected' : '' %>><%= s %></option><% }) %></select>
   <button class="btn btn-small">Filter</button>

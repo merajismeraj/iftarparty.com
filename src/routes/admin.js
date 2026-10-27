@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const config = require('../config');
 const { requireAuth } = require('../middleware/auth');
 const svc = require('../services/bookings');
 const checkout = require('../services/checkout');
@@ -388,7 +389,7 @@ module.exports = (db) => {
     const q = req.query;
     const where = ['1 = 1'];
     const params = [];
-    if (['failed', 'sent', 'logged'].includes(q.status)) { where.push('ml.status = ?'); params.push(q.status); }
+    if (['failed', 'sent', 'delivered', 'read', 'logged'].includes(q.status)) { where.push('ml.status = ?'); params.push(q.status); }
     if (['email', 'whatsapp'].includes(q.channel)) { where.push('ml.channel = ?'); params.push(q.channel); }
     if (['invite', 'cancellation'].includes(q.kind)) { where.push('ml.kind = ?'); params.push(q.kind); }
     const page = pageOf(q);
@@ -486,7 +487,7 @@ module.exports = (db) => {
   });
 
   router.get('/settings', async (req, res) => {
-    res.render('admin/settings', { title: 'Settings', fee: await settings.feePercent(db), minDishes: await settings.minPackageDishes(db), live: payments.isLive(), wa: require('../services/notify').whatsappProvider(), errors: [] });
+    res.render('admin/settings', { title: 'Settings', fee: await settings.feePercent(db), minDishes: await settings.minPackageDishes(db), live: payments.isLive(), wa: require('../services/notify').whatsappEnabled(), waTemplates: [config.whatsapp.templateName, config.whatsapp.cancelTemplateName], waWebhook: Boolean(config.whatsapp.appSecret && config.whatsapp.verifyToken), errors: [] });
   });
 
   router.post('/settings', async (req, res) => {
@@ -498,7 +499,7 @@ module.exports = (db) => {
     if (!Number.isInteger(minDishes) || minDishes < 1 || minDishes > 30) errors.push('Minimum dishes per package must be a whole number from 1 to 30.');
     if (errors.length) {
       return res.status(422).render('admin/settings', {
-        title: 'Settings', fee: req.body.platform_fee_percent, minDishes: req.body.min_package_dishes, live: payments.isLive(), wa: require('../services/notify').whatsappProvider(), errors,
+        title: 'Settings', fee: req.body.platform_fee_percent, minDishes: req.body.min_package_dishes, live: payments.isLive(), wa: require('../services/notify').whatsappEnabled(), waTemplates: [config.whatsapp.templateName, config.whatsapp.cancelTemplateName], waWebhook: Boolean(config.whatsapp.appSecret && config.whatsapp.verifyToken), errors,
       });
     }
     const before = { fee: await settings.feePercent(db), min: await settings.minPackageDishes(db) };

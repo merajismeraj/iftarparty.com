@@ -2,7 +2,7 @@
 <%
   const uninvited = guests.filter(g => !g.invited_at).length;
   const statusLabel = { yes: 'Attending', no: 'Declined', maybe: 'Maybe', pending: 'Awaiting reply' };
-  const chanIcon = (s) => ({ sent: '✓', logged: '✓ (demo)', failed: '✗ failed', not_sent: '—' }[s] || s);
+  const chanIcon = (s) => ({ sent: '✓ sent', delivered: '✓✓ delivered', read: '✓✓ read', logged: '✓ (demo)', failed: '✗ failed', not_sent: '—' }[s] || s);
 %>
 <section class="wrap section">
   <% if (welcome) { %><ol class="progress-steps"><li class="done">Choose venue</li><li class="done">Pay</li><li class="on">Invite guests</li></ol><% } %>
