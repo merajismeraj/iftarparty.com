@@ -51,8 +51,35 @@ async function renderEmail(booking, guest, invite) {
 }
 
 async function log(db, guestId, channel, recipient, result, kind = 'invite') {
-  await db.prepare('INSERT INTO message_log (guest_id, channel, recipient, status, detail, kind) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(guestId, channel, recipient, result.status, String(result.detail || '').slice(0, 500), kind);
+  await db.prepare('INSERT INTO message_log (guest_id, channel, recipient, status, detail, kind, provider_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(guestId, channel, recipient, result.status, String(result.detail || '').slice(0, 500), kind, result.providerId || null);
+}
+
+/** WhatsApp status order: a late "delivered" never overwrites "read". */
+const WA_RANK = { sent: 1, delivered: 2, read: 3 };
+
+/**
+ * Apply one WhatsApp Cloud API status update (sent / delivered / read / failed) to the message log and
+ * the guest's invite status. Returns true if a logged message matched.
+ */
+async function applyWhatsAppStatus(db, { id, status, errors = [] }) {
+  if (!id || !['sent', 'delivered', 'read', 'failed'].includes(status)) return false;
+  const msg = await db.prepare(`SELECT * FROM message_log WHERE provider_id = ? AND channel = 'whatsapp'`).get(String(id));
+  if (!msg) return false;
+  if (status !== 'failed' && (WA_RANK[status] || 0) <= (WA_RANK[msg.status] || 0)) return true;
+  const e = errors[0] || {};
+  const detail = status === 'failed'
+    ? `${e.code ? `(#${e.code}) ` : ''}${e.error_data?.details || e.message || e.title || 'Delivery failed'}`.slice(0, 500)
+    : msg.detail;
+  await db.prepare('UPDATE message_log SET status = ?, detail = ? WHERE id = ?').run(status, detail, msg.id);
+  if (msg.kind === 'invite' && msg.guest_id) {
+    // Only the guest's latest WhatsApp invite decides what the host sees.
+    const latest = await db.prepare(
+      `SELECT id FROM message_log WHERE guest_id = ? AND channel = 'whatsapp' AND kind = 'invite' ORDER BY id DESC LIMIT 1`
+    ).get(msg.guest_id);
+    if (latest?.id === msg.id) await db.prepare('UPDATE guests SET whatsapp_status = ? WHERE id = ?').run(status, msg.guest_id);
+  }
+  return true;
 }
 
 async function sendOne(db, booking, guest) {
@@ -162,4 +189,4 @@ async function sendCancellations(db, booking, concurrency = 5) {
   return guests.length;
 }
 
-module.exports = { newToken, buildInvite, sendInvites, rsvpUrl, buildCancellation, sendCancellations };
+module.exports = { newToken, buildInvite, sendInvites, rsvpUrl, buildCancellation, sendCancellations, applyWhatsAppStatus };

@@ -57,21 +57,17 @@ const config = {
     pass: env.SMTP_PASS || '',
     from: env.MAIL_FROM || 'IftarParty <invites@iftarparty.com>',
   },
+  // Official WhatsApp Cloud API (Meta). Messages use pre-approved templates; see README.
   whatsapp: {
-    // 'openwa' (self-hosted gateway, default) or 'meta' (official WhatsApp Cloud API).
-    provider: env.WHATSAPP_PROVIDER === 'meta' ? 'meta' : 'openwa',
-    openwa: {
-      url: env.OPENWA_URL || '',
-      apiKey: env.OPENWA_API_KEY || '',
-      sessionId: env.OPENWA_SESSION_ID || '',
-      minIntervalMs: Number(env.OPENWA_MIN_INTERVAL_MS ?? 1500),
-    },
     token: env.WHATSAPP_TOKEN || '',
     phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID || '',
     templateName: env.WHATSAPP_TEMPLATE_NAME || 'iftar_invite',
     cancelTemplateName: env.WHATSAPP_CANCEL_TEMPLATE_NAME || 'iftar_cancelled',
     templateLang: env.WHATSAPP_TEMPLATE_LANG || 'en',
-    apiVersion: env.WHATSAPP_API_VERSION || 'v21.0',
+    apiVersion: env.WHATSAPP_API_VERSION || 'v23.0',
+    // Delivery webhooks: app secret signs payloads; the verify token answers Meta's subscription check.
+    appSecret: env.WHATSAPP_APP_SECRET || '',
+    verifyToken: env.WHATSAPP_VERIFY_TOKEN || '',
   },
   isProduction: env.NODE_ENV === 'production',
 };

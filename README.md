@@ -36,7 +36,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, venues, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 98 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
+npm test                  # 101 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
 TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test   # same suite on a real Postgres server
 ```
 
@@ -51,7 +51,7 @@ Each integration runs in **demo mode** until you add its keys, so you can use th
 | Payments | Simulated checkout. Refunds succeed instantly | **Cashfree Payment Gateway**: `CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox\|production` |
 | Email | Printed to the server log | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (any SMTP provider, e.g. SES, Postmark, SendGrid) |
 | Google sign-in | Button hidden; email + password only | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (see below) |
-| WhatsApp | Printed to the server log | **OpenWA** self-hosted gateway (default): `OPENWA_URL`, `OPENWA_API_KEY`, `OPENWA_SESSION_ID`. Or the official Meta Cloud API with `WHATSAPP_PROVIDER=meta` |
+| WhatsApp | Printed to the server log | **Meta WhatsApp Cloud API** (official): `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`; delivery receipts with `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` |
 
 ### Cashfree
 
@@ -72,23 +72,46 @@ Test it with Cashfree **sandbox** keys and their test UPI ID or cards before swi
 
 How it works: authorization-code flow with PKCE, `state` and `nonce` held in the session. The ID token is fetched server-to-server and its issuer, audience, expiry, nonce and `email_verified` are checked. A verified Google email that matches an existing account is linked to it. Google gives no mobile number, so new users are asked for one once (restaurants also give their name and city) before they can continue.
 
-### WhatsApp (OpenWA)
+### WhatsApp (Meta Cloud API)
 
-Invites, reminders and cancellation notices go out through [OpenWA](https://github.com/rmyndharis/OpenWA), a self-hosted WhatsApp Web gateway. It sends the full personalised message as plain text, so **no Meta template approval is needed**.
+Invites and cancellation notices go out through Meta's official **WhatsApp Cloud API**, as pre-approved message templates. Meta allows about 80 messages a second, so large guest lists send in seconds.
 
-1. **Run OpenWA** on a server with persistent storage (it keeps the WhatsApp session):
-   ```bash
-   git clone https://github.com/rmyndharis/OpenWA.git && cd OpenWA
-   docker compose up -d          # API + dashboard on :2785
+1. **Create the app.** At developers.facebook.com create a *Business* app, add the **WhatsApp** product and connect a WhatsApp Business Account with your business phone number. Complete business verification to lift the starter messaging limits.
+2. **Get a permanent token.** In Business Settings → System users, create a system user with access to the app and the WhatsApp account, and generate a token with `whatsapp_business_messaging` and `whatsapp_business_management`. Temporary tokens expire after 24 hours.
+3. **Submit two templates** (WhatsApp Manager → Message templates, category **Utility**, language `en`). The variables are filled in this order:
+
+   **`iftar_invite`**
    ```
-2. **Link a number.** Create and start a session (`POST /api/sessions` with `{"name":"iftarparty"}`, then `POST /api/sessions/{id}/start`), open `GET /api/sessions/{id}/qr`, and scan it with WhatsApp on the **dedicated** phone.
-3. **Configure IftarParty:** set `OPENWA_URL=http://<host>:2785/api`, `OPENWA_API_KEY` (from OpenWA's `/app/data/.api-key`) and `OPENWA_SESSION_ID`.
+   Assalamu Alaikum {{1}},
 
-> **Risk:** OpenWA is unofficial (it automates WhatsApp Web), and WhatsApp may restrict numbers that look automated. Use a **dedicated number you can afford to lose**, never your main business line. Sends are **paced**: one at a time, at least `OPENWA_MIN_INTERVAL_MS` apart (default 1.5s, with jitter). Keep invite lists to people who expect the message. A failed send shows up in **Admin → Messages** with OpenWA's error (for example "session not connected") and can be resent once fixed.
+   You're invited to {{2}}.
 
-**Official alternative.** Set `WHATSAPP_PROVIDER=meta` with `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID` to use Meta's WhatsApp Cloud API. That route needs two approved *Utility* templates: `iftar_invite` with 5 body variables (guest name, party title, date & time, venue, RSVP link), and `iftar_cancelled` with 4 (guest name, party title, date, venue).
+   When: {{3}}
+   Where: {{4}}
 
-Every delivery attempt, invitation or cancellation, is recorded in the `message_log` table and shown in the admin portal.
+   Please RSVP here: {{5}}
+
+   We look forward to breaking our fast together.
+   ```
+   `{{1}}` guest's first name · `{{2}}` party title · `{{3}}` date and time · `{{4}}` venue, restaurant, area · `{{5}}` RSVP link
+
+   **`iftar_cancelled`**
+   ```
+   Assalamu Alaikum {{1}},
+
+   {{2}} on {{3}} at {{4}} has been cancelled.
+
+   We're sorry for the inconvenience.
+   ```
+   `{{1}}` first name · `{{2}}` party title · `{{3}}` date · `{{4}}` venue
+
+   Meta rejects templates that start or end with a variable, which is why both end with a sentence. You can rename them or use another language with `WHATSAPP_TEMPLATE_NAME`, `WHATSAPP_CANCEL_TEMPLATE_NAME` and `WHATSAPP_TEMPLATE_LANG`, but the variable count and order must stay the same.
+4. **Configure IftarParty:** `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` (the phone number's ID from *API Setup*, not the number itself).
+5. **Delivery receipts (recommended).** In the app → WhatsApp → Configuration, set the callback URL to **`<BASE_URL>/webhooks/whatsapp`**, choose any verify token, and subscribe to **messages**. Then set `WHATSAPP_VERIFY_TOKEN` to that value and `WHATSAPP_APP_SECRET` to the app secret (App settings → Basic). Every webhook is checked against its `X-Hub-Signature-256`. Hosts then see *delivered* and *read* on their guest list, and **Admin → Messages** shows failures with Meta's reason (for example "#131026 not on WhatsApp"), with one-click resend.
+
+Without `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`, messages are printed to the server log instead.
+
+> **Policy:** WhatsApp only allows business-initiated messages to people who expect them. Hosts add guests they know personally, but keep the templates factual and transactional. Meta may reclassify promotional-sounding text as *Marketing*, which costs more and can be filtered.
 
 ## Admin portal (`/admin`)
 
@@ -146,7 +169,7 @@ The app runs as one Vercel function, and data lives in Supabase Postgres with ph
    | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Added by the integration. Used server-side only, for photo storage |
    | `DEMO_MODE` | `false` |
    | `ADMIN_EMAIL` | First admin. While no admin exists, whoever signs in with Google using this address becomes the admin, so no password is stored. Alternatively add `ADMIN_PASSWORD` (12+ chars) to create the account at boot |
-   | `SESSION_SECRET`, `BASE_URL`, `GOOGLE_*`, `CASHFREE_*`, `SMTP_*`, `OPENWA_*` | As before |
+   | `SESSION_SECRET`, `BASE_URL`, `GOOGLE_*`, `CASHFREE_*`, `SMTP_*`, `WHATSAPP_*` | As above |
 3. **Redeploy.** The first request migrates the schema (about a second) and creates the `venue-photos` bucket.
 4. **Backups:** Supabase takes daily backups. *Admin → Settings → Download database backup* exports every table as JSON on demand.
 
@@ -154,7 +177,6 @@ Previews always run on an in-memory PGlite database seeded with demo data, even 
 
 Notes:
 - `DATABASE_CA_CERT` (Supabase → Database → SSL certificate) turns on full TLS certificate verification. Without it the connection is encrypted but the certificate isn't verified.
-- WhatsApp through OpenWA still needs an always-on host for the gateway itself, outside Vercel. The app only calls its HTTP API.
 
 ### Elsewhere (Docker)
 The `Dockerfile` runs the same app on any container host (Railway, Render, Fly.io, a VPS). Set `DATABASE_URL` to Postgres, or leave it unset to keep PGlite on a persistent volume at `/data`.
