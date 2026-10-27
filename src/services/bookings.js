@@ -60,12 +60,12 @@ function partyTitle(hostName) {
  * Validate a reservation request and place a time-limited hold on the venue.
  * Runs in a single synchronous transaction, so two hosts cannot hold the same night.
  */
-async function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arrivalTime, addonIds = [], dishIds = [] }) {
+async function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, arrivalTime, durationMinutes, addonIds = [], dishIds = [] }) {
   const guests = Number.parseInt(guestCount, 10);
   if (!isValidDate(eventDate)) throw new BookingError('Please choose a valid date.');
   if (eventDate < todayISO()) throw new BookingError('Please choose a date in the future.');
   if (!Number.isInteger(guests) || guests < 1) throw new BookingError('Please enter the number of guests.');
-  const time = TIME_RE.test(arrivalTime || '') ? arrivalTime : '18:00';
+  const start = TIME_RE.test(arrivalTime || '') ? arrivalTime : '18:00';
 
   return transaction(db, async () => {
     await expireStaleHolds(db);
@@ -96,19 +96,26 @@ async function createHold(db, { venueId, menuId, hostId, eventDate, guestCount, 
       : [];
     if (addons.length !== wanted.length) throw new BookingError('One of the selected packages is no longer offered. Please review your selection.');
 
+    let time;
+    try {
+      time = pricing.extraTime({ durationMinutes, includedMinutes: await settings.includedMinutes(db), feePerBlock: venue.extra_time_fee });
+    } catch (err) {
+      throw new BookingError(err.message);
+    }
     const host = await db.prepare('SELECT name FROM users WHERE id = ?').get(hostId);
     const q = pricing.quote({
-      pricePerPerson: menu.price_per_person, guestCount: guests, hireFee: venue.hire_fee, addons, feePercent: await settings.feePercent(db),
+      pricePerPerson: menu.price_per_person, guestCount: guests, hireFee: venue.hire_fee, addons, extraTimeTotal: time.total,
+      feePercent: await settings.feePercent(db),
     });
     const holdExpires = new Date(Date.now() + config.holdMinutes * 60_000).toISOString();
     const info = await db
       .prepare(
-        `INSERT INTO bookings (venue_id, menu_id, host_id, event_date, arrival_time, guest_count, title,
-           price_per_person, food_total, hire_fee, addons_total, platform_fee, total_amount, currency, hold_expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO bookings (venue_id, menu_id, host_id, event_date, arrival_time, duration_minutes, guest_count, title,
+           price_per_person, food_total, hire_fee, addons_total, extra_time_total, platform_fee, total_amount, currency, hold_expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(venue.id, menu.id, hostId, eventDate, time, guests, partyTitle(host.name),
-        q.pricePerPerson, q.foodTotal, q.hireFee, q.addonsTotal, q.platformFee, q.total, config.currency, holdExpires);
+      .run(venue.id, menu.id, hostId, eventDate, start, time.minutes, guests, partyTitle(host.name),
+        q.pricePerPerson, q.foodTotal, q.hireFee, q.addonsTotal, q.extraTimeTotal, q.platformFee, q.total, config.currency, holdExpires);
     const bookingId = Number(info.lastInsertRowid);
     const insAddon = db.prepare(
       'INSERT INTO booking_addons (booking_id, addon_id, name, pricing, unit_price, quantity, total) VALUES (?, ?, ?, ?, ?, ?, ?)'

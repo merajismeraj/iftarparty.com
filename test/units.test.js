@@ -30,7 +30,7 @@ test('parseGuestList maps headers in any order and reports bad rows', () => {
 
 test('pricing quote', () => {
   assert.deepEqual(pricing.quote({ pricePerPerson: 100000, guestCount: 10, hireFee: 50000, feePercent: 5 }),
-    { pricePerPerson: 100000, guestCount: 10, foodTotal: 1000000, hireFee: 50000, addonsTotal: 0, platformFee: 52500, total: 1102500, feePercent: 5 });
+    { pricePerPerson: 100000, guestCount: 10, foodTotal: 1000000, hireFee: 50000, addonsTotal: 0, extraTimeTotal: 0, platformFee: 52500, total: 1102500, feePercent: 5 });
   // Add-ons: per-guest scales with headcount, flat is charged once; fee covers them too.
   const q = pricing.quote({ pricePerPerson: 100000, guestCount: 10, hireFee: 0, feePercent: 10,
     addons: [{ pricing: 'per_guest', price: 15000 }, { pricing: 'flat', price: 500000 }] });

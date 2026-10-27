@@ -16,4 +16,10 @@ const guestList = multer({
   limits: { fileSize: 1024 * 1024, files: 1 },
 });
 
-module.exports = { images, guestList };
+/** Admin CSV sheets: a checked sheet is re-posted as a base64 field, so allow a field that size. */
+const sheet = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1024 * 1024, files: 1, fieldSize: 1.5 * 1024 * 1024 },
+});
+
+module.exports = { images, guestList, sheet };

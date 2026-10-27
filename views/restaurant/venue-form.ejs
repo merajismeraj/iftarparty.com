@@ -1,5 +1,6 @@
 <%- include('../partials/head') %>
-<% const editing = Boolean(venue.id); const fee = locals.rawFee ? venue.hire_fee : money.toMajor(venue.hire_fee); %>
+<% const editing = Boolean(venue.id); const fee = locals.rawFee ? venue.hire_fee : money.toMajor(venue.hire_fee);
+   const extraFee = locals.rawFee ? venue.extra_time_fee : money.toMajor(venue.extra_time_fee || 0); %>
 <section class="wrap narrow page-pad">
   <p class="crumbs"><a href="/restaurant">Dashboard</a> › <%= editing ? 'Edit venue' : 'New venue' %></p>
   <div class="card form-card">
@@ -12,6 +13,8 @@
         <label class="field"><span>Max guests (pax)</span><input type="number" name="max_pax" min="1" required value="<%= venue.max_pax %>"></label>
         <label class="field"><span>Venue hire fee (<%= currency %>)</span><input type="number" name="hire_fee" min="0" step="any" value="<%= fee || 0 %>"><small class="muted">0 if included in menu</small></label>
       </div>
+      <label class="field"><span>Extra time, per 30 minutes (<%= currency %>)</span><input type="number" name="extra_time_fee" min="0" step="any" value="<%= extraFee || 0 %>">
+        <small class="muted">Every booking includes <%= includedMinutes %> minutes. Set a price to let hosts book up to 3 extra hours; 0 = no extra time.</small></label>
       <label class="field"><span>Description</span><textarea name="description" rows="4" placeholder="Seating style, prayer area, parking, décor…"><%= venue.description || '' %></textarea></label>
       <label class="field"><span>Amenities (comma separated)</span><input name="amenities" value="<%= venue.amenities || '' %>" placeholder="Air-conditioned, Prayer area, Valet parking, Projector"></label>
 

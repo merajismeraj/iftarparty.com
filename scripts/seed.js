@@ -132,8 +132,8 @@ await transaction(db, async () => {
       .run(ownerId, spec.r.name, spec.r.cuisine, spec.r.area, spec.r.city, spec.r.address, spec.r.description, spec.owner[2],
         spec.status || 'approved', spec.status ? '' : spec.r.name, spec.status ? '' : `${spec.r.name.split(' ')[0].toLowerCase()}@okhdfc`)).lastInsertRowid);
     for (const [vi, v] of spec.venues.entries()) {
-      const vid = Number((await db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee)).lastInsertRowid);
+      const vid = Number((await db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee, vi === 0 ? 150000 + ri * 50000 : 0)).lastInsertRowid);
       venueIds.push({ vid, rid, v, pending: Boolean(spec.status) });
       for (const [i, suffix] of ['', ' – Seating', ' – Décor'].entries()) {
         await db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, await placeholder(`${v.name}${suffix}`, ri * 2 + vi + i), i);

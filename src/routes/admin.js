@@ -10,6 +10,8 @@ const settings = require('../services/settings');
 const audit = require('../services/audit');
 const money = require('../services/money');
 const reviews = require('../services/reviews');
+const restaurantImport = require('../services/restaurantImport');
+const { sheet: sheetUpload } = require('../middleware/uploads');
 
 const PAGE_SIZE = 25;
 const RESTAURANT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
@@ -102,6 +104,35 @@ module.exports = (db) => {
        ${base} ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.id DESC LIMIT ? OFFSET ?`
     ).all(...params, PAGE_SIZE, (page - 1) * PAGE_SIZE);
     res.render('admin/restaurants', { title: 'Restaurants', rows, q, page, pages: pages(total), total, statuses: RESTAURANT_STATUSES });
+  });
+
+  router.get('/restaurants/template.csv', (req, res) => {
+    res.type('text/csv').attachment('iftarparty-restaurants-template.csv').send(restaurantImport.templateCsv());
+  });
+
+  router.get('/restaurants/import', (req, res) => {
+    res.render('admin/restaurant-import', { title: 'Bulk upload restaurants', result: null, status: 'approved', columns: restaurantImport.COLUMNS, required: restaurantImport.REQUIRED, maxRows: restaurantImport.MAX_ROWS });
+  });
+
+  router.post('/restaurants/import', sheetUpload.single('file'), async (req, res) => {
+    const status = req.body.status === 'pending' ? 'pending' : 'approved';
+    const dryRun = req.body.action !== 'import';
+    const view = (result, code = 200) => res.status(code).render('admin/restaurant-import', {
+      title: 'Bulk upload restaurants', result, status, dryRun, columns: restaurantImport.COLUMNS, required: restaurantImport.REQUIRED, maxRows: restaurantImport.MAX_ROWS,
+    });
+    // "Import" after a clean check re-posts the checked sheet, so the admin doesn't pick the file twice.
+    const buffer = req.file?.buffer?.length ? req.file.buffer : Buffer.from(String(req.body.sheet || ''), 'base64');
+    const name = req.file?.originalname || String(req.body.filename || 'sheet.csv').slice(0, 120);
+    if (!buffer.length) return view({ errors: [{ line: 0, reason: 'Choose a CSV file to upload.' }], plan: [] }, 422);
+    const result = await restaurantImport.importSheet(db, buffer, { status, dryRun });
+    result.sheet = buffer.toString('base64');
+    result.filename = name;
+    if (result.errors.length) return view(result, 422);
+    if (dryRun) return view(result);
+    await audit.log(db, req.user.id, 'restaurant.bulk_import', 'restaurant', null,
+      `${name}: ${result.created} new, ${result.extended} updated, ${result.venues} venues, ${result.menus} menus (${status})`);
+    req.flash('success', `Imported ${result.created} new restaurant${result.created === 1 ? '' : 's'}${result.extended ? ` and added to ${result.extended} existing` : ''}: ${result.venues} venue${result.venues === 1 ? '' : 's'}, ${result.menus} menu${result.menus === 1 ? '' : 's'}. Owners sign in with Google using their email.`);
+    res.redirect('/admin/restaurants');
   });
 
   router.get('/restaurants/:id', async (req, res) => {
@@ -486,28 +517,39 @@ module.exports = (db) => {
     res.attachment(`iftarparty-${stamp}.json`).type('application/json').send(JSON.stringify(dump));
   });
 
+  const settingsView = async (extra) => ({
+    title: 'Settings', live: payments.isLive(), wa: require('../services/notify').whatsappEnabled(),
+    waTemplates: [config.whatsapp.templateName, config.whatsapp.cancelTemplateName],
+    waWebhook: Boolean(config.whatsapp.appSecret && config.whatsapp.verifyToken),
+    fee: await settings.feePercent(db), minDishes: await settings.minPackageDishes(db), includedMinutes: await settings.includedMinutes(db),
+    errors: [], ...extra,
+  });
+
   router.get('/settings', async (req, res) => {
-    res.render('admin/settings', { title: 'Settings', fee: await settings.feePercent(db), minDishes: await settings.minPackageDishes(db), live: payments.isLive(), wa: require('../services/notify').whatsappEnabled(), waTemplates: [config.whatsapp.templateName, config.whatsapp.cancelTemplateName], waWebhook: Boolean(config.whatsapp.appSecret && config.whatsapp.verifyToken), errors: [] });
+    res.render('admin/settings', await settingsView());
   });
 
   router.post('/settings', async (req, res) => {
     const fee = Number(req.body.platform_fee_percent);
     // Each field is optional so older forms/scripts can update one setting at a time.
     const minDishes = req.body.min_package_dishes === undefined ? await settings.minPackageDishes(db) : Number(req.body.min_package_dishes);
+    const minutes = req.body.included_minutes === undefined ? await settings.includedMinutes(db) : Number(req.body.included_minutes);
     const errors = [];
     if (!Number.isFinite(fee) || fee < 0 || fee > 30) errors.push('Platform fee must be between 0 and 30%.');
     if (!Number.isInteger(minDishes) || minDishes < 1 || minDishes > 30) errors.push('Minimum dishes per package must be a whole number from 1 to 30.');
+    if (!Number.isInteger(minutes) || minutes < 30 || minutes > 360 || minutes % 30) errors.push('Included time must be 30 to 360 minutes, in steps of 30.');
     if (errors.length) {
-      return res.status(422).render('admin/settings', {
-        title: 'Settings', fee: req.body.platform_fee_percent, minDishes: req.body.min_package_dishes, live: payments.isLive(), wa: require('../services/notify').whatsappEnabled(), waTemplates: [config.whatsapp.templateName, config.whatsapp.cancelTemplateName], waWebhook: Boolean(config.whatsapp.appSecret && config.whatsapp.verifyToken), errors,
-      });
+      return res.status(422).render('admin/settings', await settingsView({
+        fee: req.body.platform_fee_percent, minDishes: req.body.min_package_dishes, includedMinutes: req.body.included_minutes, errors,
+      }));
     }
-    const before = { fee: await settings.feePercent(db), min: await settings.minPackageDishes(db) };
+    const before = { fee: await settings.feePercent(db), min: await settings.minPackageDishes(db), minutes: await settings.includedMinutes(db) };
     await settings.set(db, 'platform_fee_percent', Math.round(fee * 100) / 100);
     await settings.set(db, 'min_package_dishes', minDishes);
+    await settings.set(db, 'included_minutes', minutes);
     await audit.log(db, req.user.id, 'settings.update', 'settings', null,
-      `platform_fee_percent ${before.fee} → ${fee}; min_package_dishes ${before.min} → ${minDishes}`);
-    req.flash('success', 'Settings saved. New bookings use the updated fee; existing bookings keep theirs.');
+      `platform_fee_percent ${before.fee} → ${fee}; min_package_dishes ${before.min} → ${minDishes}; included_minutes ${before.minutes} → ${minutes}`);
+    req.flash('success', 'Settings saved. New bookings use the updated values; existing bookings keep theirs.');
     res.redirect('/admin/settings');
   });
 
