@@ -54,3 +54,11 @@ describe('production readiness', () => {
     assert.equal(probe({ VERCEL_ENV: 'preview', ALLOW_PREVIEW_DATABASE: 'true' }).db, 'postgres://prod');
   });
 });
+
+test('static assets are versioned by content and cached immutably', async () => {
+  const { app } = makeApp();
+  const page = await request(app).get('/').expect(200);
+  const css = page.text.match(/href="(\/static\/css\/style\.css\?v=[0-9a-f]{10})"/)[1];
+  assert.match(page.text, /src="\/static\/js\/app\.js\?v=[0-9a-f]{10}"/);
+  await request(app).get(css).expect(200).expect('content-type', /css/);
+});
