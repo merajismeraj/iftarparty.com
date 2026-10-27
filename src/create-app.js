@@ -51,7 +51,16 @@ function createApp(db) {
       res.status(503).type('text').send('db unavailable');
     }
   });
-  app.use('/static', express.static(path.join(config.root, 'public'), { maxAge: config.isProduction ? '7d' : 0 }));
+  // Versioned asset URLs (?v=<content hash>) are cached for a year; a deploy that changes CSS/JS changes the URL.
+  const assetVersion = require('node:crypto').createHash('sha1')
+    .update(['css/style.css', 'js/app.js'].map((f) => require('node:fs').readFileSync(path.join(config.root, 'public', f))).join('\0'))
+    .digest('hex').slice(0, 10);
+  app.use('/static', express.static(path.join(config.root, 'public'), {
+    setHeaders: (res) => {
+      if (!config.isProduction) return res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', res.req.query.v ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
+    },
+  }));
   app.use('/uploads', express.static(config.uploadDir, { maxAge: '30d', fallthrough: false }));
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
   app.use(cookieSession({
@@ -67,7 +76,7 @@ function createApp(db) {
     Object.assign(res.locals, {
       money, fmt, packages, path: req.path, query: req.query,
       currency: config.currency, feePercent: await settings.feePercent(db), includedMinutes: await settings.includedMinutes(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
-      paymentsLive: payments.isLive(), googleEnabled: google.enabled(), photoUrl: storage.photoUrl, title: null, user: null, restaurant: null, csrfToken: '',
+      paymentsLive: payments.isLive(), googleEnabled: google.enabled(), photoUrl: storage.photoUrl, assetVersion, title: null, user: null, restaurant: null, csrfToken: '',
     });
     next();
   });

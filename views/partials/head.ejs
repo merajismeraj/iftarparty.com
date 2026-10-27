@@ -8,10 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Plus+Jakarta+Sans:wght@600..800&display=swap">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=<%= locals.assetVersion || "" %>">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <% if (locals.mode && locals.sessionId) { %><script src="https://sdk.cashfree.com/js/v3/cashfree.js" defer></script><% } %>
-  <script src="/static/js/app.js" defer></script>
+  <script src="/static/js/app.js?v=<%= locals.assetVersion || "" %>" defer></script>
 </head>
 <body>
 <% if (!locals.bare) { %>
