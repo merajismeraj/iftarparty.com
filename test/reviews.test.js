@@ -95,7 +95,7 @@ describe('verified reviews with admin moderation', () => {
     assert.match(page.text, /&lt;b&gt;haleem&lt;\/b&gt;/);
     assert.match(page.text, /✓ Verified booking/);
     const search = await request(app).get('/search?sort=rating').expect(200);
-    assert.match(search.text, /★<\/span> <strong>5<\/strong> <span class="muted">\(1\)<\/span>/);
+    assert.match(search.text, /★<\/span> 5 \(1\)<\/span>/);
     assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'review.approved' AND entity_id = ?`).get(id));
   });
 

@@ -1,25 +1,36 @@
 <%- include('partials/head') %>
-<section class="wrap section">
-  <p class="crumbs"><a href="/search">Venues</a> › <a href="/search?location=<%= encodeURIComponent(venue.city) %>"><%= venue.city %></a> › <%= venue.name %></p>
-  <div class="venue-title">
-    <div>
-      <h1><%= venue.name %></h1>
-      <% if (rating.count) { %><p class="rating-line"><a href="#reviews"><%- include('partials/stars', { value: rating.avg }) %> <strong><%= rating.avg %></strong> <span class="muted">(<%= rating.count %> verified review<%= rating.count === 1 ? '' : 's' %>)</span></a></p><% } %>
-      <p class="muted"><strong><%= venue.restaurant_name %></strong><%= venue.cuisine ? ` · ${venue.cuisine}` : '' %> · <%= [venue.address, venue.area, venue.city].filter(Boolean).join(', ') %></p>
-    </div>
-    <div class="pill-row">
-      <span class="pill"><%= venue.min_pax %>–<%= venue.max_pax %> guests</span>
-      <span class="pill"><%= venue.hire_fee ? `Venue fee ${money.format(venue.hire_fee)}` : 'No venue fee' %></span>
-      <span class="pill"><%= fmt.duration(durations[0].minutes) %> included<%= venue.extra_time_fee ? ` · +${money.format(venue.extra_time_fee)}/30 min` : '' %></span>
-    </div>
-  </div>
-
-  <div class="gallery <%= images.length === 1 ? 'single' : '' %>">
-    <% images.slice(0, 5).forEach((img, i) => { %>
-      <img src="<%= photoUrl(img.filename) %>" alt="<%= venue.name %> photo <%= i + 1 %>" class="<%= i === 0 ? 'main' : '' %>" <%= i ? 'loading=lazy' : '' %>>
+<%
+  const backQs = new URLSearchParams(Object.entries({ date: form.date, guests: form.guests }).filter(([, v]) => v && typeof v === 'string')).toString();
+  const fromPrice = menus.length ? Math.min(...menus.map(m => m.price_per_person)) : null;
+%>
+<section class="venue-hero">
+  <div class="hero-track" data-hero-track>
+    <% images.forEach((img, i) => { %>
+      <img src="<%= photoUrl(img.filename) %>" alt="<%= venue.name %> photo <%= i + 1 %>" <%= i ? 'loading="lazy"' : 'fetchpriority="high"' %>>
     <% }) %>
-    <% if (!images.length) { %><div class="img-fallback main">No photos yet</div><% } %>
+    <% if (!images.length) { %><div class="img-fallback">No photos yet</div><% } %>
   </div>
+  <a class="hero-btn hero-back" href="/search<%= backQs ? `?${backQs}` : '' %>" data-hero-back aria-label="Back to venues">←</a>
+  <% if (images.length > 1) { %>
+    <span class="hero-count"><span data-hero-pos>1</span> / <%= images.length %></span>
+    <button type="button" class="hero-btn hero-prev" data-hero-step="-1" aria-label="Previous photo">‹</button>
+    <button type="button" class="hero-btn hero-next" data-hero-step="1" aria-label="Next photo">›</button>
+  <% } %>
+  <div class="hero-info">
+    <h1><%= venue.restaurant_name %></h1>
+    <p class="swipe-loc"><%= venue.name %> · <%= [venue.area, venue.city].filter(Boolean).join(', ') %></p>
+    <p class="swipe-menu"><%= venue.cuisine || 'Iftar menus' %><% if (fromPrice) { %> · from <strong><%= money.format(fromPrice) %></strong>/guest<% } %></p>
+    <% if (rating.count) { %><p class="swipe-menu"><a href="#reviews"><span class="star-one">★</span> <strong><%= rating.avg %></strong> (<%= rating.count %> review<%= rating.count === 1 ? '' : 's' %>)</a></p><% } %>
+  </div>
+</section>
+
+<section class="wrap section venue-body">
+  <div class="pill-row">
+    <span class="pill"><%= venue.min_pax %>–<%= venue.max_pax %> guests</span>
+    <span class="pill"><%= venue.hire_fee ? `Venue fee ${money.format(venue.hire_fee)}` : 'No venue fee' %></span>
+    <span class="pill"><%= fmt.duration(durations[0].minutes) %> included<%= venue.extra_time_fee ? ` · +${money.format(venue.extra_time_fee)}/30 min` : '' %></span>
+  </div>
+  <% if (venue.address) { %><p class="small muted"><%= [venue.address, venue.area, venue.city].filter(Boolean).join(', ') %></p><% } %>
 
   <div class="venue-layout">
     <div class="venue-main">

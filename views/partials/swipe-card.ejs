@@ -1,0 +1,13 @@
+<a class="swipe-card" href="/venues/<%= v.id %><%= locals.qs ? `?${qs}` : '' %>" data-swipe-card>
+  <% if (v.image) { %><img src="<%= photoUrl(v.image) %>" alt="" <%= locals.i ? 'loading="lazy"' : 'fetchpriority="high"' %>><% } else { %><div class="img-fallback">No photo yet</div><% } %>
+  <div class="swipe-top">
+    <span class="glass"><%= v.min_pax %>–<%= v.max_pax %> guests</span>
+    <% if (v.review_count) { %><span class="glass"><span class="star-one">★</span> <%= v.rating %> (<%= v.review_count %>)</span><% } %>
+  </div>
+  <div class="swipe-info">
+    <h2><%= v.restaurant_name %></h2>
+    <p class="swipe-loc"><%= v.name %> · <%= [v.area, v.city].filter(Boolean).join(', ') %></p>
+    <p class="swipe-menu"><%= [v.cuisine, v.top_menu].filter(Boolean).join(' · ') %></p>
+    <p class="swipe-price"><strong><%= money.format(v.from_price) %></strong><span>/guest</span><% if (locals.est) { %><span class="swipe-est">≈ <%= money.format(est) %> total</span><% } %></p>
+  </div>
+</a>
