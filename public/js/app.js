@@ -265,6 +265,163 @@ document.documentElement.classList.add('js');
     });
   }
 
+  /* ---------- Guest list: pick from the phone's contacts ---------- */
+
+  // Minimal vCard reader (iPhone/Android "Export" files): name, numbers (mobile first), email.
+  function parseVCards(text) {
+    const qp = (v) => { try { return decodeURIComponent(v.replace(/%/g, '%25').replace(/=([0-9A-F]{2})/gi, '%$1')); } catch { return v; } };
+    const lines = text.replace(/=\r?\n/g, '').replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+    const out = [];
+    let c = null;
+    for (const line of lines) {
+      if (/^BEGIN:VCARD/i.test(line)) { c = { tels: [], emails: [] }; continue; }
+      if (/^END:VCARD/i.test(line)) {
+        if (c) {
+          const tels = [...c.tels].sort((a, b) => Number(/CELL|MOBILE|IPHONE/i.test(b.p)) - Number(/CELL|MOBILE|IPHONE/i.test(a.p))).map((t) => t.v);
+          out.push({ name: c.fn || [c.n && c.n[1], c.n && c.n[0]].filter(Boolean).join(' ') || '', phones: [...new Set(tels)], email: c.emails[0] || '' });
+        }
+        c = null;
+        continue;
+      }
+      const m = c && line.match(/^(?:[\w-]+\.)?([A-Za-z-]+)((?:;[^:]*)?):(.*)$/);
+      if (!m) continue;
+      const [, prop, params, raw] = m;
+      const val = (r) => (/QUOTED-PRINTABLE/i.test(params) ? qp(r) : r).replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+      const key = prop.toUpperCase();
+      if (key === 'FN') c.fn = val(raw);
+      else if (key === 'N') c.n = raw.split(';').map(val);
+      else if (key === 'TEL' && raw.trim()) c.tels.push({ v: val(raw).replace(/^tel:/i, ''), p: params });
+      else if (key === 'EMAIL' && raw.trim()) c.emails.push(val(raw));
+    }
+    return out;
+  }
+
+  function initGuestForm(form) {
+    const pickBtn = form.querySelector('[data-pick-contacts]');
+    const fileInput = form.querySelector('[data-contacts-file]');
+    const fileBtn = form.querySelector('[data-file-btn]');
+    const fileLabel = form.querySelector('[data-file-label]');
+    const help = form.querySelector('[data-vcf-help]');
+    const box = form.querySelector('[data-picked]');
+    const list = form.querySelector('[data-picked-list]');
+    const count = form.querySelector('[data-picked-count]');
+    const skippedNote = form.querySelector('[data-picked-skipped]');
+    const textarea = form.querySelector('textarea[name=list]');
+    const sendNow = form.querySelector('[data-send-now]');
+    const submit = form.querySelector('[data-guest-submit]');
+    const defaultFileLabel = fileLabel.textContent;
+    let picked = [];   // { name, phones[], phone, email }
+    let skipped = [];
+
+    // Contact Picker API: Android Chrome today. Elsewhere the contacts-file import leads instead.
+    const canPick = 'contacts' in navigator && 'ContactsManager' in window;
+    if (canPick) {
+      pickBtn.hidden = false;
+    } else {
+      fileBtn.classList.replace('btn-ghost', 'btn-gold');
+      if (help) help.open = /iPhone|iPad/.test(navigator.userAgent);
+    }
+
+    const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    const csvCell = (s) => (/[",\n]/.test(s) ? `"${String(s).replace(/"/g, '""')}"` : String(s));
+
+    function updateButton() {
+      const typed = textarea.value.trim() ? textarea.value.trim().split(/\n+/).length : 0;
+      const n = picked.length + typed;
+      const what = n ? `Add ${n} guest${n === 1 ? '' : 's'}` : 'Add guests';
+      submit.textContent = n && sendNow.checked ? `${what} & send invites` : what;
+    }
+
+    function render() {
+      box.hidden = !picked.length && !skipped.length;
+      count.textContent = `${picked.length} contact${picked.length === 1 ? '' : 's'} selected`;
+      list.innerHTML = picked.map((p, i) => `
+        <li>
+          <div class="picked-main"><strong>${esc(p.name)}</strong>
+            ${p.phones.length > 1
+              ? `<select data-phone="${i}" aria-label="Number for ${esc(p.name)}">${p.phones.map((ph) => `<option${ph === p.phone ? ' selected' : ''}>${esc(ph)}</option>`).join('')}</select>`
+              : `<span class="small muted">${esc(p.phone || '')}</span>`}
+            ${p.email ? `<span class="small muted">${esc(p.email)}</span>` : ''}
+          </div>
+          <button type="button" class="picked-x" data-remove="${i}" aria-label="Remove ${esc(p.name)}">×</button>
+        </li>`).join('');
+      skippedNote.hidden = !skipped.length;
+      skippedNote.textContent = skipped.length
+        ? `Not added – no mobile number or email: ${skipped.slice(0, 5).join(', ')}${skipped.length > 5 ? ` and ${skipped.length - 5} more` : ''}.`
+        : '';
+      updateButton();
+    }
+
+    function add(contacts) {
+      const seen = new Set(picked.map((p) => (p.phone || p.email).replace(/\s/g, '')));
+      for (const ct of contacts) {
+        const name = (ct.name || '').trim();
+        const phones = (ct.phones || []).map((x) => x.trim()).filter(Boolean);
+        const email = (ct.email || '').trim();
+        if (!phones.length && !email) { if (name) skipped.push(name); continue; }
+        const entry = { name: name || phones[0] || email, phones, phone: phones[0] || '', email };
+        const key = (entry.phone || entry.email).replace(/\s/g, '');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        picked.push(entry);
+      }
+      render();
+    }
+
+    pickBtn.addEventListener('click', async () => {
+      try {
+        const props = await navigator.contacts.getProperties().catch(() => ['name', 'tel']);
+        const wanted = ['name', 'tel', 'email'].filter((p) => props.includes(p));
+        const chosen = await navigator.contacts.select(wanted, { multiple: true });
+        add(chosen.map((c) => ({ name: (c.name || [])[0], phones: c.tel || [], email: (c.email || [])[0] })));
+      } catch { /* picker closed */ }
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result || '');
+        if (/BEGIN:VCARD/i.test(text)) {
+          add(parseVCards(text));
+          fileInput.value = ''; // the reviewed list is submitted instead of the raw file
+          fileLabel.textContent = defaultFileLabel;
+        } else {
+          fileLabel.textContent = `${file.name} – ready to add`; // CSV: uploaded as is
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    list.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-remove]');
+      if (!btn) return;
+      picked.splice(Number(btn.dataset.remove), 1);
+      render();
+    });
+    list.addEventListener('change', (e) => {
+      const sel = e.target.closest('[data-phone]');
+      if (sel) picked[Number(sel.dataset.phone)].phone = sel.value;
+    });
+    form.querySelector('[data-picked-clear]').addEventListener('click', () => { picked = []; skipped = []; render(); });
+    textarea.addEventListener('input', updateButton);
+    sendNow.addEventListener('change', updateButton);
+
+    // Picked contacts travel in the same "name, email, mobile" lines as typed ones.
+    form.addEventListener('submit', (e) => {
+      if (!picked.length && !textarea.value.trim() && !fileInput.files.length) {
+        e.preventDefault();
+        (canPick ? pickBtn : fileBtn).focus();
+        return;
+      }
+      if (picked.length) {
+        const lines = picked.map((p) => [p.name, p.email, p.phone].map(csvCell).join(', '));
+        textarea.value = [textarea.value.trim(), ...lines].filter(Boolean).join('\n');
+      }
+    });
+  }
+
   // Phones: sticky "Reserve" bar, hidden while the booking form itself is on screen.
   function initMobileCta() {
     const cta = document.querySelector('[data-mobile-cta]');
@@ -280,6 +437,7 @@ document.documentElement.classList.add('js');
     labelTables();
     document.querySelectorAll('form[data-planner]').forEach(initPlanner);
     document.querySelectorAll('input[data-photo-input]').forEach(initPhotoInput);
+    document.querySelectorAll('form[data-guest-form]').forEach(initGuestForm);
     initMobileCta();
     document.querySelectorAll('[data-cashfree-session]').forEach(initCashfree);
     // Restaurant menu form: show the set-menu or package section for the chosen type.
