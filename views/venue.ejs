@@ -10,6 +10,7 @@
     <div class="pill-row">
       <span class="pill"><%= venue.min_pax %>–<%= venue.max_pax %> guests</span>
       <span class="pill"><%= venue.hire_fee ? `Venue fee ${money.format(venue.hire_fee)}` : 'No venue fee' %></span>
+      <span class="pill"><%= fmt.duration(durations[0].minutes) %> included<%= venue.extra_time_fee ? ` · +${money.format(venue.extra_time_fee)}/30 min` : '' %></span>
     </div>
   </div>
 
@@ -108,6 +109,17 @@
         </div>
         <%# Arrival time can be changed later on the party's details page. %>
         <input type="hidden" name="arrival_time" value="<%= form.arrival_time %>">
+        <% if (durations.length > 1) { %>
+          <label class="field">
+            <span>How long?</span>
+            <select name="duration_minutes" data-duration>
+              <% durations.forEach(d => { %><option value="<%= d.minutes %>" data-extra="<%= d.extra %>" <%= form.duration === d.minutes ? 'selected' : '' %>><%= fmt.duration(d.minutes) %><%= d.extra ? ` (+${money.format(d.extra)})` : ' (included)' %></option><% }) %>
+            </select>
+          </label>
+        <% } else { %>
+          <input type="hidden" name="duration_minutes" value="<%= durations[0].minutes %>">
+          <p class="small muted">Includes <%= fmt.duration(durations[0].minutes) %> at the venue.</p>
+        <% } %>
         <fieldset class="field">
           <legend>Menu</legend>
           <% menus.forEach((m, i) => { const on = String(form.menu_id) === String(m.id) || (!form.menu_id && i === 0); %>
@@ -150,6 +162,7 @@
           <div><span data-q-food-label>Food</span><span data-q-food></span></div>
           <div data-q-addons-row hidden><span>Extras</span><span data-q-addons></span></div>
           <div><span>Venue fee</span><span data-q-hire></span></div>
+          <div data-q-extra-row hidden><span>Extra time</span><span data-q-extra></span></div>
           <div><span>Service fee (<%= feePercent %>%)</span><span data-q-fee></span></div>
           <div class="total"><span>Total</span><span data-q-total></span></div>
         </div>

@@ -10,6 +10,9 @@
     <h2 class="h3">Packages</h2>
     <label class="field"><span>Minimum dishes a host must pick in a package (all courses combined)</span><input type="number" name="min_package_dishes" min="1" max="30" step="1" value="<%= minDishes %>"></label>
     <p class="small muted">Packages whose available dishes can’t reach this number are hidden from hosts until the restaurant updates them.</p>
+    <h2 class="h3">Time at the venue</h2>
+    <label class="field"><span>Minutes included in every booking</span><input type="number" name="included_minutes" min="30" max="360" step="30" value="<%= includedMinutes %>"></label>
+    <p class="small muted">Hosts can add time in 30-minute blocks (up to 3 hours) at each venue’s extra-time rate. Venues with no rate offer only the included time.</p>
     <button class="btn btn-block">Save</button>
   </form>
   <div class="card form-card">

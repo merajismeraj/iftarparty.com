@@ -137,7 +137,8 @@ module.exports = (db) => {
     res.render('venue', {
       title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, addons, picked, pickedDishes, reservations, budget, minDishes,
       rating: await reviews.summary(db, venue.restaurant_id), reviewList: await reviews.published(db, venue.restaurant_id, 20),
-      form: { date, guests: req.query.guests || '', menu_id: req.query.menu || '', arrival_time: '18:00' },
+      form: { date, guests: req.query.guests || '', menu_id: req.query.menu || '', arrival_time: '18:00', duration: Number(req.query.duration) || 0 },
+      durations: pricing.durationOptions({ includedMinutes: await settings.includedMinutes(db), feePerBlock: venue.extra_time_fee }),
       taken, today: todayISO(),
     });
   });

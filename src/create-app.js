@@ -66,7 +66,7 @@ function createApp(db) {
   app.use(async (req, res, next) => {
     Object.assign(res.locals, {
       money, fmt, packages, path: req.path, query: req.query,
-      currency: config.currency, feePercent: await settings.feePercent(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
+      currency: config.currency, feePercent: await settings.feePercent(db), includedMinutes: await settings.includedMinutes(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
       paymentsLive: payments.isLive(), googleEnabled: google.enabled(), photoUrl: storage.photoUrl, title: null, user: null, restaurant: null, csrfToken: '',
     });
     next();

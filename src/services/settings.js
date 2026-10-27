@@ -5,6 +5,7 @@ const config = require('../config');
 const DEFAULTS = {
   platform_fee_percent: () => String(config.platformFeePercent),
   min_package_dishes: () => '4',
+  included_minutes: () => '90',
 };
 
 async function get(db, key) {
@@ -20,4 +21,7 @@ const feePercent = async (db) => Number(await get(db, 'platform_fee_percent'));
 /** Fewest dishes a host may pick in a package, across all courses. */
 const minPackageDishes = async (db) => Number(await get(db, 'min_package_dishes'));
 
-module.exports = { get, set, feePercent, minPackageDishes };
+/** Time every booking includes before extra time is charged (minutes, a multiple of 30). */
+const includedMinutes = async (db) => Number(await get(db, 'included_minutes'));
+
+module.exports = { get, set, feePercent, minPackageDishes, includedMinutes };

@@ -34,20 +34,24 @@ document.documentElement.classList.add('js');
       form.querySelectorAll('input[name="addon_ids"]:checked').forEach((a) => {
         addons += Number(a.dataset.addonPrice) * (a.dataset.addonPricing === 'per_guest' ? guests : 1);
       });
-      const fee = Math.round(((food + hireFee + addons) * feePct) / 100);
+      const dur = form.querySelector('[data-duration]');
+      const extra = dur ? Number(dur.selectedOptions[0].dataset.extra) || 0 : 0;
+      const fee = Math.round(((food + hireFee + addons + extra) * feePct) / 100);
       set('[data-q-food-label]', `${guests} × ${money(price, currency)}`);
       set('[data-q-food]', money(food, currency));
       const addonsRow = form.querySelector('[data-q-addons-row]');
       if (addonsRow) { addonsRow.hidden = !addons; set('[data-q-addons]', money(addons, currency)); }
       set('[data-q-hire]', money(hireFee, currency));
+      const extraRow = form.querySelector('[data-q-extra-row]');
+      if (extraRow) { extraRow.hidden = !extra; set('[data-q-extra]', money(extra, currency)); }
       set('[data-q-fee]', money(fee, currency));
-      set('[data-q-total]', money(food + hireFee + addons + fee, currency));
+      set('[data-q-total]', money(food + hireFee + addons + extra + fee, currency));
       const cta = document.querySelector('[data-mobile-cta]');
       if (cta) {
         cta.querySelector('[data-cta-label]').textContent = `${guests} guests · total`;
-        cta.querySelector('[data-cta-amount]').textContent = money(food + hireFee + addons + fee, currency);
+        cta.querySelector('[data-cta-amount]').textContent = money(food + hireFee + addons + extra + fee, currency);
       }
-      syncBudget(food + hireFee + addons + fee, price);
+      syncBudget(food + hireFee + addons + extra + fee, price);
       box.hidden = false;
     }
     // Package dish pickers: only the selected package's picker is shown and submitted,

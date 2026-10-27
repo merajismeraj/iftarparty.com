@@ -41,14 +41,14 @@ module.exports = (db) => {
     try {
       const id = await svc.createHold(db, {
         venueId: Number(req.params.id), menuId: Number(req.body.menu_id), hostId: req.user.id,
-        eventDate: req.body.date, guestCount: req.body.guests, arrivalTime: req.body.arrival_time,
+        eventDate: req.body.date, guestCount: req.body.guests, arrivalTime: req.body.arrival_time, durationMinutes: req.body.duration_minutes,
         addonIds: req.body.addon_ids, dishIds: req.body.dish_ids,
       });
       res.redirect(`/bookings/${id}/checkout`);
     } catch (err) {
       if (!(err instanceof svc.BookingError)) throw err;
       req.flash('error', err.message);
-      const qs = new URLSearchParams({ date: req.body.date || '', guests: req.body.guests || '', menu: req.body.menu_id || '' });
+      const qs = new URLSearchParams({ date: req.body.date || '', guests: req.body.guests || '', menu: req.body.menu_id || '', duration: req.body.duration_minutes || '' });
       [].concat(req.body.addon_ids || []).forEach((id) => qs.append('addon', id));
       [].concat(req.body.dish_ids || []).forEach((id) => qs.append('dish', id));
       res.redirect(`/venues/${req.params.id}?${qs}#reserve`);

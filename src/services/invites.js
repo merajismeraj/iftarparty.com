@@ -23,7 +23,7 @@ function venueLine(booking) {
 
 /** Everything needed to render one guest's personalised invite on any channel. */
 function buildInvite(booking, guest) {
-  const when = `${fmt.longDate(booking.event_date)} at ${fmt.time12(booking.arrival_time)}`;
+  const when = `${fmt.longDate(booking.event_date)}, ${fmt.timeRange(booking.arrival_time, booking.duration_minutes || 90)}`;
   const link = rsvpUrl(guest);
   const firstName = guest.name.split(/\s+/)[0];
   const text = [

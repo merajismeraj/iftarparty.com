@@ -296,6 +296,13 @@ const MIGRATIONS = [
   ALTER TABLE message_log ADD COLUMN provider_id text;
   CREATE INDEX message_log_provider_id ON message_log (provider_id) WHERE provider_id IS NOT NULL;
   `,
+  // v3: time limits. Every booking includes a set time (default 90 min); venues may sell extra time in
+  // 30-minute blocks. Existing bookings count as 90 minutes with no extra time.
+  `
+  ALTER TABLE venues ADD COLUMN extra_time_fee integer NOT NULL DEFAULT 0 CHECK (extra_time_fee >= 0);
+  ALTER TABLE bookings ADD COLUMN duration_minutes integer NOT NULL DEFAULT 90 CHECK (duration_minutes > 0);
+  ALTER TABLE bookings ADD COLUMN extra_time_total integer NOT NULL DEFAULT 0 CHECK (extra_time_total >= 0);
+  `,
 ];
 
 /* --------------------------------------------------------------- drivers */

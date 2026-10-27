@@ -500,6 +500,8 @@ blockquote cite { display: block; font: normal .9rem var(--sans); color: var(--m
 .admin-nav .count { background: var(--ink); color: #fff; border-radius: 999px; padding: 0 .5em; font-size: .75rem; font-weight: 700; margin-left: 4px; }
 .admin-main { padding: 16px var(--gutter) 40px; min-width: 0; }
 .admin-main .flash-stack { width: auto; }
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.admin-head h1 { margin: 0; }
 .admin-filters { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 16px; }
 .admin-filters label { display: flex; flex-direction: column; gap: 4px; }
 .todo { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 6px; }

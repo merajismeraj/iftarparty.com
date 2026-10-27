@@ -17,12 +17,14 @@ function venueFromBody(b) {
   const v = {
     name: str(b.name, 120), description: str(b.description), amenities: str(b.amenities, 500),
     min_pax: int(b.min_pax), max_pax: int(b.max_pax), hire_fee: b.hire_fee === '' || b.hire_fee == null ? 0 : money.toMinor(b.hire_fee),
+    extra_time_fee: b.extra_time_fee === '' || b.extra_time_fee == null ? 0 : money.toMinor(b.extra_time_fee),
   };
   const errors = [];
   if (!v.name) errors.push('Give the venue a name, e.g. “Noor Rooftop Lounge”.');
   if (!(v.min_pax >= 1)) errors.push('Minimum guests must be at least 1.');
   if (!(v.max_pax >= v.min_pax)) errors.push('Maximum guests must be at least the minimum.');
   if (!Number.isFinite(v.hire_fee)) errors.push('Venue hire fee must be a number (use 0 if included in the menu price).');
+  if (!Number.isFinite(v.extra_time_fee) || v.extra_time_fee < 0) errors.push('Extra time price must be a number (use 0 if you don’t offer extra time).');
   return { v, errors };
 }
 
@@ -138,8 +140,8 @@ module.exports = (db) => {
       return res.status(422).render('restaurant/venue-form', { title: 'Add a party venue', venue: { ...req.body, hire_fee: req.body.hire_fee }, images: [], errors, rawFee: true });
     }
     const id = Number((await db.prepare(
-      'INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.restaurant.id, v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee)).lastInsertRowid);
+      'INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.restaurant.id, v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee)).lastInsertRowid);
     const ins = db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)');
     for (const [i, name] of (await storage.saveImages(req.files)).entries()) await ins.run(id, name, i);
     req.flash('success', `${v.name} is live. Hosts can now find and book it.`);
@@ -163,8 +165,8 @@ module.exports = (db) => {
     if (errors.length) {
       return res.status(422).render('restaurant/venue-form', { title: `Edit ${venue.name}`, venue: { ...req.body, id: venue.id }, images, errors, rawFee: true });
     }
-    await db.prepare('UPDATE venues SET name=?, description=?, amenities=?, min_pax=?, max_pax=?, hire_fee=? WHERE id=?')
-      .run(v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee, venue.id);
+    await db.prepare('UPDATE venues SET name=?, description=?, amenities=?, min_pax=?, max_pax=?, hire_fee=?, extra_time_fee=? WHERE id=?')
+      .run(v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee, venue.id);
     const ins = db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)');
     for (const [i, name] of (await storage.saveImages(req.files)).entries()) await ins.run(venue.id, name, images.length + i);
     req.flash('success', 'Venue updated.');
