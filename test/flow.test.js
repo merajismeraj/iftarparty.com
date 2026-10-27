@@ -118,7 +118,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     const token = await csrf(host, `/bookings/${bookingId}`);
     const csv = 'Name,Email,Mobile\nAisha Khan,aisha@example.com,98765 43210\nOmar,,+44 7700 900123\nBad Row,not-an-email,\nNo Contact,,\nAisha Dup,AISHA@example.com,\n';
     await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`)
-      .field('send_now', 'on')
+      .field('consent', 'on').field('send_now', 'on')
       .attach('file', Buffer.from(csv), { filename: 'guests.csv', contentType: 'text/csv' })
       .expect(302);
     const guests = await db.prepare('SELECT * FROM guests WHERE booking_id = ? ORDER BY id').all(bookingId);
@@ -137,6 +137,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
   test('pasted list skips guests already invited', async () => {
     const token = await csrf(host, `/bookings/${bookingId}`);
     await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`)
+      .field('consent', 'on')
       .field('list', 'Aisha Again, aisha@example.com\nFatima, fatima@example.com, ')
       .expect(302);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM guests WHERE booking_id = ?').get(bookingId)).n, 3);
@@ -185,6 +186,32 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     await db.prepare(`UPDATE guests SET note = '=HYPERLINK("x")' WHERE booking_id = ? AND rsvp_status = 'yes'`).run(bookingId);
     const res = await host.get(`/bookings/${bookingId}/guests.csv`).expect(200);
     assert.match(res.text, /"'=HYPERLINK\(""x""\)"/);
+  });
+
+  test('contacts file (.vcf) from a phone: mobile preferred, names decoded, unusable contacts reported', async () => {
+    const token = await csrf(host, `/bookings/${bookingId}`);
+    const vcf = [
+      'BEGIN:VCARD', 'VERSION:3.0', 'N:Rahman;Zainab;;;', 'FN:Zainab Rahman', 'TEL;type=HOME:022 2640 1111', 'TEL;type=CELL;type=pref:+91 99887 76655', 'END:VCARD',
+      'BEGIN:VCARD', 'VERSION:2.1', 'FN;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:=E0=A4=AB=E0=A4=BE=E0=A4=A4=E0=A4=BF=E0=A4=AE=E0=A4=BE', 'TEL;CELL:09988776644', 'END:VCARD',
+      'BEGIN:VCARD', 'VERSION:3.0', 'FN:Landline Only Uncle', 'END:VCARD',
+    ].join('\r\n');
+    const res = await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`)
+      .field('consent', 'on')
+      .attach('file', Buffer.from(vcf), { filename: 'Iftar guests.vcf', contentType: 'text/vcard' })
+      .expect(302);
+    const added = await db.prepare(`SELECT name, phone FROM guests WHERE phone IN ('+919988776655', '+919988776644') ORDER BY phone DESC`).all();
+    assert.deepEqual(added.map((g) => [g.name, g.phone]), [['Zainab Rahman', '+919988776655'], ['फातिमा', '+919988776644']]);
+    const page = await host.get(res.headers.location.replace('#guests', ''));
+    assert.match(page.text, /2 guests added/);
+    assert.match(page.text, /1 contact skipped \(Landline Only Uncle has no mobile number or email\)/);
+  });
+
+  test('adding guests requires confirming they expect the invite', async () => {
+    const token = await csrf(host, `/bookings/${bookingId}`);
+    const before = (await db.prepare('SELECT COUNT(*) n FROM guests WHERE booking_id = ?').get(bookingId)).n;
+    await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`).field('list', 'Stranger, , 98765 11111').expect(302);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM guests WHERE booking_id = ?').get(bookingId)).n, before);
+    assert.match((await host.get(`/bookings/${bookingId}`)).text, /confirm your guests know you/);
   });
 });
 

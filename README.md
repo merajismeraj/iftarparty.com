@@ -18,7 +18,7 @@ Reserve private party venues at local restaurants for Iftar gatherings, pay onli
 - On a venue page, every menu and package is marked **Within budget** or **Over budget by ₹X**. Pick a date, guest count and menu or package, choose dishes per course (the picker stops at each course's limit) and any extras. Hosts must pick **at least 4 dishes in total** (at least one from every course in the package). The minimum is an admin setting, and packages that can't reach it are hidden. The **full price shows live**, along with how much of your budget is left.
 - Dish picks and extras are saved with the booking at their quoted prices. Hosts can **change dishes until 2 days before the Iftar**; after that the menu is final for the kitchen. Picks appear on the checkout page, the host's party page, the restaurant dashboard, the admin booking page and the guests' invitations. The server recalculates it, so a client can't change the price.
 - Reserving holds the venue for 30 minutes while you pay. After payment the venue shows **"Reserved · Iftar Party by <host name>"** for that evening, and search hides it for that date.
-- After payment you're sent straight to **upload your invite list** as a CSV or pasted rows with name, email and mobile. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
+- After payment you're sent straight to **add guests from your phone's contacts**. On Android the browser's contact picker opens and you tick people. On iPhone (and anywhere the picker isn't available) you import a contacts file (`.vcf`) exported from the Contacts app. You review the list (remove people, choose which number) before adding. CSV upload and typing or pasting still work. Websites can't read a whole address book, so only the contacts you pick are shared. Each guest gets a personalised **WhatsApp** message and **email** with a private RSVP link.
 - Guests reply Yes, Maybe or No with the number of people coming and a note. The host's dashboard shows **attending, total heads, maybe, declined and awaiting reply**, plus a bar comparing confirmed heads to guests booked. You can send reminders to anyone who hasn't replied and export the RSVPs to CSV.
 - The RSVP page shows **who's coming**: the confirmed guests as "First L." with any "+N" family members, plus a total headcount. The guest viewing it appears first as "You". Contact details, declines and maybes are never shown, and the host can switch the list off in their invitation settings.
 
@@ -36,7 +36,7 @@ npm install
 cp .env.example .env      # optional – works with defaults
 npm run seed              # demo restaurants, venues, menus and a booked party
 npm start                 # http://localhost:3000
-npm test                  # 101 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
+npm test                  # 103 integration + unit tests on PGlite (Cashfree, Google, Supabase Storage faked)
 TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test   # same suite on a real Postgres server
 ```
 

@@ -43,17 +43,43 @@
 
   <div class="two-col">
     <div class="card form-card" id="guests">
-      <h2 class="h3">Add your invite list</h2>
-      <p class="muted small">Upload a CSV with <strong>name, email, mobile</strong> columns (<a href="/guest-list-template.csv">download template</a>) or paste one guest per line. Each guest needs an email or a mobile number. Mobiles without a country code are treated as +<%= locals.defaultCountryCode || '91' %>.</p>
+      <h2 class="h3">Add guests</h2>
       <% if (past) { %>
         <p class="muted">This Iftar has passed — invites are closed.</p>
       <% } else { %>
-      <form method="post" action="/bookings/<%= b.id %>/guests?_csrf=<%= csrfToken %>" enctype="multipart/form-data">
-        <label class="field"><span>CSV file</span><input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
-        <p class="center muted small">— or —</p>
-        <label class="field"><span>Paste guests</span><textarea name="list" rows="5" placeholder="Aisha Khan, aisha@example.com, +919876543210&#10;Omar Siddiqui, , 9876501234"></textarea></label>
-        <label class="check"><input type="checkbox" name="send_now" checked> Send invites on WhatsApp &amp; email right away</label>
-        <button class="btn btn-gold btn-block">Add guests</button>
+      <form method="post" action="/bookings/<%= b.id %>/guests?_csrf=<%= csrfToken %>" enctype="multipart/form-data" data-guest-form>
+        <p class="muted small">Pick people from your phone. Each guest gets a personal WhatsApp and email invite with an RSVP link.</p>
+        <div class="pick-sources">
+          <button type="button" class="btn btn-gold btn-block pick-btn" data-pick-contacts hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Choose from contacts
+          </button>
+          <label class="btn btn-ghost btn-block pick-btn file-btn" data-file-btn>
+            <input type="file" name="file" accept=".vcf,text/vcard,text/x-vcard,.csv,text/csv,text/plain" data-contacts-file>
+            <span data-file-label>Import contacts file</span>
+          </label>
+          <details class="howto" data-vcf-help>
+            <summary class="small">How do I get a contacts file?</summary>
+            <p class="small muted"><strong>iPhone:</strong> Contacts → <em>Lists</em> → touch and hold a list (or make one with your guests) → <em>Export</em> → <em>Save to Files</em>, then choose it here.<br>
+            <strong>Android:</strong> Contacts → <em>Fix &amp; manage</em> → <em>Export to file</em>.</p>
+          </details>
+        </div>
+
+        <div class="picked" data-picked hidden>
+          <div class="picked-head"><strong data-picked-count></strong><button type="button" class="link small" data-picked-clear>Clear</button></div>
+          <ul class="picked-list" data-picked-list></ul>
+          <p class="small muted" data-picked-skipped hidden></p>
+        </div>
+
+        <details class="more" data-paste>
+          <summary>Type or paste instead</summary>
+          <label class="field"><span>One guest per line: name, email, mobile</span><textarea name="list" rows="4" placeholder="Aisha Khan, aisha@example.com, 98765 43210&#10;Omar Siddiqui, , 98765 01234"></textarea></label>
+          <p class="small muted">Each guest needs a mobile or email. Mobiles without a country code are treated as +<%= locals.defaultCountryCode || '91' %>. <a href="/guest-list-template.csv">CSV template</a></p>
+        </details>
+
+        <label class="check"><input type="checkbox" name="consent" required> These are people I know, and they expect my invite.</label>
+        <label class="check"><input type="checkbox" name="send_now" checked data-send-now> Send invites right away</label>
+        <button class="btn btn-gold btn-block" data-guest-submit>Add guests</button>
       </form>
       <% } %>
     </div>

@@ -42,6 +42,8 @@
 
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
+/* `hidden` must win over component display rules (e.g. a flex button hidden by script). */
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--header-h) + 12px); }
 body { margin: 0; font: 16px/1.55 var(--sans); color: var(--ink); background: #fff; font-feature-settings: 'cv11', 'ss01'; -webkit-tap-highlight-color: rgba(20, 33, 61, .08); }
 img { max-width: 100%; display: block; }
@@ -710,3 +712,22 @@ th { background: #fbf5ee; }
 .btn-google:hover { background: #fdfaf6; border-color: #d9cbbb; }
 .or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: .85rem; margin: 16px 0; }
 .or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+
+/* Add guests: contacts first, mobile-sized targets */
+.pick-sources { display: grid; gap: 8px; margin: 4px 0 12px; }
+.pick-btn { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; margin-top: 0; font-size: 1rem; }
+.file-btn { position: relative; cursor: pointer; }
+.file-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.file-btn:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
+.howto summary { cursor: pointer; color: var(--muted); min-height: var(--tap); display: flex; align-items: center; }
+.howto p { margin: 0 0 4px; }
+.picked { margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.picked-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--sand); }
+.picked-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.picked-list li { display: flex; align-items: center; gap: 8px; padding: 10px 6px 10px 14px; border-top: 1px solid var(--line); min-height: 56px; }
+.picked-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.picked-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picked-main select { margin-top: 4px; min-height: 36px; padding: 4px 8px; font-size: 16px; max-width: 100%; }
+.picked-x { flex: none; width: 44px; height: 44px; border: 0; background: none; font-size: 1.5rem; line-height: 1; color: var(--muted); cursor: pointer; border-radius: 50%; }
+.picked-x:hover { background: var(--sand); color: var(--bad); }
+.picked > [data-picked-skipped] { margin: 0; padding: 8px 14px; border-top: 1px solid var(--line); }

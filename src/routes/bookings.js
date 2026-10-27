@@ -218,12 +218,17 @@ module.exports = (db) => {
     const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status !== 'confirmed') return res.redirect(`/bookings/${b.id}`);
+    // WhatsApp only allows messages people expect: the host confirms they know their guests.
+    if (req.body.consent !== 'on') {
+      req.flash('error', 'Please confirm your guests know you and expect your invite.');
+      return res.redirect(`/bookings/${b.id}#guests`);
+    }
     const text = req.file ? req.file.buffer.toString('utf8') : String(req.body.list || '');
     let parsed;
     try {
       parsed = parseGuestList(text);
     } catch (err) {
-      req.flash('error', `We couldn’t read that file: ${err.message}. Use the CSV template (name, email, mobile).`);
+      req.flash('error', `We couldn’t read that file: ${err.message}. Use a contacts file (.vcf) or the CSV template (name, email, mobile).`);
       return res.redirect(`/bookings/${b.id}#guests`);
     }
 
@@ -241,7 +246,8 @@ module.exports = (db) => {
     if (fresh.length) notes.push(`${fresh.length} guest${fresh.length === 1 ? '' : 's'} added`);
     if (skipped) notes.push(`${skipped} already on your list`);
     if (parsed.errors.length) {
-      notes.push(`${parsed.errors.length} row${parsed.errors.length === 1 ? '' : 's'} skipped (${parsed.errors.slice(0, 3).map((e) => `line ${e.line}: ${e.reason}`).join('; ')}${parsed.errors.length > 3 ? '…' : ''})`);
+      const vcard = /^\s*BEGIN:VCARD/im.test(text);
+      notes.push(`${parsed.errors.length} ${vcard ? 'contact' : 'row'}${parsed.errors.length === 1 ? '' : 's'} skipped (${parsed.errors.slice(0, 3).map((e) => (vcard ? e.reason : `line ${e.line}: ${e.reason}`)).join('; ')}${parsed.errors.length > 3 ? '…' : ''})`);
     }
     if (!fresh.length && !parsed.errors.length && !skipped) notes.push('No guests found – add one per line as: name, email, mobile');
 
