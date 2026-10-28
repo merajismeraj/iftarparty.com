@@ -303,6 +303,15 @@ const MIGRATIONS = [
   ALTER TABLE bookings ADD COLUMN duration_minutes integer NOT NULL DEFAULT 90 CHECK (duration_minutes > 0);
   ALTER TABLE bookings ADD COLUMN extra_time_total integer NOT NULL DEFAULT 0 CHECK (extra_time_total >= 0);
   `,
+  // v4: restaurants imported from public data (OpenStreetMap) start "unclaimed": hidden from hosts and
+  // not in the review queue until the admin sets the real owner and onboards them.
+  `
+  ALTER TABLE restaurants DROP CONSTRAINT restaurants_status_check;
+  ALTER TABLE restaurants ADD CONSTRAINT restaurants_status_check CHECK (status IN ('unclaimed', 'pending', 'approved', 'rejected', 'suspended'));
+  ALTER TABLE restaurants ADD COLUMN website text NOT NULL DEFAULT '';
+  ALTER TABLE restaurants ADD COLUMN source_ref text;
+  CREATE UNIQUE INDEX restaurants_source_ref ON restaurants (source_ref) WHERE source_ref IS NOT NULL;
+  `,
 ];
 
 /* --------------------------------------------------------------- drivers */

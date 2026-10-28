@@ -22,4 +22,10 @@ const sheet = multer({
   limits: { fileSize: 1024 * 1024, files: 1, fieldSize: 1.5 * 1024 * 1024 },
 });
 
-module.exports = { images, guestList, sheet };
+/** OpenStreetMap (Overpass) JSON exports; under Vercel's 4.5 MB request limit. */
+const osmExport = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024, files: 1 },
+});
+
+module.exports = { images, guestList, sheet, osmExport };

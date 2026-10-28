@@ -475,6 +475,11 @@ document.documentElement.classList.add('js');
   document.addEventListener('DOMContentLoaded', () => {
     initNav();
     document.querySelectorAll('[data-deck]').forEach(initDeck);
+    // Long-running admin actions: show progress and prevent double submits.
+    document.querySelectorAll('form[data-busy-form]').forEach((form) => form.addEventListener('submit', () => {
+      const btn = form.querySelector('[data-busy-label]');
+      if (btn) setTimeout(() => { btn.disabled = true; btn.textContent = btn.dataset.busyLabel; }, 0);
+    }));
     document.querySelectorAll('[data-hero-track]').forEach(initHero);
     labelTables();
     document.querySelectorAll('form[data-planner]').forEach(initPlanner);
