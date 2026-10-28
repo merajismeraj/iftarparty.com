@@ -16,6 +16,8 @@ const CITIES = {
   Hyderabad: [17.20, 78.20, 17.60, 78.70],
 };
 const CHUNK = 100;
+// OSM "suburb"/"district" tags often hold the city, district or state; those aren't localities.
+const NOT_A_LOCALITY = /^(hyderabad|telang?ana|telagana|ranga ?reddy|medchal[- ]?malk?a?j?giri|sangareddy|india|ghmc)$/i;
 const PLACEHOLDER_DOMAIN = 'unclaimed.iftarparty.invalid';
 
 const text = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -50,7 +52,8 @@ function toRestaurants(json, city) {
     if (t.amenity !== 'restaurant') continue;
     const name = text(t['name:en'] || t.name, 120);
     if (!name || !['node', 'way', 'relation'].includes(el.type)) continue;
-    const area = text(t['addr:suburb'] || t['addr:neighbourhood'] || t['addr:district'] || t['addr:city_district'], 80);
+    const area = [t['addr:suburb'], t['addr:neighbourhood'], t['addr:city_district'], t['addr:district']]
+      .map((v) => text(v, 80)).find((v) => v && !NOT_A_LOCALITY.test(v) && v.toLowerCase() !== city.toLowerCase()) || '';
     const key = `${name.toLowerCase()}|${area.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);

@@ -8,8 +8,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Plus+Jakarta+Sans:wght@600..800&display=swap">
+  <link rel="preload" href="/static/fonts/fredoka-700.woff2?v=5.3.0" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/style.css?v=<%= locals.assetVersion || "" %>">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0b5258">
   <% if (locals.mode && locals.sessionId) { %><script src="https://sdk.cashfree.com/js/v3/cashfree.js" defer></script><% } %>
   <script src="/static/js/app.js?v=<%= locals.assetVersion || "" %>" defer></script>
 </head>
@@ -17,7 +19,7 @@
 <% if (!locals.bare) { %>
 <header class="site-header" data-site-header>
   <div class="wrap nav">
-    <a class="brand" href="/">iftarparty<span class="brand-dot">.</span></a>
+    <a class="brand brand-mark" href="/" aria-label="iftarparty.com home">iftarparty.com</a>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle hidden>
       <span class="nav-toggle-bars" aria-hidden="true"></span><span>Menu</span>
     </button>
