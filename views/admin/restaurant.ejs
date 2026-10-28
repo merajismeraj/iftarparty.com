@@ -21,7 +21,23 @@
   </div>
   <div class="card form-card">
     <h2 class="h3">Owner & payouts</h2>
-    <p><strong><%= r.owner_name %></strong> <%- include('_status', { s: r.owner_status }) %><br><%= r.owner_email %> · <%= r.owner_phone || r.phone %></p>
+    <% const unclaimedOwner = r.owner_email.endsWith('@unclaimed.iftarparty.invalid'); %>
+    <% if (unclaimedOwner) { %>
+      <p class="small">No owner yet. Set the restaurant’s owner to onboard it; they sign in with Google using this email.</p>
+    <% } else { %>
+      <p><strong><%= r.owner_name %></strong> <%- include('_status', { s: r.owner_status }) %><br><%= r.owner_email %> · <%= r.owner_phone || r.phone %></p>
+    <% } %>
+    <details <%= unclaimedOwner ? 'open' : '' %>>
+      <summary class="small"><%= unclaimedOwner ? 'Set owner' : 'Change owner details' %></summary>
+      <form method="post" action="/admin/restaurants/<%= r.id %>/owner">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label class="field"><span>Owner name</span><input name="owner_name" required value="<%= unclaimedOwner ? '' : r.owner_name %>"></label>
+        <label class="field"><span>Owner email (Google sign-in)</span><input type="email" name="owner_email" required value="<%= unclaimedOwner ? '' : r.owner_email %>"></label>
+        <label class="field"><span>Owner mobile</span><input type="tel" name="owner_phone" required value="<%= r.owner_phone || r.phone || '' %>"></label>
+        <button class="btn btn-block">Save owner</button>
+      </form>
+    </details>
+    <% if (r.website) { %><p class="small">Website: <a href="<%= /^https?:\/\//i.test(r.website) ? r.website : `https://${r.website}` %>" rel="noopener nofollow" target="_blank"><%= r.website %></a></p><% } %>
     <dl class="kv">
       <dt>Payee</dt><dd><%= r.payout_name || '—' %></dd>
       <dt>UPI</dt><dd><%= r.payout_upi || '—' %></dd>

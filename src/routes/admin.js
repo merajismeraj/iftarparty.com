@@ -11,10 +11,12 @@ const audit = require('../services/audit');
 const money = require('../services/money');
 const reviews = require('../services/reviews');
 const restaurantImport = require('../services/restaurantImport');
-const { sheet: sheetUpload } = require('../middleware/uploads');
+const { sheet: sheetUpload, osmExport } = require('../middleware/uploads');
+const osmImport = require('../services/osmImport');
+const { normalizeEmail, normalizePhone } = require('../services/guestlist');
 
 const PAGE_SIZE = 25;
-const RESTAURANT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
+const RESTAURANT_STATUSES = ['unclaimed', 'pending', 'approved', 'rejected', 'suspended'];
 const BOOKING_STATUSES = ['confirmed', 'pending_payment', 'cancelled', 'expired'];
 
 const like = (s) => `%${String(s).trim().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
@@ -111,14 +113,14 @@ module.exports = (db) => {
   });
 
   router.get('/restaurants/import', (req, res) => {
-    res.render('admin/restaurant-import', { title: 'Bulk upload restaurants', result: null, status: 'approved', columns: restaurantImport.COLUMNS, required: restaurantImport.REQUIRED, maxRows: restaurantImport.MAX_ROWS });
+    res.render('admin/restaurant-import', { title: 'Bulk upload restaurants', result: null, status: 'approved', cities: Object.keys(osmImport.CITIES), columns: restaurantImport.COLUMNS, required: restaurantImport.REQUIRED, maxRows: restaurantImport.MAX_ROWS });
   });
 
   router.post('/restaurants/import', sheetUpload.single('file'), async (req, res) => {
     const status = req.body.status === 'pending' ? 'pending' : 'approved';
     const dryRun = req.body.action !== 'import';
     const view = (result, code = 200) => res.status(code).render('admin/restaurant-import', {
-      title: 'Bulk upload restaurants', result, status, dryRun, columns: restaurantImport.COLUMNS, required: restaurantImport.REQUIRED, maxRows: restaurantImport.MAX_ROWS,
+      title: 'Bulk upload restaurants', result, status, dryRun, cities: Object.keys(osmImport.CITIES), columns: restaurantImport.COLUMNS, required: restaurantImport.REQUIRED, maxRows: restaurantImport.MAX_ROWS,
     });
     // "Import" after a clean check re-posts the checked sheet, so the admin doesn't pick the file twice.
     const buffer = req.file?.buffer?.length ? req.file.buffer : Buffer.from(String(req.body.sheet || ''), 'base64');
@@ -133,6 +135,45 @@ module.exports = (db) => {
       `${name}: ${result.created} new, ${result.extended} updated, ${result.venues} venues, ${result.menus} menus (${status})`);
     req.flash('success', `Imported ${result.created} new restaurant${result.created === 1 ? '' : 's'}${result.extended ? ` and added to ${result.extended} existing` : ''}: ${result.venues} venue${result.venues === 1 ? '' : 's'}, ${result.menus} menu${result.menus === 1 ? '' : 's'}. Owners sign in with Google using their email.`);
     res.redirect('/admin/restaurants');
+  });
+
+  router.post('/restaurants/import-osm', osmExport.single('file'), async (req, res) => {
+    const city = Object.keys(osmImport.CITIES).includes(req.body.city) ? req.body.city : 'Hyderabad';
+    let places;
+    try {
+      const json = req.file?.buffer?.length ? JSON.parse(req.file.buffer.toString('utf8')) : await osmImport.fetchCity(city);
+      places = osmImport.toRestaurants(json, city);
+    } catch (err) {
+      req.flash('error', `Could not import from OpenStreetMap: ${err.message}`);
+      return res.redirect('/admin/restaurants/import');
+    }
+    const r = await osmImport.importRestaurants(db, places);
+    await audit.log(db, req.user.id, 'restaurant.osm_import', 'restaurant', null,
+      `${city}${req.file ? ` (file ${req.file.originalname})` : ''}: ${places.length} found, ${r.added} added, ${r.refreshed} refreshed, ${r.skipped} skipped`);
+    req.flash('success', `${city}: ${places.length} restaurants found on OpenStreetMap – ${r.added} added as unclaimed, ${r.refreshed} refreshed, ${r.skipped} already on the platform.`);
+    res.redirect('/admin/restaurants?status=unclaimed');
+  });
+
+  /** Onboarding: point a restaurant at its real owner (they then sign in with Google using this email). */
+  router.post('/restaurants/:id/owner', async (req, res) => {
+    const r = await db.prepare('SELECT r.*, u.email AS owner_email FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE r.id = ?').get(req.params.id);
+    if (!r) return notFound(res, 'Restaurant');
+    const name = String(req.body.owner_name || '').trim().slice(0, 120);
+    const email = normalizeEmail(req.body.owner_email);
+    const phone = normalizePhone(req.body.owner_phone);
+    const errors = [];
+    if (name.length < 2) errors.push('Enter the owner’s name.');
+    if (!email || osmImport.isPlaceholderEmail(email)) errors.push('Enter the owner’s real email – they sign in with Google using it.');
+    if (!phone) errors.push('Enter a valid mobile number.');
+    if (email && await db.prepare('SELECT 1 FROM users WHERE lower(email) = ? AND id <> ?').get(email, r.owner_id)) errors.push(`${email} already belongs to another account.`);
+    if (errors.length) {
+      req.flash('error', errors.join(' '));
+      return res.redirect(`/admin/restaurants/${r.id}`);
+    }
+    await db.prepare('UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ?').run(name, email, phone, r.owner_id);
+    await audit.log(db, req.user.id, 'restaurant.owner', 'restaurant', r.id, `${r.owner_email} → ${email}`);
+    req.flash('success', `Owner set. ${name} can now sign in with Google as ${email}.${r.status === 'unclaimed' ? ' Add venues, menus and photos, then set the status to approved.' : ''}`);
+    res.redirect(`/admin/restaurants/${r.id}`);
   });
 
   router.get('/restaurants/:id', async (req, res) => {

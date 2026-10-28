@@ -31,6 +31,19 @@
   </form>
 </div>
 
+<section class="card form-card">
+  <h2 class="h3">Or add a city’s restaurants from OpenStreetMap</h2>
+  <p class="small muted">Adds every named restaurant with its public details (name, cuisine, address, area, phone, website) as <strong>unclaimed</strong>: hidden from hosts and out of the review queue. OpenStreetMap has no capacity, menus, prices or photos, so add those when you onboard each restaurant, starting with setting its owner. Running it again refreshes unclaimed entries and never touches onboarded ones.</p>
+  <form method="post" action="/admin/restaurants/import-osm?_csrf=<%= encodeURIComponent(csrfToken) %>" enctype="multipart/form-data" data-busy-form>
+    <label class="field"><span>City</span><select name="city"><% cities.forEach(c => { %><option><%= c %></option><% }) %></select></label>
+    <details class="small"><summary>Upload an Overpass export instead</summary>
+      <label class="field"><span>Overpass JSON (optional, up to 4 MB)</span><input type="file" name="file" accept=".json,application/json"></label>
+    </details>
+    <button class="btn btn-block" data-busy-label="Fetching from OpenStreetMap… (up to a minute)">Fetch &amp; add restaurants</button>
+  </form>
+  <p class="small muted">Data © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap contributors</a>, ODbL.</p>
+</section>
+
 <% if (result) { %>
   <section class="card form-card">
     <% if (result.errors.length) { %>
