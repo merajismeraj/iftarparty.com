@@ -189,7 +189,12 @@ input[readonly] { background: #f6f6f6; }
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cpath d='M72 36L61.46 46.54L61.46 61.46L46.54 61.46L36 72L25.46 61.46L10.54 61.46L10.54 46.54L0 36L10.54 25.46L10.54 10.54L25.46 10.54L36 0L46.54 10.54L61.46 10.54L61.46 25.46ZM49.97 41.79L44.18 44.18L41.79 49.97L36 47.57L30.21 49.97L27.82 44.18L22.03 41.79L24.43 36L22.03 30.21L27.82 27.82L30.21 22.03L36 24.43L41.79 22.03L44.18 27.82L49.97 30.21L47.57 36Z' fill='none' stroke='white' stroke-width='1' stroke-linejoin='miter'/%3E%3C/svg%3E") center top / 72px 72px repeat;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 95%); mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 95%); }
 .plan-wrap { max-width: 520px; }
-.plan h1 { color: #fff; font-family: var(--display); font-size: clamp(1.9rem, 8vw, 2.8rem); font-weight: 800; letter-spacing: -.035em; margin-bottom: .25em; }
+/* Homepage titles: Fraunces (self-hosted, OFL), an editorial serif; "Iftar" set in italic as an accent. */
+@font-face { font-family: 'Fraunces'; font-style: normal; font-weight: 600; font-display: swap; src: url('/static/fonts/fraunces-600.woff2?v=5.3.0') format('woff2'); }
+@font-face { font-family: 'Fraunces'; font-style: italic; font-weight: 500; font-display: swap; src: url('/static/fonts/fraunces-500-italic.woff2?v=5.3.0') format('woff2'); }
+.plan h1 { color: #fff; font-family: 'Fraunces', Georgia, 'Times New Roman', serif; font-size: clamp(2.2rem, 9.5vw, 3.4rem); font-weight: 600; letter-spacing: -.02em; line-height: 1.05; margin-bottom: .3em; }
+.plan h1 em { font-style: italic; font-weight: 500; color: var(--sun); }
+.plan .plan-q { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 1.45rem; letter-spacing: -.01em; }
 .plan .lead { color: rgba(255, 255, 255, .8); margin-bottom: 20px; }
 .planner { background: #fff; color: var(--ink); border-radius: 20px; padding: 20px; box-shadow: 0 18px 50px rgba(4, 34, 37, .35); }
 .plan-progress { display: none; list-style: none; margin: 0 0 16px; padding: 0; gap: 6px; }

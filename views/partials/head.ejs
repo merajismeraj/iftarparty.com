@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Plus+Jakarta+Sans:wght@600..800&display=swap">
   <link rel="preload" href="/static/fonts/fredoka-700.woff2?v=5.3.0" as="font" type="font/woff2" crossorigin>
+  <% if (locals.path === '/') { %><link rel="preload" href="/static/fonts/fraunces-600.woff2?v=5.3.0" as="font" type="font/woff2" crossorigin><% } %>
   <link rel="stylesheet" href="/static/css/style.css?v=<%= locals.assetVersion || "" %>">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#0b5258">
