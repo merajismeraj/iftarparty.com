@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const config = require('../config');
+const { transaction } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const svc = require('../services/bookings');
 const checkout = require('../services/checkout');
@@ -174,6 +175,54 @@ module.exports = (db) => {
     await audit.log(db, req.user.id, 'restaurant.owner', 'restaurant', r.id, `${r.owner_email} → ${email}`);
     req.flash('success', `Owner set. ${name} can now sign in with Google as ${email}.${r.status === 'unclaimed' ? ' Add venues, menus and photos, then set the status to approved.' : ''}`);
     res.redirect(`/admin/restaurants/${r.id}`);
+  });
+
+  const RESTAURANT_FIELDS = ['name', 'cuisine', 'address', 'area', 'city', 'phone', 'website', 'description', 'owner_name', 'owner_email', 'owner_phone', 'status'];
+  const newRestaurantView = (res, form = { status: 'pending' }, errors = [], code = 200) =>
+    res.status(code).render('admin/restaurant-new', { title: 'Add a restaurant', form, errors });
+
+  router.get('/restaurants/new', (req, res) => newRestaurantView(res));
+
+  /** Add one restaurant and its owner (who signs in with Google using the email given). */
+  router.post('/restaurants', async (req, res) => {
+    const b = Object.fromEntries(RESTAURANT_FIELDS.map((k) => [k, String(req.body[k] ?? '').trim()]));
+    const email = normalizeEmail(b.owner_email);
+    const ownerPhone = normalizePhone(b.owner_phone);
+    const status = b.status === 'approved' ? 'approved' : 'pending';
+    const errors = [];
+    if (!b.name) errors.push('Enter the restaurant name.');
+    if (!b.city) errors.push('Enter the city.');
+    if (b.owner_name.length < 2) errors.push('Enter the owner’s name.');
+    if (!email || osmImport.isPlaceholderEmail(email)) errors.push('Enter the owner’s email – they sign in with Google using it.');
+    if (!ownerPhone) errors.push('Enter a valid owner mobile number.');
+    if (email && await db.prepare('SELECT 1 FROM users WHERE lower(email) = ?').get(email)) errors.push(`${email} already has an account. Open that restaurant instead, or use another email.`);
+    if (errors.length) return newRestaurantView(res, b, errors, 422);
+    const id = await transaction(db, async () => {
+      const ownerId = Number((await db.prepare("INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, '', 'restaurant')")
+        .run(b.owner_name.slice(0, 120), email, ownerPhone)).lastInsertRowid);
+      return Number((await db.prepare(
+        'INSERT INTO restaurants (owner_id, name, cuisine, address, area, city, phone, website, description, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(ownerId, b.name.slice(0, 120), b.cuisine.slice(0, 200), b.address.slice(0, 300), b.area.slice(0, 120), b.city.slice(0, 120),
+        (normalizePhone(b.phone) || b.phone).slice(0, 30), b.website.slice(0, 300), b.description.slice(0, 2000), status)).lastInsertRowid);
+    });
+    await audit.log(db, req.user.id, 'restaurant.create', 'restaurant', id, `${b.name} · owner ${email} · ${status}`);
+    req.flash('success', `${b.name} added. Next: Manage listing to add venues, menus and photos.`);
+    res.redirect(`/admin/restaurants/${id}`);
+  });
+
+  /** Work on a restaurant's listing through its own dashboard (venues, menus, photos, profile). */
+  router.post('/restaurants/:id/manage', async (req, res) => {
+    const r = await db.prepare('SELECT id, name FROM restaurants WHERE id = ?').get(req.params.id);
+    if (!r) return notFound(res, 'Restaurant');
+    req.session.manageRestaurantId = r.id;
+    await audit.log(db, req.user.id, 'restaurant.manage', 'restaurant', r.id, `Opened ${r.name}'s dashboard`);
+    res.redirect('/restaurant');
+  });
+
+  router.post('/manage/exit', (req, res) => {
+    const id = req.session.manageRestaurantId;
+    req.session.manageRestaurantId = null;
+    res.redirect(id ? `/admin/restaurants/${id}` : '/admin/restaurants');
   });
 
   router.get('/restaurants/:id', async (req, res) => {
