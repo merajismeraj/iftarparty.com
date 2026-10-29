@@ -5,6 +5,7 @@ const reviews = require('../services/reviews');
 const packages = require('../services/packages');
 const pricing = require('../services/pricing');
 const settings = require('../services/settings');
+const waitlist = require('../services/waitlist');
 const { isValidDate, todayISO, blockingBooking, upcomingReservations, expireStaleHolds } = require('../services/bookings');
 
 const PAGE_SIZE = 12;
@@ -101,7 +102,20 @@ module.exports = (db) => {
   router.get('/search', async (req, res) => {
     await expireStaleHolds(db);
     const result = await searchVenues(db, req.query, await settings.feePercent(db));
-    res.render('search', { title: 'Find an Iftar venue', ...result, q: req.query });
+    const comingSoon = result.page === 1 ? await waitlist.comingSoon(db, req.query) : [];
+    res.render('search', { title: 'Find an Iftar venue', ...result, comingSoon, q: req.query });
+  });
+
+  router.post('/waitlist/:restaurantId', async (req, res) => {
+    const loc = typeof req.body.location === 'string' && req.body.location.trim() ? String(req.body.location).trim().slice(0, 80) : '';
+    const qs = (extra) => `/search?${new URLSearchParams({ ...(loc ? { location: loc } : {}), ...extra })}`;
+    const r = await waitlist.join(db, Number(req.params.restaurantId), { name: req.body.name || req.user?.name, contact: req.body.contact, userId: req.user?.id });
+    if (r.error) {
+      req.flash('error', r.error);
+      return res.redirect(qs({}));
+    }
+    // Confirmation shows in the card itself, which is where the page lands.
+    res.redirect(`${qs({ joined: String(r.restaurant.id), via: r.email ? 'email' : 'mobile' })}#soon-${r.restaurant.id}`);
   });
 
   router.get('/venues/:id', async (req, res) => {

@@ -55,6 +55,25 @@
   </div>
 </div>
 
+<h2 class="h3" id="waitlist">Waitlist <span class="muted">(<%= waitlist.length %>)</span></h2>
+<% if (!waitlist.length) { %>
+  <p class="small muted"><%= r.status === 'approved' && !bookable ? 'Shown to hosts as “Coming soon” with a Join waitlist button. Nobody has joined yet.' : 'Hosts can join a waitlist while this restaurant is approved but not bookable yet.' %></p>
+<% } else { %>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Name</th><th>Contact</th><th>Joined</th><th>Told it’s open</th></tr></thead>
+    <tbody><% waitlist.forEach(w => { %>
+      <tr><td><%= w.name || '—' %></td>
+        <td class="small"><% if (w.email) { %><a href="mailto:<%= w.email %>"><%= w.email %></a><% } %><% if (w.phone) { %><a href="https://wa.me/<%= w.phone.replace(/\D/g, '') %>" target="_blank" rel="noopener"><%= w.phone %></a><% } %></td>
+        <td class="small nowrap"><%= w.created_at.slice(0, 10) %></td><td class="small"><%= w.notified_at ? w.notified_at.slice(0, 10) : (w.email ? '—' : 'mobile only') %></td></tr>
+    <% }) %></tbody>
+  </table></div>
+  <form method="post" action="/admin/restaurants/<%= r.id %>/waitlist/notify" class="btn-row">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button class="btn btn-small" <%= bookable ? '' : 'disabled' %>>Email the waitlist that it’s open</button>
+    <% if (!bookable) { %><span class="small muted">Available once it’s approved with a venue and a menu.</span><% } %>
+  </form>
+<% } %>
+
 <h2 class="h3">Venues</h2>
 <div class="table-wrap"><table>
   <thead><tr><th></th><th>Venue</th><th>Capacity</th><th>Venue fee</th><th>Photos</th><th>Visible</th><th></th></tr></thead>

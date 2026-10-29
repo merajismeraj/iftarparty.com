@@ -14,6 +14,7 @@ const reviews = require('../services/reviews');
 const restaurantImport = require('../services/restaurantImport');
 const { sheet: sheetUpload, osmExport } = require('../middleware/uploads');
 const osmImport = require('../services/osmImport');
+const waitlist = require('../services/waitlist');
 const { normalizeEmail, normalizePhone } = require('../services/guestlist');
 
 const PAGE_SIZE = 25;
@@ -246,7 +247,20 @@ module.exports = (db) => {
       `SELECT a.*, u.name AS admin_name FROM admin_actions a LEFT JOIN users u ON u.id = a.admin_id
        WHERE a.entity_type = 'restaurant' AND a.entity_id = ? ORDER BY a.id DESC LIMIT 20`
     ).all(r.id);
-    res.render('admin/restaurant', { title: r.name, r, venues, menus, bookings, upcoming, log, statuses: RESTAURANT_STATUSES });
+    res.render('admin/restaurant', { title: r.name, r, venues, menus, bookings, upcoming, log, statuses: RESTAURANT_STATUSES, waitlist: await waitlist.list(db, r.id), bookable: await waitlist.isBookable(db, r.id) });
+  });
+
+  router.post('/restaurants/:id/waitlist/notify', async (req, res) => {
+    const r = await db.prepare('SELECT id, name FROM restaurants WHERE id = ?').get(req.params.id);
+    if (!r) return notFound(res, 'Restaurant');
+    if (!await waitlist.isBookable(db, r.id)) {
+      req.flash('error', `${r.name} isn’t bookable yet – approve it and add a venue and a menu first.`);
+      return res.redirect(`/admin/restaurants/${r.id}#waitlist`);
+    }
+    const out = await waitlist.notifyOpen(db, r.id);
+    await audit.log(db, req.user.id, 'restaurant.waitlist_notify', 'restaurant', r.id, `${out.sent} emailed, ${out.failed} failed`);
+    req.flash(out.failed ? 'error' : 'success', `Emailed ${out.sent} on the waitlist${out.failed ? `; ${out.failed} failed – try again` : ''}.${out.phoneOnly ? ` ${out.phoneOnly} left a mobile only – message them from the list.` : ''}`);
+    res.redirect(`/admin/restaurants/${r.id}#waitlist`);
   });
 
   router.post('/restaurants/:id/status', async (req, res) => {

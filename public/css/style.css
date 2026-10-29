@@ -28,6 +28,7 @@
   --dusk: linear-gradient(135deg, #0b5258 0%, #0f7179 55%, #2aa9b0 100%);
   --lift: 0 1px 2px rgba(11, 82, 88, .05), 0 8px 24px rgba(11, 82, 88, .08);
   --display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --khatam: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cpath d='M72 36L61.46 46.54L61.46 61.46L46.54 61.46L36 72L25.46 61.46L10.54 61.46L10.54 46.54L0 36L10.54 25.46L10.54 10.54L25.46 10.54L36 0L46.54 10.54L61.46 10.54L61.46 25.46ZM49.97 41.79L44.18 44.18L41.79 49.97L36 47.57L30.21 49.97L27.82 44.18L22.03 41.79L24.43 36L22.03 30.21L27.82 27.82L30.21 22.03L36 24.43L41.79 22.03L44.18 27.82L49.97 30.21L47.57 36Z' fill='none' stroke='white' stroke-width='1' stroke-linejoin='miter'/%3E%3C/svg%3E");
   --logo: 'Fredoka', 'Baloo 2', 'Nunito', system-ui, sans-serif;
   --ok: #157f4b;
   --ok-bg: #e5f6ec;
@@ -186,7 +187,7 @@ input[readonly] { background: #f6f6f6; }
 .plan { background: var(--dusk); color: #fff; padding: 28px 0 40px; min-height: calc(100svh - var(--header-h)); display: flex; position: relative; isolation: isolate; overflow: hidden; align-items: flex-start; }
 /* Subtle star-and-cross (8-point khatam) lattice over the hero, fading out towards the bottom. */
 .plan::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .12;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cpath d='M72 36L61.46 46.54L61.46 61.46L46.54 61.46L36 72L25.46 61.46L10.54 61.46L10.54 46.54L0 36L10.54 25.46L10.54 10.54L25.46 10.54L36 0L46.54 10.54L61.46 10.54L61.46 25.46ZM49.97 41.79L44.18 44.18L41.79 49.97L36 47.57L30.21 49.97L27.82 44.18L22.03 41.79L24.43 36L22.03 30.21L27.82 27.82L30.21 22.03L36 24.43L41.79 22.03L44.18 27.82L49.97 30.21L47.57 36Z' fill='none' stroke='white' stroke-width='1' stroke-linejoin='miter'/%3E%3C/svg%3E") center top / 72px 72px repeat;
+  background: var(--khatam) center top / 72px 72px repeat;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 95%); mask-image: linear-gradient(180deg, #000 0%, #000 45%, transparent 95%); }
 .plan-wrap { max-width: 520px; }
 /* Homepage titles: Fraunces (self-hosted, OFL), an editorial serif; "Iftar" set in italic as an accent. */
@@ -800,3 +801,28 @@ th { background: #f0f7f7; }
 .manage-bar-in { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; flex-wrap: wrap; }
 .manage-bar form { margin: 0; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- Coming soon (approved partners not bookable yet) + waitlist ---------- */
+.soon { margin-top: 32px; scroll-margin-top: calc(var(--header-h) + 12px); }
+.soon-head h2 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; margin-bottom: 4px; }
+.soon-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
+.soon-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; }
+.soon-img { position: relative; aspect-ratio: 16 / 9; background: var(--dusk); overflow: hidden; isolation: isolate; }
+.soon-img img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(.55) brightness(.92); }
+.soon-img.blank::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: .16; background: var(--khatam) center / 72px 72px repeat; }
+.soon-initial { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, .92); font: 600 3rem/1 'Fraunces', Georgia, serif; }
+.soon-pill { position: absolute; left: 12px; top: 12px; background: var(--sun); color: var(--ink); border-radius: 999px; padding: .3em .8em; font-size: .78rem; font-weight: 700; letter-spacing: .02em; }
+.soon-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.soon-body h3 { margin: 0; font-size: 1.1rem; }
+.soon-body p { margin: 0; }
+.soon-wait { margin-top: 12px; }
+.soon-wait > summary { list-style: none; width: 100%; }
+.soon-wait > summary::-webkit-details-marker { display: none; }
+.soon-wait[open] > summary { display: none; }
+.soon-form { display: grid; gap: 8px; }
+.soon-card { scroll-margin-top: calc(var(--header-h) + 12px); }
+.soon-joined { margin-top: 12px !important; padding: 10px 12px; border-radius: 12px; background: var(--ok-bg); color: var(--ok); font-weight: 600; font-size: .92rem; }
+.soon-form .field { margin: 0; }
+@media (min-width: 640px) {
+  .soon-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+}

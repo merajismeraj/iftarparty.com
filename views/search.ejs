@@ -1,6 +1,6 @@
 <%- include('partials/head') %>
 <%
-  const keep = new URLSearchParams(Object.entries(q).filter(([k, v]) => v && k !== 'page' && typeof v === 'string'));
+  const keep = new URLSearchParams(Object.entries(q).filter(([k, v]) => v && !['page', 'joined', 'via'].includes(k) && typeof v === 'string'));
   const withParam = (k, v) => { const p = new URLSearchParams(keep); if (v) p.set(k, v); else p.delete(k); p.delete('page'); return `/search?${p}`; };
   const planQs = new URLSearchParams(Object.entries({ guests: q.guests, date: q.date, budget: q.budget, budget_type: q.budget_type, location: q.location })
     .filter(([, v]) => v && typeof v === 'string')).toString();
@@ -44,11 +44,18 @@
   <% if (budgetNeedsGuests) { %><div class="flash flash-info">Add the number of guests to filter by a total budget.</div><% } %>
 
   <% if (!rows.length) { %>
-    <div class="empty">
-      <p class="lead">No venues match.</p>
-      <p class="muted">Try another date, a nearby area or a higher budget.</p>
-      <a class="btn btn-ghost" href="/<%= planQs ? `?${planQs}` : '' %>">Change search</a>
-    </div>
+    <% if (locals.comingSoon && comingSoon.length && !crit.length) { %>
+      <div class="empty">
+        <p class="lead">Venues open for booking soon.</p>
+        <p class="muted">Our partners are setting up. Join a waitlist below and we’ll tell you when you can book.</p>
+      </div>
+    <% } else { %>
+      <div class="empty">
+        <p class="lead">No venues match.</p>
+        <p class="muted">Try another date, a nearby area or a higher budget.</p>
+        <a class="btn btn-ghost" href="/<%= planQs ? `?${planQs}` : '' %>">Change search</a>
+      </div>
+    <% } %>
   <% } else { %>
     <div class="deck" data-deck>
       <% rows.forEach((v, i) => { %><%- include('partials/swipe-card', { v, i, qs: venueQs, est: budget && budget.type === 'total' && Number(q.guests) > 0 ? Math.round((v.from_price * Number(q.guests) + v.hire_fee) * (100 + feePercent) / 100) : null }) %><% }) %>
@@ -64,6 +71,44 @@
   <% } %>
   <% if (!(q.guests && q.date)) { %>
     <p class="nudge small"><a href="/<%= planQs ? `?${planQs}` : '' %>">Add your guest count and date</a> to see only venues that fit and are free.</p>
+  <% } %>
+
+  <% if (locals.comingSoon && comingSoon.length) { %>
+    <section class="soon" id="soon" aria-labelledby="soon-title">
+      <div class="soon-head">
+        <h2 class="h2" id="soon-title">Coming soon<%= q.location ? ` in ${q.location}` : '' %></h2>
+        <p class="muted small">Partners joining IftarParty. Join the waitlist and we’ll tell you the moment you can book.</p>
+      </div>
+      <div class="soon-grid">
+        <% comingSoon.forEach(r => { %>
+          <article class="soon-card" id="soon-<%= r.id %>">
+            <div class="soon-img <%= r.image ? '' : 'blank' %>">
+              <% if (r.image) { %><img src="<%= photoUrl(r.image) %>" alt="" loading="lazy"><% } else { %><span class="soon-initial" aria-hidden="true"><%= r.name.trim().charAt(0).toUpperCase() %></span><% } %>
+              <span class="soon-pill">Coming soon</span>
+            </div>
+            <div class="soon-body">
+              <h3><%= r.name %></h3>
+              <p class="muted small"><%= [r.area, r.city].filter(Boolean).join(', ') %></p>
+              <% if (r.cuisine) { %><p class="small"><%= r.cuisine %></p><% } %>
+              <% if (String(q.joined) === String(r.id)) { %>
+                <p class="soon-joined" role="status">✓ You’re on the waitlist. We’ll <%= q.via === 'mobile' ? 'message' : 'email' %> you when <%= r.name %> opens for bookings.</p>
+              <% } else { %>
+                <details class="soon-wait">
+                  <summary class="btn btn-gold btn-block">Join waitlist</summary>
+                  <form class="soon-form" method="post" action="/waitlist/<%= r.id %>">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                    <input type="hidden" name="location" value="<%= typeof q.location === 'string' ? q.location : '' %>">
+                    <label class="field"><span>Your name</span><input name="name" autocomplete="name" maxlength="120" value="<%= user ? user.name : '' %>"></label>
+                    <label class="field"><span>Mobile or email</span><input name="contact" required autocomplete="email" inputmode="email" maxlength="120" placeholder="98765 43210 or you@email.com" value="<%= user ? (user.phone || user.email) : '' %>"></label>
+                    <button class="btn btn-gold btn-block">Notify me when it opens</button>
+                  </form>
+                </details>
+              <% } %>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    </section>
   <% } %>
 </section>
 <%- include('partials/foot') %>
