@@ -27,7 +27,10 @@ describe('coming soon + waitlist', () => {
     assert.match(page.text, /Venues open for booking soon/);
     assert.doesNotMatch(page.text, /Hidden Pending|Hidden Unclaimed/);
     assert.match(page.text, new RegExp(`action="/waitlist/${soon}"`));
-    assert.match((await request(app).get('/search?location=Tolichowki')).text, /Coming soon in Tolichowki/);
+    const local = (await request(app).get('/search?location=Tolichowki')).text;
+    assert.match(local, /Coming soon in Tolichowki/);
+    assert.match(local, /Venues open for booking soon/);
+    assert.doesNotMatch(local, /No venues match/);
     assert.doesNotMatch((await request(app).get('/search?location=Mumbai')).text, /Nayaab Hotel/);
   });
 
