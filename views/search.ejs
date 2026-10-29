@@ -44,7 +44,7 @@
   <% if (budgetNeedsGuests) { %><div class="flash flash-info">Add the number of guests to filter by a total budget.</div><% } %>
 
   <% if (!rows.length) { %>
-    <% if (locals.comingSoon && comingSoon.length && !crit.length) { %>
+    <% if (locals.comingSoon && comingSoon.length) { %>
       <div class="empty">
         <p class="lead">Venues open for booking soon.</p>
         <p class="muted">Our partners are setting up. Join a waitlist below and we’ll tell you when you can book.</p>
