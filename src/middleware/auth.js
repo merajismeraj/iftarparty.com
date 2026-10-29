@@ -9,6 +9,11 @@ function loadUser(db) {
       if (!req.user) req.session.userId = null; // deleted or suspended: sign out everywhere
       else if (req.user.role === 'restaurant') {
         req.restaurant = await db.prepare('SELECT * FROM restaurants WHERE owner_id = ?').get(req.user.id) || null;
+      } else if (req.user.role === 'admin' && req.session.manageRestaurantId) {
+        // Admin "manage listing" mode: the restaurant dashboard works on this restaurant.
+        req.restaurant = await db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.session.manageRestaurantId) || null;
+        if (req.restaurant) req.managing = true;
+        else req.session.manageRestaurantId = null;
       }
     }
     if (req.user) {
@@ -17,6 +22,7 @@ function loadUser(db) {
     }
     res.locals.user = req.user || null;
     res.locals.restaurant = req.restaurant || null;
+    res.locals.managing = req.managing ? req.restaurant : null;
     next();
   };
 }
@@ -45,7 +51,8 @@ function requireAuth(role) {
       req.flash('info', 'Please sign in to continue.');
       return res.redirect('/login');
     }
-    if (role && req.user.role !== role) {
+    // An admin managing a listing may use the restaurant dashboard.
+    if (role && req.user.role !== role && !(role === 'restaurant' && req.managing)) {
       const message = {
         host: 'This page is for party hosts. Restaurant and admin accounts can’t book venues – sign in with a host account.',
         restaurant: 'This page is for restaurant partners.',

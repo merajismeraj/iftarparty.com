@@ -3,7 +3,14 @@
 <div class="section-head">
   <div><h1><%= r.name %> <%- include('_status', { s: r.status }) %></h1>
     <p class="muted"><%= r.cuisine %> · <%= [r.address, r.area, r.city].filter(Boolean).join(', ') %> · joined <%= r.created_at.slice(0, 10) %></p></div>
+  <form method="post" action="/admin/restaurants/<%= r.id %>/manage">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <button class="btn">Manage listing</button>
+  </form>
 </div>
+<% if (!venues.length || !menus.length) { %>
+  <p class="flash flash-info">Not bookable yet: it needs <%= [!venues.length && 'a venue', !menus.length && 'a menu'].filter(Boolean).join(' and ') %>. Use <strong>Manage listing</strong> to add <%= !venues.length && !menus.length ? 'them' : 'it' %> with photos.</p>
+<% } %>
 
 <div class="two-col">
   <div class="card form-card">

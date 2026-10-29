@@ -44,5 +44,13 @@
   </div>
 </header>
 <% } %>
+<% if (locals.managing) { %>
+  <div class="manage-bar" role="status">
+    <div class="wrap manage-bar-in">
+      <span>Managing <strong><%= managing.name %></strong> as admin</span>
+      <form method="post" action="/admin/manage/exit"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small">Back to admin</button></form>
+    </div>
+  </div>
+<% } %>
 <main>
 <%- include('flash') %>

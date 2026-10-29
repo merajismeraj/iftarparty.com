@@ -1,5 +1,5 @@
 <%- include('_open') %>
-<div class="admin-head"><h1>Restaurants</h1><a class="btn btn-small" href="/admin/restaurants/import">Bulk upload</a></div>
+<div class="admin-head"><h1>Restaurants</h1><div class="btn-row"><a class="btn btn-small" href="/admin/restaurants/new">Add restaurant</a> <a class="btn btn-small btn-ghost" href="/admin/restaurants/import">Bulk upload</a></div></div>
 <form class="admin-filters" method="get">
   <input name="q" placeholder="Name, city, area or owner email" value="<%= q.q || '' %>">
   <select name="status"><option value="">All statuses</option><% statuses.forEach(s => { %><option <%= q.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select>

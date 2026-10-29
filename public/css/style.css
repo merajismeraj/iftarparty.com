@@ -218,6 +218,8 @@ input[readonly] { background: #f6f6f6; }
 .seg span { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; font-weight: 600; font-size: .95rem; cursor: pointer; }
 .seg input:checked + span { border-color: var(--gold); background: #effafa; box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold-2); }
 .seg input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+.seg span { padding: 0 10px; text-align: center; }
+.seg.seg-2 { grid-template-columns: 1fr 1fr; }
 [data-plan-estimate]:empty { display: none; }
 [data-plan-estimate] { display: block; margin-top: 8px; }
 .plan-next { min-height: 52px; margin-top: 4px; }
@@ -233,6 +235,7 @@ input[readonly] { background: #f6f6f6; }
   .plan-wrap { text-align: left; }
   .planner { padding: 28px; }
   .seg { grid-template-columns: repeat(4, 1fr); }
+  .seg.seg-2 { grid-template-columns: 1fr 1fr; }
 }
 
 /* ---------- Results: a one-line summary, then cards ---------- */
@@ -791,3 +794,9 @@ th { background: #f0f7f7; }
   .hero-count { right: 20px; }
   .hero-prev, .hero-next { display: grid; }
 }
+
+/* Admin "manage listing" mode: always visible while editing a restaurant's dashboard. */
+.manage-bar { background: var(--sun); color: var(--ink); font-size: .92rem; }
+.manage-bar-in { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; flex-wrap: wrap; }
+.manage-bar form { margin: 0; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }

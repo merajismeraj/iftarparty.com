@@ -1,0 +1,40 @@
+<%- include('_open') %>
+<p class="crumbs"><a href="/admin/restaurants">Restaurants</a> › Add a restaurant</p>
+<h1>Add a restaurant</h1>
+<form class="two-col" method="post" action="/admin/restaurants">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <div class="card form-card">
+    <h2 class="h3">Restaurant</h2>
+    <%- include('../partials/errors') %>
+    <label class="field"><span>Restaurant name</span><input name="name" required maxlength="120" value="<%= form.name || '' %>" placeholder="e.g. Shadab"></label>
+    <label class="field"><span>Cuisine</span><input name="cuisine" maxlength="200" value="<%= form.cuisine || '' %>" placeholder="Hyderabadi, Mughlai, Arabic…"></label>
+    <label class="field"><span>Street address</span><input name="address" maxlength="300" value="<%= form.address || '' %>"></label>
+    <div class="row-2">
+      <label class="field"><span>Area / locality</span><input name="area" maxlength="120" value="<%= form.area || '' %>" placeholder="e.g. Banjara Hills"></label>
+      <label class="field"><span>City</span><input name="city" required maxlength="120" value="<%= form.city || 'Hyderabad' %>"></label>
+    </div>
+    <div class="row-2">
+      <label class="field"><span>Restaurant phone <span class="muted">(optional)</span></span><input type="tel" name="phone" value="<%= form.phone || '' %>"></label>
+      <label class="field"><span>Website <span class="muted">(optional)</span></span><input name="website" maxlength="300" value="<%= form.website || '' %>"></label>
+    </div>
+    <label class="field"><span>About <span class="muted">(optional, shown to hosts)</span></span><textarea name="description" rows="3" maxlength="2000"><%= form.description || '' %></textarea></label>
+  </div>
+  <div class="card form-card">
+    <h2 class="h3">Owner</h2>
+    <p class="small muted">The owner signs in with Google using this email to manage bookings and payouts. No password is created.</p>
+    <label class="field"><span>Owner name</span><input name="owner_name" required maxlength="120" value="<%= form.owner_name || '' %>"></label>
+    <label class="field"><span>Owner email (Google sign-in)</span><input type="email" name="owner_email" required value="<%= form.owner_email || '' %>"></label>
+    <label class="field"><span>Owner mobile</span><input type="tel" name="owner_phone" required inputmode="tel" placeholder="+91 98765 43210" value="<%= form.owner_phone || '' %>"></label>
+    <div class="field">
+      <span>Status</span>
+      <div class="seg seg-2">
+        <label><input type="radio" name="status" value="pending" <%= form.status !== 'approved' ? 'checked' : '' %>><span>Pending review</span></label>
+        <label><input type="radio" name="status" value="approved" <%= form.status === 'approved' ? 'checked' : '' %>><span>Live now</span></label>
+      </div>
+      <small class="muted">Either way it appears in search only once it has a venue and a menu.</small>
+    </div>
+    <button class="btn btn-block">Add restaurant</button>
+    <p class="small muted">Next you’ll open <strong>Manage listing</strong> to add venues, menus and photos.</p>
+  </div>
+</form>
+<%- include('_close') %>
