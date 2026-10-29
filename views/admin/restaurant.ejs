@@ -9,7 +9,7 @@
   </form>
 </div>
 <% if (!venues.length || !menus.length) { %>
-  <p class="flash flash-info">Not bookable yet: it needs <%= [!venues.length && 'a venue', !menus.length && 'a menu'].filter(Boolean).join(' and ') %>. Use <strong>Manage listing</strong> to add <%= !venues.length && !menus.length ? 'them' : 'it' %> with photos.</p>
+  <p class="flash flash-info"><strong>Coming Soon</strong></p>
 <% } %>
 
 <div class="two-col">

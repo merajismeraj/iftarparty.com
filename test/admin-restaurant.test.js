@@ -34,7 +34,7 @@ describe('admin adds and manages a single restaurant', () => {
     assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'restaurant.create' AND entity_id = ?`).get(rid));
 
     const page = await admin.get(`/admin/restaurants/${rid}`).expect(200);
-    assert.match(page.text, /Not bookable yet: it needs a venue and a menu/);
+    assert.match(page.text, /<strong>Coming Soon<\/strong>/);
     assert.match((await admin.get('/admin/restaurants')).text, /href="\/admin\/restaurants\/new"/);
 
     token = await csrf(admin, '/admin/restaurants/new');
