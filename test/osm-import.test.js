@@ -9,6 +9,8 @@ const FIXTURE = {
     { type: 'node', id: 101, lat: 17.36, lon: 78.47, tags: { amenity: 'restaurant', name: 'Shadab', cuisine: 'indian;hyderabadi;biryani', 'addr:street': 'High Court Road', 'addr:suburb': 'Ghansi Bazaar', phone: '+91 40 2456 5949', website: 'shadab.in' } },
     { type: 'way', id: 202, center: { lat: 17.41, lon: 78.44 }, tags: { amenity: 'restaurant', name: 'Bawarchi', 'name:en': 'Bawarchi Restaurant', 'addr:suburb': 'RTC X Roads', 'contact:phone': '040 2760 3456;040 2760 0000', 'contact:email': 'info@bawarchi.test' } },
     { type: 'node', id: 303, tags: { amenity: 'restaurant', name: 'Shadab', 'addr:suburb': 'Ghansi Bazaar' } }, // duplicate name + area
+    { type: 'node', id: 701, tags: { amenity: 'restaurant', name: 'Pista House' } }, // chain branches with no area: both kept
+    { type: 'node', id: 702, tags: { amenity: 'restaurant', name: 'Pista House' } },
     { type: 'node', id: 404, tags: { amenity: 'restaurant' } }, // no name
     { type: 'node', id: 606, tags: { amenity: 'restaurant', name: 'Cafe Bahar', 'addr:district': 'Rangareddy', 'addr:suburb': 'Hyderabad' } }, // admin names, not a locality
     { type: 'node', id: 505, tags: { amenity: 'fast_food', name: 'Burger Spot' } }, // not a restaurant
@@ -27,8 +29,9 @@ describe('restaurants from OpenStreetMap', () => {
 
   test('parses public details only and skips duplicates, unnamed and non-restaurants', () => {
     const rows = osmImport.toRestaurants(FIXTURE, 'Hyderabad');
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 5);
     assert.equal(rows.find((r) => r.name === 'Cafe Bahar').area, '');
+    assert.deepEqual(rows.filter((r) => r.name === 'Pista House').map((r) => r.ref), ['osm:node/701', 'osm:node/702']);
     assert.deepEqual(rows[0], {
       ref: 'osm:node/101', name: 'Shadab', cuisine: 'Indian, Hyderabadi, Biryani', address: 'High Court Road', area: 'Ghansi Bazaar',
       city: 'Hyderabad', phone: '+914024565949', website: 'shadab.in', description: '',
@@ -54,7 +57,7 @@ describe('restaurants from OpenStreetMap', () => {
     assert.match(query, /"amenity"="restaurant"\]\["name"\]\(17\.2,78\.2,17\.6,78\.7\)/);
 
     const rows = await db.prepare(`SELECT r.*, u.email, u.password_hash FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE r.source_ref IS NOT NULL ORDER BY r.id`).all();
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 5);
     assert.ok(rows.every((r) => r.status === 'unclaimed' && r.password_hash === '' && r.email.endsWith('@unclaimed.iftarparty.invalid')));
     assert.equal(rows[0].website, 'shadab.in');
     assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'restaurant.osm_import'`).get());
@@ -73,7 +76,7 @@ describe('restaurants from OpenStreetMap', () => {
     await admin.post(`/admin/restaurants/import-osm?_csrf=${encodeURIComponent(token)}`)
       .field('city', 'Hyderabad').attach('file', Buffer.from(JSON.stringify(changed)), 'export.json').expect(302);
     const rows = await db.prepare('SELECT website FROM restaurants WHERE source_ref IS NOT NULL ORDER BY id').all();
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 5);
     assert.equal(rows[0].website, 'https://shadab.example');
   });
 
@@ -82,6 +85,7 @@ describe('restaurants from OpenStreetMap', () => {
     let token = await csrf(admin, `/admin/restaurants/${r.id}`);
     const page = await admin.get(`/admin/restaurants/${r.id}`).expect(200);
     assert.match(page.text, /No owner yet/);
+    assert.match(page.text, /href="https:\/\/www\.openstreetmap\.org\/node\/101"/);
 
     await admin.post(`/admin/restaurants/${r.id}/owner`).type('form')
       .send({ _csrf: token, owner_name: 'Owner', owner_email: 'x@unclaimed.iftarparty.invalid', owner_phone: '9876543210' }).expect(302);

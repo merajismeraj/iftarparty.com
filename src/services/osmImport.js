@@ -42,7 +42,7 @@ async function fetchCity(city) {
   return res.json();
 }
 
-/** Overpass JSON → restaurant records (deduplicated by name + area). */
+/** Overpass JSON → restaurant records (deduplicated by name + area where the area is known). */
 function toRestaurants(json, city) {
   if (!json || !Array.isArray(json.elements)) throw new Error('Not an Overpass JSON export (no "elements" list).');
   const seen = new Set();
@@ -54,9 +54,13 @@ function toRestaurants(json, city) {
     if (!name || !['node', 'way', 'relation'].includes(el.type)) continue;
     const area = [t['addr:suburb'], t['addr:neighbourhood'], t['addr:city_district'], t['addr:district']]
       .map((v) => text(v, 80)).find((v) => v && !NOT_A_LOCALITY.test(v) && v.toLowerCase() !== city.toLowerCase()) || '';
-    const key = `${name.toLowerCase()}|${area.toLowerCase()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    // Same name + same known area is a duplicate entry. Without an area, same-name places are
+    // usually separate branches of a chain, so keep each one (they have distinct OSM ids).
+    if (area) {
+      const key = `${name.toLowerCase()}|${area.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
     const email = text(first(t['contact:email'] || t.email), 120);
     out.push({
       ref: `osm:${el.type}/${el.id}`,
