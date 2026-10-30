@@ -2,7 +2,9 @@
 <p class="crumbs"><a href="/admin/restaurants">Restaurants</a> › <%= r.name %></p>
 <div class="section-head">
   <div><h1><%= r.name %> <%- include('_status', { s: r.status }) %></h1>
-    <p class="muted"><%= r.cuisine %> · <%= [r.address, r.area, r.city].filter(Boolean).join(', ') %> · joined <%= r.created_at.slice(0, 10) %></p></div>
+    <p class="muted"><%= r.cuisine %> · <%= [r.address, r.area, r.city].filter(Boolean).join(', ') %> · joined <%= r.created_at.slice(0, 10) %></p>
+    <% const osm = /^osm:(node|way|relation)\/(\d+)$/.exec(r.source_ref || ''); %>
+    <% if (osm) { %><p class="small muted">From OpenStreetMap: <a href="https://www.openstreetmap.org/<%= osm[1] %>/<%= osm[2] %>" target="_blank" rel="noopener">see on the map</a><%= r.area ? '' : ' to identify the branch, then set its area in Manage listing → Edit profile' %>.</p><% } %></div>
   <form method="post" action="/admin/restaurants/<%= r.id %>/manage">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <button class="btn">Manage listing</button>
