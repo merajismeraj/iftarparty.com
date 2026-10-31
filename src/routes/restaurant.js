@@ -8,6 +8,7 @@ const { todayISO, rsvpSummary, bookingAddons } = require('../services/bookings')
 const reviews = require('../services/reviews');
 const packages = require('../services/packages');
 const { transaction } = require('../db');
+const audit = require('../services/audit');
 
 const DIETS = ['veg', 'non-veg', 'mixed'];
 const str = (v, max = 2000) => String(v ?? '').trim().slice(0, max);
@@ -74,6 +75,18 @@ module.exports = (db) => {
   router.use(requireAuth('restaurant'));
   router.use((req, res, next) => {
     if (!req.restaurant) return res.status(500).render('error', { title: 'Profile missing', message: 'Your restaurant profile is missing. Please contact support.' });
+    next();
+  });
+  // Every change an admin saves while managing a listing goes in the audit log.
+  router.use((req, res, next) => {
+    if (req.managing && req.method === 'POST') {
+      res.on('finish', () => {
+        if (res.statusCode < 400) {
+          audit.log(db, req.user.id, 'restaurant.edit', 'restaurant', req.restaurant.id, `${req.method} ${req.path}`)
+            .catch((err) => console.error('[audit] restaurant.edit', err.message));
+        }
+      });
+    }
     next();
   });
 

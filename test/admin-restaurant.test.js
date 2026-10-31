@@ -75,6 +75,40 @@ describe('admin adds and manages a single restaurant', () => {
     assert.match((await request(app).get('/search?location=Hyderabad')).text, /Shadab/);
   });
 
+  test('admin edits venue details, menu and pricing straight from the restaurant page; edits are audited', async () => {
+    const vid = (await db.prepare('SELECT id FROM venues WHERE restaurant_id = ?').get(rid)).id;
+    const mid = (await db.prepare('SELECT id FROM menus WHERE restaurant_id = ?').get(rid)).id;
+    const page = await admin.get(`/admin/restaurants/${rid}`).expect(200);
+    assert.match(page.text, new RegExp(`name="to" value="/restaurant/venues/${vid}/edit"`));
+    assert.match(page.text, new RegExp(`name="to" value="/restaurant/menus/${mid}/edit"`));
+    assert.match(page.text, /name="to" value="\/restaurant\/menus\/new\?kind=package"/);
+
+    let token = await csrf(admin, `/admin/restaurants/${rid}`);
+    let res = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token, to: `/restaurant/venues/${vid}/edit` }).expect(302);
+    assert.equal(res.headers.location, `/restaurant/venues/${vid}/edit`);
+    token = await csrf(admin, `/restaurant/venues/${vid}/edit`);
+    await admin.post(`/restaurant/venues/${vid}?_csrf=${token}`)
+      .field('name', 'Rooftop Terrace').field('min_pax', '25').field('max_pax', '90').field('hire_fee', '7500').field('extra_time_fee', '2000').expect(302);
+    const v = await db.prepare('SELECT * FROM venues WHERE id = ?').get(vid);
+    assert.deepEqual([v.name, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee], ['Rooftop Terrace', 25, 90, 750000, 200000]);
+
+    token = await csrf(admin, `/restaurant/menus/${mid}/edit`);
+    await admin.post(`/restaurant/menus/${mid}`).type('form')
+      .send({ _csrf: token, name: 'Royal Iftar', price_per_person: '1099', min_pax: '25', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani\nPhirni' }).expect(302);
+    assert.equal((await db.prepare('SELECT price_per_person FROM menus WHERE id = ?').get(mid)).price_per_person, 109900);
+
+    await new Promise((r) => setImmediate(r));
+    const edits = await db.prepare(`SELECT detail FROM admin_actions WHERE action = 'restaurant.edit' AND entity_id = ? ORDER BY id`).all(rid);
+    assert.deepEqual(edits.map((e) => e.detail), ['POST /venues', 'POST /menus', `POST /venues/${vid}`, `POST /menus/${mid}`]);
+
+    // Only dashboard paths are accepted as deep links.
+    token = await csrf(admin, '/restaurant');
+    res = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token, to: 'https://evil.example/' }).expect(302);
+    assert.equal(res.headers.location, '/restaurant');
+    token = await csrf(admin, '/restaurant');
+    await admin.post('/admin/manage/exit').type('form').send({ _csrf: token }).expect(302);
+  });
+
   test('only admins can add or manage restaurants', async () => {
     const host = await signupHost(app, 'Some Host', 'host2@x.test');
     const token = await csrf(host, '/');
