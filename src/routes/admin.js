@@ -216,8 +216,10 @@ module.exports = (db) => {
     const r = await db.prepare('SELECT id, name FROM restaurants WHERE id = ?').get(req.params.id);
     if (!r) return notFound(res, 'Restaurant');
     req.session.manageRestaurantId = r.id;
-    await audit.log(db, req.user.id, 'restaurant.manage', 'restaurant', r.id, `Opened ${r.name}'s dashboard`);
-    res.redirect('/restaurant');
+    // Optional deep link to a specific dashboard screen (e.g. a venue's or menu's edit form).
+    const to = /^\/restaurant(\/(venues|menus|addons|dishes)(\/new|\/\d+\/edit)?|\/profile)?(\?kind=package)?$/.test(String(req.body.to || '')) ? req.body.to : '/restaurant';
+    await audit.log(db, req.user.id, 'restaurant.manage', 'restaurant', r.id, `Opened ${r.name}'s dashboard${to === '/restaurant' ? '' : ` at ${to}`}`);
+    res.redirect(to);
   });
 
   router.post('/manage/exit', (req, res) => {

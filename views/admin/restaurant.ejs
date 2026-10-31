@@ -76,7 +76,7 @@
   </form>
 <% } %>
 
-<h2 class="h3">Venues</h2>
+<div class="admin-head"><h2 class="h3">Venues</h2><div class="btn-row"><form method="post" action="/admin/restaurants/<%= r.id %>/manage" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="to" value="/restaurant/venues/new"><button class="btn btn-small btn-ghost">+ Add venue</button></form></div></div>
 <div class="table-wrap"><table>
   <thead><tr><th></th><th>Venue</th><th>Capacity</th><th>Venue fee</th><th>Photos</th><th>Visible</th><th></th></tr></thead>
   <tbody><% venues.forEach(v => { %>
@@ -85,20 +85,21 @@
       <td><a href="/venues/<%= v.id %>"><strong><%= v.name %></strong></a><br><span class="muted small"><%= v.amenities %></span></td>
       <td><%= v.min_pax %>–<%= v.max_pax %></td><td><%= money.format(v.hire_fee) %></td><td><%= v.photos %></td>
       <td><%= v.active ? 'Yes' : 'Hidden' %></td>
-      <td><form method="post" action="/admin/venues/<%= v.id %>/toggle" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small btn-ghost"><%= v.active ? 'Hide' : 'Show' %></button></form></td>
+      <td class="nowrap"><form method="post" action="/admin/restaurants/<%= r.id %>/manage" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="to" value="/restaurant/venues/<%= v.id %>/edit"><button class="btn btn-small btn-ghost">Edit</button></form> <form method="post" action="/admin/venues/<%= v.id %>/toggle" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn-small btn-ghost"><%= v.active ? 'Hide' : 'Show' %></button></form></td>
     </tr>
   <% }) %>
   <% if (!venues.length) { %><tr><td colspan="7" class="muted">No venues added yet.</td></tr><% } %></tbody>
 </table></div>
 
-<h2 class="h3">Menus</h2>
+<div class="admin-head"><h2 class="h3">Menus &amp; pricing</h2><div class="btn-row"><form method="post" action="/admin/restaurants/<%= r.id %>/manage" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="to" value="/restaurant/menus/new"><button class="btn btn-small btn-ghost">+ Set menu</button></form> <form method="post" action="/admin/restaurants/<%= r.id %>/manage" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="to" value="/restaurant/menus/new?kind=package"><button class="btn btn-small btn-ghost">+ Package</button></form> <form method="post" action="/admin/restaurants/<%= r.id %>/manage" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="to" value="/restaurant/addons/new"><button class="btn btn-small btn-ghost">+ Extra</button></form></div></div>
 <div class="table-wrap"><table>
-  <thead><tr><th>Menu</th><th>Type</th><th>Price / guest</th><th>Min</th><th>Offered</th></tr></thead>
+  <thead><tr><th>Menu</th><th>Type</th><th>Price / guest</th><th>Min</th><th>Offered</th><th></th></tr></thead>
   <tbody><% menus.forEach(m => { %>
     <tr class="<%= m.active ? '' : 'inactive' %>"><td><strong><%= m.name %></strong><br><span class="muted small"><%= m.items.split(/\r?\n/).filter(Boolean).join(' · ') %></span></td>
-      <td><span class="diet diet-<%= m.diet %>"><%= m.diet %></span></td><td><%= money.format(m.price_per_person) %></td><td><%= m.min_pax %></td><td><%= m.active ? 'Yes' : 'No' %></td></tr>
+      <td><span class="diet diet-<%= m.diet %>"><%= m.diet %></span></td><td><%= money.format(m.price_per_person) %></td><td><%= m.min_pax %></td><td><%= m.active ? 'Yes' : 'No' %></td>
+      <td><form method="post" action="/admin/restaurants/<%= r.id %>/manage" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="to" value="/restaurant/menus/<%= m.id %>/edit"><button class="btn btn-small btn-ghost">Edit</button></form></td></tr>
   <% }) %>
-  <% if (!menus.length) { %><tr><td colspan="5" class="muted">No menus yet.</td></tr><% } %></tbody>
+  <% if (!menus.length) { %><tr><td colspan="6" class="muted">No menus yet.</td></tr><% } %></tbody>
 </table></div>
 
 <h2 class="h3">Bookings</h2>
