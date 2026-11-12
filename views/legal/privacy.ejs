@@ -1,0 +1,79 @@
+<%- include('../partials/head') %>
+<article class="wrap narrow section legal">
+  <p class="eyebrow">Legal</p>
+  <h1>Privacy Policy</h1>
+  <p class="muted small">Effective <%= legal.effectiveDate %> · <a href="/terms">Terms of Service</a></p>
+
+  <p>This policy explains what personal data <%= legal.name %> (“we”, “us”) collects through iftarparty.com (the “Platform”), why, who we share it with, and the choices you have. It applies to hosts who book venues, guests who are invited and RSVP, restaurant partners, and anyone who joins a waitlist. We process personal data in line with India’s Digital Personal Data Protection Act, 2023 and the Information Technology Act, 2000 and its rules.</p>
+
+  <h2 class="h3">1. What we collect</h2>
+  <ul>
+    <li><strong>Account details:</strong> your name, email address and mobile number. If you sign in with Google, we receive your name, email address and Google account ID from Google; we never see your Google password.</li>
+    <li><strong>Booking details:</strong> the venue, date, arrival time, guest count, menu, dish choices, extras and the party title you choose.</li>
+    <li><strong>Payment details:</strong> payments are processed by Cashfree Payments. We receive the payment status, amount, order and transaction references. We do not receive or store your card number, CVV, UPI PIN or bank login.</li>
+    <li><strong>Guest lists:</strong> when a host invites guests, the host gives us each guest’s name and mobile number and/or email address, typed in, uploaded as a file, or picked from the host’s phone contacts. Only the contacts the host selects are shared with us; we do not access the rest of their address book.</li>
+    <li><strong>RSVPs:</strong> a guest’s response, number of people attending and any note they add.</li>
+    <li><strong>Waitlist:</strong> the name and mobile number or email you give when you join a waitlist for a restaurant that is coming soon.</li>
+    <li><strong>Restaurant partner details:</strong> restaurant and owner contact details, venue and menu information, photos, and payout details (UPI ID or bank account and IFSC) used to pay the restaurant.</li>
+    <li><strong>Reviews:</strong> ratings and comments you post after an event, and restaurant replies.</li>
+    <li><strong>Messages we send:</strong> a log of invitations and updates sent to guests by WhatsApp or email, including delivery and read status reported by WhatsApp.</li>
+    <li><strong>Technical data:</strong> your IP address and browser details, which our hosting provider records in server logs for security and troubleshooting.</li>
+  </ul>
+  <p>Restaurant listings that are not yet run by a partner may include publicly available business information (name, address, cuisine, phone, website) from OpenStreetMap, © OpenStreetMap contributors.</p>
+
+  <h2 class="h3">2. How we use it</h2>
+  <ul>
+    <li>To create and secure your account and sign you in.</li>
+    <li>To reserve venues, take payments, issue refunds, and pay restaurants.</li>
+    <li>To send invitations, reminders, booking confirmations, receipts and cancellation notices by WhatsApp and email, and to show hosts who has RSVP’d.</li>
+    <li>To tell you when a restaurant on your waitlist opens for bookings.</li>
+    <li>To moderate reviews and keep the Platform safe, prevent fraud, and resolve disputes.</li>
+    <li>To meet legal, tax and accounting obligations.</li>
+  </ul>
+  <p><strong>What others can see.</strong> A confirmed booking appears on the venue’s public page as “Iftar Party by [host’s name]” with its date, so other hosts know the venue is taken; no other booking details are shown. If the host turns on the guest list, guests who open their invitation can see the first name and last initial of guests who have confirmed for the same party.</p>
+  <p>We do not sell personal data, and we do not use guest contact details for marketing. We send only messages related to the party a guest was invited to, or the waitlist a person joined.</p>
+
+  <h2 class="h3">3. Guest information shared by hosts</h2>
+  <p>Hosts confirm, before sending invitations, that their guests know them and expect to be invited. We use guest details only to deliver that host’s invitations and updates, and to record RSVPs. If you received an invitation and want your details removed, reply to the message or email us at <a href="mailto:<%= legal.email %>"><%= legal.email %></a>.</p>
+
+  <h2 class="h3">4. Who we share data with</h2>
+  <p>We share personal data only as needed to run the Platform:</p>
+  <ul>
+    <li><strong>The restaurant you book</strong>, which receives the host’s name, contact number, booking and menu details, and guest count so it can host your party.</li>
+    <li><strong>Service providers</strong> who process data for us under contract: Vercel (website hosting), Supabase (database and photo storage), Cashfree Payments (payments and refunds), Meta Platforms (WhatsApp Business messaging), Google (sign-in and web fonts) and our email delivery provider.</li>
+    <li><strong>Authorities</strong>, where the law requires it or to protect the rights and safety of users and the public.</li>
+  </ul>
+  <p>Some of these providers store or process data outside India, including in the United States. Where data leaves India, we rely on providers that apply appropriate security safeguards.</p>
+
+  <h2 class="h3">5. Cookies</h2>
+  <p>We use one essential cookie, which keeps you signed in and protects forms against forgery. It lasts up to 14 days. We do not use advertising or analytics cookies.</p>
+
+  <h2 class="h3">6. How long we keep data</h2>
+  <ul>
+    <li>Account details: while your account is active, and for a reasonable period after you ask us to close it.</li>
+    <li>Booking, payment and invoice records: as long as Indian tax and accounting law requires (generally up to 8 years).</li>
+    <li>Guest lists, RSVPs and message logs: with the booking they belong to. Hosts and guests can ask us to delete them.</li>
+    <li>Waitlist entries: until we tell you the restaurant has opened, or you ask us to remove you.</li>
+  </ul>
+
+  <h2 class="h3">7. Security</h2>
+  <p>Data is encrypted in transit (HTTPS). Passwords are stored only as salted hashes. Access to personal data is limited to people who need it to operate the Platform, and admin actions are audit-logged. No system is perfectly secure; if a breach affects your data, we will notify you and the authorities as the law requires.</p>
+
+  <h2 class="h3">8. Your rights</h2>
+  <p>You can ask us to give you a summary of your personal data, correct or update it, or erase it (subject to records we must keep by law). You can withdraw consent at any time; this does not affect processing already done. You can also nominate a person to exercise these rights on your behalf if you die or become unable to. To make a request, email <a href="mailto:<%= legal.email %>"><%= legal.email %></a>. We respond within 30 days.</p>
+
+  <h2 class="h3">9. Children</h2>
+  <p>Accounts are for people aged 18 and over. Guests of any age may be invited by a host. A host who adds a child’s details must do so with the consent of the child’s parent or guardian.</p>
+
+  <h2 class="h3">10. Grievances and contact</h2>
+  <p>
+    <% if (legal.grievanceOfficer) { %>Grievance Officer: <%= legal.grievanceOfficer %><br><% } %>
+    Email: <a href="mailto:<%= legal.email %>"><%= legal.email %></a>
+    <% if (legal.address) { %><br>Address: <%= legal.address %><% } %>
+  </p>
+  <p>We acknowledge complaints within 24 hours and aim to resolve them within 15 days. If you are not satisfied, you may complain to the Data Protection Board of India.</p>
+
+  <h2 class="h3">11. Changes</h2>
+  <p>We may update this policy. We will post the new version here with a new effective date and, for significant changes, tell account holders by email.</p>
+</article>
+<%- include('../partials/foot') %>

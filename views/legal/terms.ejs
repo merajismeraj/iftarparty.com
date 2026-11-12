@@ -1,0 +1,78 @@
+<%- include('../partials/head') %>
+<article class="wrap narrow section legal">
+  <p class="eyebrow">Legal</p>
+  <h1>Terms of Service</h1>
+  <p class="muted small">Effective <%= legal.effectiveDate %> · <a href="/privacy">Privacy Policy</a></p>
+
+  <p>These terms govern your use of iftarparty.com (the “Platform”), operated by <%= legal.name %> (“we”, “us”). By creating an account, making a booking, inviting guests, joining a waitlist or listing a restaurant, you agree to these terms and to our <a href="/privacy">Privacy Policy</a>.</p>
+
+  <h2 class="h3">1. What IftarParty does</h2>
+  <p>IftarParty is a marketplace. Restaurant partners list private venues, menus, packages and extras; hosts book them for Iftar gatherings and invite guests. The restaurant, not IftarParty, provides the venue, food and service on the day. We facilitate the booking, payment, invitations and RSVPs.</p>
+
+  <h2 class="h3">2. Accounts</h2>
+  <ul>
+    <li>You must be 18 or older and give accurate details, including a mobile number you use.</li>
+    <li>You are responsible for activity on your account. Tell us at once if you think it has been misused.</li>
+    <li>We may suspend or close accounts that break these terms, give false information, or misuse the Platform.</li>
+  </ul>
+
+  <h2 class="h3">3. Bookings and payment</h2>
+  <ul>
+    <li>When you reserve, we hold the venue for <%= holdMinutes %> minutes while you pay. If payment is not completed in that time, the hold is released and the venue may be booked by someone else.</li>
+    <li>A booking is confirmed only when payment succeeds and you receive a confirmation.</li>
+    <li>The price shown at checkout includes the food or package price for your guest count, any venue fee, any extra time, any extras you choose, and the IftarParty service fee. Prices are in Indian Rupees.</li>
+    <li>Each booking includes a set amount of time at the venue, shown when you book. Extra time, where the restaurant offers it, must be booked and paid for in advance.</li>
+    <li>Payments are processed by Cashfree Payments and are subject to its terms.</li>
+    <li>Your guest count is the number you booked for. Changes to the guest count, or extra guests on the day, are at the restaurant’s discretion and may be charged by the restaurant.</li>
+    <li>For packages with dish choices, you can change dishes until the cut-off shown on your booking (a few days before the event). After that, contact the restaurant.</li>
+  </ul>
+
+  <h2 class="h3">4. Cancellations and refunds</h2>
+  <ul>
+    <li><strong>Unpaid holds</strong> can be released by the host at any time from My parties, at no charge.</li>
+    <li><strong>Confirmed bookings:</strong> to cancel, contact us at <a href="mailto:<%= legal.email %>"><%= legal.email %></a> as early as possible. The refund depends on how much notice is given and on costs the restaurant has already incurred (for example food purchased for your party), and is confirmed to you in writing before the cancellation is processed.</li>
+    <li><strong>If the restaurant cancels</strong>, or the venue becomes unavailable for reasons outside your control, you receive a full refund.</li>
+    <li>If your payment succeeds after your hold has expired and the venue has been taken, or after the booking was cancelled, you receive a full refund automatically.</li>
+    <li>Refunds are made to the original payment method and usually arrive within 5–7 working days, depending on your bank.</li>
+    <li>When a booking is cancelled, we may notify the guests who were invited.</li>
+  </ul>
+
+  <h2 class="h3">5. Inviting guests</h2>
+  <ul>
+    <li>Only invite people who know you and expect to hear from you. You confirm this before invitations are sent, and you must have the right to share their contact details with us.</li>
+    <li>Invitations and updates are sent by WhatsApp and email on your behalf. Do not use the Platform to send spam or any message other than invitations to your own gathering.</li>
+    <li>If you turn on the guest list, guests who RSVP can see the first name and last initial of other guests who have confirmed for your party.</li>
+    <li>Your confirmed booking is shown on the venue’s page as “Iftar Party by [your name]” with its date, so others know the venue is taken.</li>
+  </ul>
+
+  <h2 class="h3">6. On the day</h2>
+  <p>Hosts and guests must follow the restaurant’s house rules, arrive and leave within the booked time, and respect the venue and staff. The host is responsible for their guests’ conduct and for any damage they cause. The restaurant may refuse service to anyone who behaves unsafely or unlawfully.</p>
+
+  <h2 class="h3">7. Restaurant partners</h2>
+  <ul>
+    <li>Partners must keep venue details, capacity, photos, menus, prices and availability accurate, and must honour every confirmed booking at the price and terms quoted.</li>
+    <li>Partners are responsible for food safety, licences (including FSSAI), accessibility information they publish, and the safety of their premises.</li>
+    <li>Listings go live after our review. We may edit, hide or remove listings that are inaccurate or break these terms.</li>
+    <li>Payouts are the booking amount less the IftarParty service fee, paid to the payout details on file after the event, unless agreed otherwise in writing.</li>
+    <li>Photos and content you upload must be yours to use. You let us display them on the Platform and in promoting your listing.</li>
+  </ul>
+
+  <h2 class="h3">8. Reviews</h2>
+  <p>Only hosts with a completed booking can review it. Reviews must be honest and about your own experience. We moderate reviews and may decline or remove ones that are abusive, unlawful, off-topic or contain personal information.</p>
+
+  <h2 class="h3">9. Waitlists</h2>
+  <p>Joining a waitlist for a restaurant marked “Coming soon” means we will tell you when it opens for bookings. It does not reserve a venue or a date.</p>
+
+  <h2 class="h3">10. Acceptable use</h2>
+  <p>You must not misuse the Platform: no fraud, fake bookings or reviews, scraping, interfering with its security or operation, or using it for anything unlawful.</p>
+
+  <h2 class="h3">11. Liability</h2>
+  <p>Restaurants are independent businesses and are responsible for the venue, food and service they provide. To the extent the law allows, IftarParty is not liable for indirect or consequential loss, and our total liability for any booking is limited to the amount you paid through the Platform for that booking. Nothing in these terms limits liability that cannot be limited by law, or your rights as a consumer under Indian law.</p>
+
+  <h2 class="h3">12. Changes, law and disputes</h2>
+  <p>We may update these terms; the version in force when you make a booking applies to that booking. These terms are governed by the laws of India, and the courts at <%= legal.jurisdiction %> have jurisdiction, without affecting your right as a consumer to approach a consumer forum. Please contact us first; most issues are resolved quickly.</p>
+
+  <h2 class="h3">13. Contact</h2>
+  <p>Email: <a href="mailto:<%= legal.email %>"><%= legal.email %></a><% if (legal.address) { %><br>Address: <%= legal.address %><% } %></p>
+</article>
+<%- include('../partials/foot') %>

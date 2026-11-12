@@ -37,6 +37,15 @@ const config = {
   currency: (env.CURRENCY || 'INR').toUpperCase(),
   platformFeePercent: Number(env.PLATFORM_FEE_PERCENT ?? 5),
   holdMinutes: Number(env.BOOKING_HOLD_MINUTES || 30),
+  // Shown on the Privacy Policy and Terms. Set these to the operator's real details.
+  legal: {
+    name: env.LEGAL_NAME || 'IftarParty',
+    email: env.CONTACT_EMAIL || 'support@iftarparty.com',
+    address: env.LEGAL_ADDRESS || '',
+    grievanceOfficer: env.GRIEVANCE_OFFICER || '',
+    jurisdiction: env.LEGAL_JURISDICTION || 'Hyderabad, Telangana',
+    effectiveDate: env.LEGAL_EFFECTIVE_DATE || '12 November 2026',
+  },
   defaultCountryCode: String(env.DEFAULT_COUNTRY_CODE || '91'),
   cashfree: {
     appId: env.CASHFREE_APP_ID || '',

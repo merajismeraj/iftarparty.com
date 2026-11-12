@@ -97,8 +97,12 @@ describe('admin adds and manages a single restaurant', () => {
       .send({ _csrf: token, name: 'Royal Iftar', price_per_person: '1099', min_pax: '25', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani\nPhirni' }).expect(302);
     assert.equal((await db.prepare('SELECT price_per_person FROM menus WHERE id = ?').get(mid)).price_per_person, 109900);
 
-    await new Promise((r) => setImmediate(r));
-    const edits = await db.prepare(`SELECT detail FROM admin_actions WHERE action = 'restaurant.edit' AND entity_id = ? ORDER BY id`).all(rid);
+    // The audit row is written after the response finishes, so wait for it rather than assume one tick.
+    let edits = [];
+    for (let i = 0; i < 50 && edits.length < 4; i++) {
+      edits = await db.prepare(`SELECT detail FROM admin_actions WHERE action = 'restaurant.edit' AND entity_id = ? ORDER BY id`).all(rid);
+      if (edits.length < 4) await new Promise((r) => setTimeout(r, 20));
+    }
     assert.deepEqual(edits.map((e) => e.detail), ['POST /venues', 'POST /menus', `POST /venues/${vid}`, `POST /menus/${mid}`]);
 
     // Only dashboard paths are accepted as deep links.

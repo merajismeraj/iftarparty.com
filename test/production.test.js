@@ -62,3 +62,18 @@ test('static assets are versioned by content and cached immutably', async () => 
   assert.match(page.text, /src="\/static\/js\/app\.js\?v=[0-9a-f]{10}"/);
   await request(app).get(css).expect(200).expect('content-type', /css/);
 });
+
+test('privacy policy and terms are public and linked from every page', async () => {
+  const { app } = makeApp();
+  const privacy = await request(app).get('/privacy').expect(200);
+  assert.match(privacy.text, /<h1>Privacy Policy<\/h1>/);
+  assert.match(privacy.text, /Cashfree Payments/);
+  assert.match(privacy.text, /support@iftarparty\.com/);
+  const terms = await request(app).get('/terms').expect(200);
+  assert.match(terms.text, /<h1>Terms of Service<\/h1>/);
+  assert.match(terms.text, /hold the venue for 30 minutes/);
+  const home = await request(app).get('/').expect(200);
+  assert.match(home.text, /href="\/privacy"/);
+  assert.match(home.text, /href="\/terms"/);
+  assert.match((await request(app).get('/signup')).text, /you agree to our <a href="\/terms">Terms of Service<\/a>/);
+});

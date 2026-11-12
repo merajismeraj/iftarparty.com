@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const config = require('../config');
 const money = require('../services/money');
 const reviews = require('../services/reviews');
 const packages = require('../services/packages');
@@ -89,6 +90,9 @@ async function searchVenues(db, q, feePercent = 0) {
 
 module.exports = (db) => {
   const router = express.Router();
+
+  router.get('/privacy', (req, res) => res.render('legal/privacy', { title: 'Privacy Policy', legal: config.legal, holdMinutes: config.holdMinutes }));
+  router.get('/terms', (req, res) => res.render('legal/terms', { title: 'Terms of Service', legal: config.legal, holdMinutes: config.holdMinutes }));
 
   router.get('/', async (req, res) => {
     const cities = await db.prepare(

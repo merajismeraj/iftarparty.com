@@ -101,6 +101,7 @@
                     <label class="field"><span>Your name</span><input name="name" autocomplete="name" maxlength="120" value="<%= user ? user.name : '' %>"></label>
                     <label class="field"><span>Mobile or email</span><input name="contact" required autocomplete="email" inputmode="email" maxlength="120" placeholder="98765 43210 or you@email.com" value="<%= user ? (user.phone || user.email) : '' %>"></label>
                     <button class="btn btn-gold btn-block">Notify me when it opens</button>
+                  <p class="small muted">We’ll only contact you about this restaurant. <a href="/privacy">Privacy</a></p>
                   </form>
                 </details>
               <% } %>
