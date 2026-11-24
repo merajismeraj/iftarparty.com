@@ -12,6 +12,17 @@ const pricing = require('../src/services/pricing');
 const storage = require('../src/services/storage');
 
 /** Seed `db` with demo data. Returns false (and does nothing) when the database already has users. */
+/** Demo ambience tags, derived from each sample venue's amenities and description. */
+function seedAmbience(v) {
+  const text = `${v.name} ${v.desc}`;
+  const tags = v.amen.split(/,\s*/);
+  if (/rooftop|terrace/i.test(text)) tags.push('rooftop');
+  if (/banquet|darbar|hall/i.test(text)) tags.push('private_hall');
+  if (/courtyard|garden/i.test(text)) tags.push('garden', 'open_air');
+  tags.push('family');
+  return require('../src/services/ambience').parse(tags).join(',');
+}
+
 async function seedDemo(db, { quiet = false } = {}) {
 if ((await db.prepare('SELECT COUNT(*) AS n FROM users').get()).n > 0) {
   if (!quiet) console.log('Database already has data – skipping seed.');
@@ -132,8 +143,8 @@ await transaction(db, async () => {
       .run(ownerId, spec.r.name, spec.r.cuisine, spec.r.area, spec.r.city, spec.r.address, spec.r.description, spec.owner[2],
         spec.status || 'approved', spec.status ? '' : spec.r.name, spec.status ? '' : `${spec.r.name.split(' ')[0].toLowerCase()}@okhdfc`)).lastInsertRowid);
     for (const [vi, v] of spec.venues.entries()) {
-      const vid = Number((await db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(rid, v.name, v.desc, v.amen, v.min, v.max, v.fee, vi === 0 ? 150000 + ri * 50000 : 0)).lastInsertRowid);
+      const vid = Number((await db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, ambience, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(rid, v.name, v.desc, v.amen, seedAmbience(v), v.min, v.max, v.fee, vi === 0 ? 150000 + ri * 50000 : 0)).lastInsertRowid);
       venueIds.push({ vid, rid, v, pending: Boolean(spec.status) });
       for (const [i, suffix] of ['', ' – Seating', ' – Décor'].entries()) {
         await db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)').run(vid, await placeholder(`${v.name}${suffix}`, ri * 2 + vi + i), i);

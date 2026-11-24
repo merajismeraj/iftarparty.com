@@ -329,6 +329,10 @@ const MIGRATIONS = [
   CREATE UNIQUE INDEX waitlist_phone ON waitlist (restaurant_id, phone) WHERE phone IS NOT NULL;
   ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
   `,
+  // v6: structured space/ambience tags per venue (keys from services/ambience.js), for cards and filters.
+  `
+  ALTER TABLE venues ADD COLUMN ambience text NOT NULL DEFAULT '';
+  `,
 ];
 
 /* --------------------------------------------------------------- drivers */

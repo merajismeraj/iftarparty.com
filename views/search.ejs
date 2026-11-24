@@ -41,6 +41,11 @@
     </details>
   </div>
 
+  <nav class="vibe-filters" aria-label="Filter by space">
+    <a class="chip <%= vibe ? '' : 'on' %>" href="<%= withParam('vibe', '') %>">Any space</a>
+    <% vibeFilters.forEach(([key, label]) => { %><a class="chip <%= vibe === key ? 'on' : '' %>" href="<%= withParam('vibe', vibe === key ? '' : key) %>"><%= label %></a><% }) %>
+  </nav>
+
   <% if (budgetNeedsGuests) { %><div class="flash flash-info">Add the number of guests to filter by a total budget.</div><% } %>
 
   <% if (!rows.length) { %>
@@ -57,10 +62,10 @@
       </div>
     <% } %>
   <% } else { %>
-    <div class="deck" data-deck>
-      <% rows.forEach((v, i) => { %><%- include('partials/swipe-card', { v, i, qs: venueQs, est: budget && budget.type === 'total' && Number(q.guests) > 0 ? Math.round((v.from_price * Number(q.guests) + v.hire_fee) * (100 + feePercent) / 100) : null }) %><% }) %>
+    <div class="vgrid">
+      <% const nGuests = Number(q.guests) > 0 ? Number(q.guests) : 0; %>
+      <% rows.forEach((v, i) => { %><%- include('partials/venue-card', { v, i, qs: venueQs, guests: nGuests, est: nGuests ? Math.round((v.from_price * nGuests + v.hire_fee) * (100 + feePercent) / 10000) * 100 : null }) %><% }) %>
     </div>
-    <% if (rows.length > 1) { %><p class="deck-hint small muted" aria-live="polite"><span data-deck-pos>1</span> of <%= rows.length %> · swipe for more, tap for details</p><% } %>
     <% if (pages > 1) { %>
       <nav class="pager">
         <% if (page > 1) { %><a class="btn btn-ghost" href="<%= withParam('page', page - 1) %>">← Previous</a><% } %>

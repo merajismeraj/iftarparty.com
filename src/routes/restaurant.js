@@ -9,19 +9,23 @@ const reviews = require('../services/reviews');
 const packages = require('../services/packages');
 const { transaction } = require('../db');
 const audit = require('../services/audit');
+const ambience = require('../services/ambience');
 
 const DIETS = ['veg', 'non-veg', 'mixed'];
+const MIN_PHOTOS = 3;
 const str = (v, max = 2000) => String(v ?? '').trim().slice(0, max);
 const int = (v) => Number.parseInt(v, 10);
 
 function venueFromBody(b) {
   const v = {
     name: str(b.name, 120), description: str(b.description), amenities: str(b.amenities, 500),
+    ambience: ambience.parse(b.ambience).join(','),
     min_pax: int(b.min_pax), max_pax: int(b.max_pax), hire_fee: b.hire_fee === '' || b.hire_fee == null ? 0 : money.toMinor(b.hire_fee),
     extra_time_fee: b.extra_time_fee === '' || b.extra_time_fee == null ? 0 : money.toMinor(b.extra_time_fee),
   };
   const errors = [];
   if (!v.name) errors.push('Give the venue a name, e.g. “Noor Rooftop Lounge”.');
+  if (!v.ambience) errors.push('Tick at least one option under “The space” so hosts can find this venue by its ambience.');
   if (!(v.min_pax >= 1)) errors.push('Minimum guests must be at least 1.');
   if (!(v.max_pax >= v.min_pax)) errors.push('Maximum guests must be at least the minimum.');
   if (!Number.isFinite(v.hire_fee)) errors.push('Venue hire fee must be a number (use 0 if included in the menu price).');
@@ -148,13 +152,14 @@ module.exports = (db) => {
 
   router.post('/venues', imageUpload.array('images', 8), async (req, res) => {
     const { v, errors } = venueFromBody(req.body);
-    if (!req.files?.length) errors.push('Add at least one photo of the venue (JPG, PNG or WebP, up to 5 MB each).');
+    // Hosts choose on the space, so a new venue needs a few angles of it.
+    if ((req.files?.length || 0) < MIN_PHOTOS) errors.push(`Add at least ${MIN_PHOTOS} photos of the space – the room, the seating and the setting (JPG, PNG or WebP, up to 5 MB each).`);
     if (errors.length) {
       return res.status(422).render('restaurant/venue-form', { title: 'Add a party venue', venue: { ...req.body, hire_fee: req.body.hire_fee }, images: [], errors, rawFee: true });
     }
     const id = Number((await db.prepare(
-      'INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.restaurant.id, v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee)).lastInsertRowid);
+      'INSERT INTO venues (restaurant_id, name, description, amenities, ambience, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.restaurant.id, v.name, v.description, v.amenities, v.ambience, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee)).lastInsertRowid);
     const ins = db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)');
     for (const [i, name] of (await storage.saveImages(req.files)).entries()) await ins.run(id, name, i);
     req.flash('success', `${v.name} is live. Hosts can now find and book it.`);
@@ -178,11 +183,15 @@ module.exports = (db) => {
     if (errors.length) {
       return res.status(422).render('restaurant/venue-form', { title: `Edit ${venue.name}`, venue: { ...req.body, id: venue.id }, images, errors, rawFee: true });
     }
-    await db.prepare('UPDATE venues SET name=?, description=?, amenities=?, min_pax=?, max_pax=?, hire_fee=?, extra_time_fee=? WHERE id=?')
-      .run(v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee, venue.id);
+    await db.prepare('UPDATE venues SET name=?, description=?, amenities=?, ambience=?, min_pax=?, max_pax=?, hire_fee=?, extra_time_fee=? WHERE id=?')
+      .run(v.name, v.description, v.amenities, v.ambience, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee, venue.id);
     const ins = db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)');
-    for (const [i, name] of (await storage.saveImages(req.files)).entries()) await ins.run(venue.id, name, images.length + i);
-    req.flash('success', 'Venue updated.');
+    const added = await storage.saveImages(req.files);
+    for (const [i, name] of added.entries()) await ins.run(venue.id, name, images.length + i);
+    const photos = images.length + added.length;
+    req.flash('success', photos < MIN_PHOTOS
+      ? `Venue updated. Add ${MIN_PHOTOS - photos} more photo${MIN_PHOTOS - photos === 1 ? '' : 's'} – hosts pick venues by how the space looks.`
+      : 'Venue updated.');
     res.redirect(`/restaurant/venues/${venue.id}/edit`);
   });
 
