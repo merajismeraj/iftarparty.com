@@ -145,10 +145,10 @@ describe('admin bulk restaurant upload', () => {
     assert.equal(noor.role, 'restaurant');
     assert.equal(noor.password_hash, '', 'owners sign in with Google');
     assert.equal(noor.owner_phone, '+919876543210');
-    const venues = await db.prepare('SELECT name, min_pax, max_pax, hire_fee, extra_time_fee, amenities FROM venues WHERE restaurant_id = ? ORDER BY id').all(noor.id);
+    const venues = await db.prepare('SELECT name, min_pax, max_pax, hire_fee, extra_time_fee, ambience, amenities FROM venues WHERE restaurant_id = ? ORDER BY id').all(noor.id);
     assert.deepEqual(venues.map((v) => ({ ...v })), [
-      { name: 'Rooftop Lounge', min_pax: 20, max_pax: 80, hire_fee: 500000, extra_time_fee: 150000, amenities: 'Open air, Prayer area' },
-      { name: 'Banquet Hall', min_pax: 50, max_pax: 200, hire_fee: 1500000, extra_time_fee: 300000, amenities: 'Air-conditioned, Valet parking' },
+      { name: 'Rooftop Lounge', min_pax: 20, max_pax: 80, hire_fee: 500000, extra_time_fee: 150000, ambience: 'rooftop,open_air,prayer_area', amenities: 'Fairy lights, Sea view' },
+      { name: 'Banquet Hall', min_pax: 50, max_pax: 200, hire_fee: 1500000, extra_time_fee: 300000, ambience: 'private_hall,ac,family', amenities: 'Valet parking, Stage' },
     ]);
     const menu = await db.prepare(`SELECT * FROM menus WHERE restaurant_id = ? AND name = 'Royal Iftar Platter'`).get(noor.id);
     assert.equal(menu.price_per_person, 89900);

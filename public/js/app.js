@@ -447,13 +447,7 @@ document.documentElement.classList.add('js');
     }, { passive: true });
   }
 
-  // Search results deck: "2 of 12" as cards are swiped.
-  function initDeck(deck) {
-    const pos = document.querySelector('[data-deck-pos]');
-    if (pos) trackSlides(deck, (n) => { pos.textContent = String(Math.min(n, deck.children.length)); });
-  }
-
-  // Venue hero: photo counter, desktop arrows, and "back" returns to the same spot in the deck.
+  // Venue hero: photo counter, desktop arrows, and "back" returns to the same spot in the results.
   function initHero(track) {
     const pos = document.querySelector('[data-hero-pos]');
     if (pos) trackSlides(track, (n) => { pos.textContent = String(n); });
@@ -474,7 +468,6 @@ document.documentElement.classList.add('js');
 
   document.addEventListener('DOMContentLoaded', () => {
     initNav();
-    document.querySelectorAll('[data-deck]').forEach(initDeck);
     // Long-running admin actions: show progress and prevent double submits.
     document.querySelectorAll('form[data-busy-form]').forEach((form) => form.addEventListener('submit', () => {
       const btn = form.querySelector('[data-busy-label]');

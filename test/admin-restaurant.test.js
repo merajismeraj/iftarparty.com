@@ -55,8 +55,10 @@ describe('admin adds and manages a single restaurant', () => {
 
     token = await csrf(admin, '/restaurant/venues/new');
     await admin.post(`/restaurant/venues?_csrf=${token}`)
-      .field('name', 'Rooftop').field('min_pax', '20').field('max_pax', '80').field('hire_fee', '5000')
-      .attach('images', PNG, { filename: 'v.png', contentType: 'image/png' }).expect(302);
+      .field('name', 'Rooftop').field('min_pax', '20').field('max_pax', '80').field('hire_fee', '5000').field('ambience', 'rooftop')
+      .attach('images', PNG, { filename: 'v1.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'v2.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'v3.png', contentType: 'image/png' }).expect(302);
     token = await csrf(admin, '/restaurant/menus/new');
     await admin.post('/restaurant/menus').type('form')
       .send({ _csrf: token, name: 'Royal Iftar', price_per_person: '899', min_pax: '20', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani' }).expect(302);
@@ -88,7 +90,7 @@ describe('admin adds and manages a single restaurant', () => {
     assert.equal(res.headers.location, `/restaurant/venues/${vid}/edit`);
     token = await csrf(admin, `/restaurant/venues/${vid}/edit`);
     await admin.post(`/restaurant/venues/${vid}?_csrf=${token}`)
-      .field('name', 'Rooftop Terrace').field('min_pax', '25').field('max_pax', '90').field('hire_fee', '7500').field('extra_time_fee', '2000').expect(302);
+      .field('name', 'Rooftop Terrace').field('min_pax', '25').field('max_pax', '90').field('hire_fee', '7500').field('extra_time_fee', '2000').field('ambience', 'rooftop').expect(302);
     const v = await db.prepare('SELECT * FROM venues WHERE id = ?').get(vid);
     assert.deepEqual([v.name, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee], ['Rooftop Terrace', 25, 90, 750000, 200000]);
 

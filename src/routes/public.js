@@ -7,6 +7,7 @@ const packages = require('../services/packages');
 const pricing = require('../services/pricing');
 const settings = require('../services/settings');
 const waitlist = require('../services/waitlist');
+const ambience = require('../services/ambience');
 const { isValidDate, todayISO, blockingBooking, upcomingReservations, expireStaleHolds } = require('../services/bookings');
 
 const PAGE_SIZE = 12;
@@ -17,6 +18,43 @@ const SORTS = {
   newest: 'id DESC',
   rating: 'rating IS NULL, rating DESC, review_count DESC',
 };
+
+// "On the table": lead with the dishes people choose a venue for, not the dates and drinks.
+const COURSE_RANK = { mains: 0, rice: 1, starters: 2, desserts: 3, breads: 4, openers: 5, beverages: 6 };
+const OPENER_RE = /^(dates?|khajoor|rooh ?afza|water|juice|lemonade|sherbet|fruit(s| chaat| platter)?)\b/i;
+
+/** Adds row.dishes (up to 3 signature dishes) and row.dish_count from each venue's cheapest menu. */
+async function attachSignatureDishes(db, rows) {
+  const ids = [...new Set(rows.map((r) => r.restaurant_id))];
+  if (!ids.length) return;
+  const marks = ids.map(() => '?').join(', ');
+  const menus = await db.prepare(
+    `SELECT DISTINCT ON (restaurant_id) id, restaurant_id, kind, items FROM menus
+     WHERE active = 1 AND restaurant_id IN (${marks}) ORDER BY restaurant_id, price_per_person, id`
+  ).all(...ids);
+  const packageIds = menus.filter((m) => m.kind === 'package').map((m) => m.id);
+  const offered = packageIds.length ? await db.prepare(
+    `SELECT md.menu_id, d.name, d.course FROM menu_dishes md JOIN dishes d ON d.id = md.dish_id
+     WHERE d.active = 1 AND md.menu_id IN (${packageIds.map(() => '?').join(', ')}) ORDER BY d.name`
+  ).all(...packageIds) : [];
+  const byRestaurant = new Map();
+  for (const m of menus) {
+    let names;
+    if (m.kind === 'package') {
+      names = offered.filter((d) => d.menu_id === m.id)
+        .sort((a, b) => (COURSE_RANK[a.course] ?? 9) - (COURSE_RANK[b.course] ?? 9)).map((d) => d.name);
+    } else {
+      const items = String(m.items || '').split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean);
+      names = [...items.filter((x) => !OPENER_RE.test(x)), ...items.filter((x) => OPENER_RE.test(x))];
+    }
+    byRestaurant.set(m.restaurant_id, names);
+  }
+  for (const row of rows) {
+    const names = byRestaurant.get(row.restaurant_id) || [];
+    row.dishes = names.slice(0, 3);
+    row.dish_count = names.length;
+  }
+}
 
 /** Venue search across location, menu, price, capacity and date availability. */
 async function searchVenues(db, q, feePercent = 0) {
@@ -53,6 +91,12 @@ async function searchVenues(db, q, feePercent = 0) {
     where.push('(m.price_per_person * ?::integer + v.hire_fee) * (100 + ?::numeric) <= ?::numeric * 100');
     params.push(guests, feePercent, budget.amount);
   }
+  // Ambience filter chips (e.g. ?vibe=rooftop). Keys are matched as whole entries of the stored list.
+  const vibe = typeof q.vibe === 'string' && ambience.isFilter(q.vibe) ? q.vibe : null;
+  if (vibe) {
+    where.push(`(',' || v.ambience || ',') LIKE ?`);
+    params.push(`%,${vibe},%`);
+  }
   if (isValidDate(q.date)) {
     where.push(`NOT EXISTS (SELECT 1 FROM bookings b WHERE b.venue_id = v.id AND b.event_date = ?
       AND (b.status = 'confirmed' OR (b.status = 'pending_payment' AND b.hold_expires_at > ?)))`);
@@ -78,14 +122,23 @@ async function searchVenues(db, q, feePercent = 0) {
             (SELECT COUNT(*) FROM venue_images vi WHERE vi.venue_id = v.id) AS image_count,
             (SELECT ROUND(AVG(rv.rating), 1) FROM reviews rv WHERE rv.restaurant_id = r.id AND rv.status = 'approved') AS rating,
             (SELECT COUNT(*) FROM reviews rv WHERE rv.restaurant_id = r.id AND rv.status = 'approved') AS review_count,
-            (SELECT filename FROM venue_images vi WHERE vi.venue_id = v.id ORDER BY sort_order, id LIMIT 1) AS image
+            (SELECT filename FROM venue_images vi WHERE vi.venue_id = v.id ORDER BY sort_order, id LIMIT 1) AS image,
+            (SELECT string_agg(t.filename, '|' ORDER BY t.sort_order, t.id) FROM
+              (SELECT filename, sort_order, id FROM venue_images vi WHERE vi.venue_id = v.id ORDER BY sort_order, id LIMIT 3) t) AS images,
+            v.ambience, r.id AS restaurant_id
      ${base}
      GROUP BY v.id, r.id
      ) s ORDER BY ${order}, id DESC LIMIT ? OFFSET ?`
   ).all(...params, PAGE_SIZE, (page - 1) * PAGE_SIZE);
 
+  await attachSignatureDishes(db, rows);
+  for (const row of rows) {
+    row.images = row.images ? row.images.split('|') : [];
+    row.vibes = ambience.labels(row.ambience);
+  }
+
   const budgetNeedsGuests = budget?.type === 'total' && !(guests > 0);
-  return { rows, total: Number(total), page, pages: Math.max(1, Math.ceil(Number(total) / PAGE_SIZE)), budget, budgetNeedsGuests };
+  return { rows, vibe, total: Number(total), page, pages: Math.max(1, Math.ceil(Number(total) / PAGE_SIZE)), budget, budgetNeedsGuests };
 }
 
 module.exports = (db) => {
@@ -107,7 +160,7 @@ module.exports = (db) => {
     await expireStaleHolds(db);
     const result = await searchVenues(db, req.query, await settings.feePercent(db));
     const comingSoon = result.page === 1 ? await waitlist.comingSoon(db, req.query) : [];
-    res.render('search', { title: 'Find an Iftar venue', ...result, comingSoon, q: req.query });
+    res.render('search', { title: 'Find an Iftar venue', ...result, comingSoon, q: req.query, vibeFilters: ambience.FILTERS.map((k) => [k, ambience.LABEL.get(k)]) });
   });
 
   router.post('/waitlist/:restaurantId', async (req, res) => {

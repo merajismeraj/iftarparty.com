@@ -30,6 +30,8 @@
     <span class="pill"><%= venue.hire_fee ? `Venue fee ${money.format(venue.hire_fee)}` : 'No venue fee' %></span>
     <span class="pill"><%= fmt.duration(durations[0].minutes) %> included<%= venue.extra_time_fee ? ` · +${money.format(venue.extra_time_fee)}/30 min` : '' %></span>
   </div>
+  <% const vibes = ambience.labels(venue.ambience); %>
+  <% if (vibes.length) { %><div class="vcard-vibes venue-vibes"><% vibes.forEach(l => { %><span><%= l %></span><% }) %></div><% } %>
   <% if (venue.address) { %><p class="small muted"><%= [venue.address, venue.area, venue.city].filter(Boolean).join(', ') %></p><% } %>
 
   <div class="venue-layout">

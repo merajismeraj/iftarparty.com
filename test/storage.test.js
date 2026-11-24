@@ -55,12 +55,13 @@ describe('venue photos on Supabase Storage', () => {
   test('uploads go to a public bucket (created once) and pages link to the CDN URL', async () => {
     const token = await csrf(restaurant, '/restaurant/venues/new');
     await restaurant.post(`/restaurant/venues?_csrf=${token}`)
-      .field('name', 'Cloud Venue').field('min_pax', '10').field('max_pax', '80').field('hire_fee', '0')
-      .attach('images', PNG, { filename: 'a.png', contentType: 'image/png' })
-      .attach('images', PNG, { filename: 'b.png', contentType: 'image/png' })
+      .field('name', 'Cloud Venue').field('min_pax', '10').field('max_pax', '80').field('hire_fee', '0').field('ambience', 'rooftop')
+      .attach('images', PNG, { filename: 'p1.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'p2.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'p3.png', contentType: 'image/png' })
       .expect(302);
     assert.deepEqual([...sb.state.buckets], ['venue-photos']);
-    assert.equal(sb.state.objects.size, 2);
+    assert.equal(sb.state.objects.size, 3);
     assert.ok(sb.state.auth.every((h) => h === 'Bearer service-role-key'));
     const names = (await db.prepare('SELECT filename FROM venue_images ORDER BY sort_order').all()).map((r) => r.filename);
     assert.deepEqual(names.sort(), [...sb.state.objects.keys()].sort());

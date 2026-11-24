@@ -1,0 +1,31 @@
+<%
+  const pics = v.images && v.images.length ? v.images : (v.image ? [v.image] : []);
+  const more = Math.max(0, Number(v.image_count || pics.length) - pics.length);
+%>
+<a class="vcard" href="/venues/<%= v.id %><%= locals.qs ? `?${qs}` : '' %>">
+  <div class="vcard-gal n<%= Math.min(pics.length, 3) %>">
+    <% if (!pics.length) { %><div class="img-fallback">No photo yet</div><% } %>
+    <% pics.forEach((p, i) => { %>
+      <div class="vcard-ph <%= i === 0 ? 'main' : '' %>">
+        <img src="<%= photoUrl(p) %>" alt="<%= i === 0 ? `${v.name} at ${v.restaurant_name}` : '' %>" <%= (locals.i || i) ? 'loading="lazy"' : 'fetchpriority="high"' %>>
+        <% if (i === pics.length - 1 && more) { %><span class="vcard-more">+<%= more %> photo<%= more === 1 ? '' : 's' %></span><% } %>
+      </div>
+    <% }) %>
+  </div>
+  <div class="vcard-body">
+    <h2 class="vcard-title"><%= v.restaurant_name %></h2>
+    <p class="vcard-space"><%= v.name %></p>
+    <p class="vcard-meta"><%= [v.area, v.city].filter(Boolean)[0] || v.city %><% if (v.review_count) { %> · <span class="star-one">★</span> <%= v.rating %> (<%= v.review_count %>)<% } %> · up to <%= v.max_pax %></p>
+    <% if (v.vibes && v.vibes.length) { %>
+      <div class="vcard-vibes"><% v.vibes.slice(0, 4).forEach(l => { %><span><%= l %></span><% }) %></div>
+    <% } %>
+    <% if (v.dishes && v.dishes.length) { %>
+      <p class="vcard-label">On the table</p>
+      <div class="vcard-dishes"><% v.dishes.forEach(d => { %><span><%= d %></span><% }) %><% if (v.dish_count > v.dishes.length) { %><span class="muted">+<%= v.dish_count - v.dishes.length %></span><% } %></div>
+    <% } %>
+    <div class="vcard-price">
+      <span><strong><%= money.format(v.from_price) %></strong> <span class="muted small">/guest</span></span>
+      <% if (locals.est) { %><span class="vcard-est">≈ <%= money.format(est) %><%= locals.guests ? ` for ${guests}` : '' %></span><% } %>
+    </div>
+  </div>
+</a>

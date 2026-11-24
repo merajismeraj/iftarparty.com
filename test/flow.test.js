@@ -17,11 +17,14 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     let token = await csrf(restaurant, '/restaurant/venues/new');
     await restaurant.post(`/restaurant/venues?_csrf=${token}`)
       .field('name', 'Shahi Darbar').field('min_pax', '20').field('max_pax', '100').field('hire_fee', '10000')
-      .field('description', 'Grand venue').field('amenities', 'AC, Prayer area')
-      .attach('images', PNG, { filename: 'venue.png', contentType: 'image/png' })
+      .field('description', 'Grand venue').field('amenities', 'Stage').field('ambience', 'private_hall').field('ambience', 'prayer_area')
+      .attach('images', PNG, { filename: 'venue1.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'venue2.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'venue3.png', contentType: 'image/png' })
       .expect(302);
     venueId = (await db.prepare('SELECT id FROM venues').get()).id;
-    assert.equal((await db.prepare('SELECT COUNT(*) n FROM venue_images WHERE venue_id = ?').get(venueId)).n, 1);
+    assert.equal((await db.prepare('SELECT COUNT(*) n FROM venue_images WHERE venue_id = ?').get(venueId)).n, 3);
+    assert.equal((await db.prepare('SELECT ambience FROM venues WHERE id = ?').get(venueId)).ambience, 'private_hall,prayer_area');
     assert.equal((await db.prepare('SELECT hire_fee FROM venues').get()).hire_fee, 1000000);
 
     token = await csrf(restaurant, '/restaurant/menus/new');
@@ -31,11 +34,19 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     menuId = (await db.prepare('SELECT id FROM menus').get()).id;
   });
 
-  test('a venue without photos is rejected', async () => {
-    const token = await csrf(restaurant, '/restaurant/venues/new');
-    const res = await restaurant.post(`/restaurant/venues?_csrf=${token}`)
+  test('a new venue needs at least 3 photos and an ambience tag', async () => {
+    let token = await csrf(restaurant, '/restaurant/venues/new');
+    let res = await restaurant.post(`/restaurant/venues?_csrf=${token}`)
       .field('name', 'No Photo Venue').field('min_pax', '10').field('max_pax', '20').expect(422);
-    assert.match(res.text, /at least one photo/);
+    assert.match(res.text, /at least 3 photos of the space/);
+    assert.match(res.text, /Tick at least one option under “The space”/);
+    token = await csrf(restaurant, '/restaurant/venues/new');
+    res = await restaurant.post(`/restaurant/venues?_csrf=${token}`)
+      .field('name', 'Two Photo Venue').field('min_pax', '10').field('max_pax', '20').field('ambience', 'garden')
+      .attach('images', PNG, { filename: 'x1.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'x2.png', contentType: 'image/png' }).expect(422);
+    assert.match(res.text, /at least 3 photos/);
+    assert.equal((await db.prepare(`SELECT COUNT(*) n FROM venues WHERE name IN ('No Photo Venue', 'Two Photo Venue')`).get()).n, 0);
   });
 
   test('new restaurants stay hidden until an admin approves them', async () => {
@@ -231,8 +242,10 @@ describe('security & edge cases', () => {
   test('a restaurant cannot edit another restaurant’s venue', async () => {
     const a = await signupRestaurant(app);
     const token = await csrf(a, '/restaurant/venues/new');
-    await a.post(`/restaurant/venues?_csrf=${token}`).field('name', 'Venue A').field('min_pax', '1').field('max_pax', '10')
-      .attach('images', PNG, { filename: 'a.png', contentType: 'image/png' }).expect(302);
+    await a.post(`/restaurant/venues?_csrf=${token}`).field('name', 'Venue A').field('min_pax', '1').field('max_pax', '10').field('ambience', 'garden')
+      .attach('images', PNG, { filename: 'a1.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'a2.png', contentType: 'image/png' })
+      .attach('images', PNG, { filename: 'a3.png', contentType: 'image/png' }).expect(302);
     const vid = (await db.prepare('SELECT id FROM venues').get()).id;
 
     const b = request.agent(app);

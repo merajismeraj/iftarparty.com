@@ -12,11 +12,12 @@
 const { parse } = require('csv-parse/sync');
 const { transaction } = require('../db');
 const money = require('./money');
+const ambience = require('./ambience');
 const { normalizeEmail, normalizePhone } = require('./guestlist');
 
 const COLUMNS = [
   'restaurant_name', 'owner_name', 'owner_email', 'owner_phone', 'city', 'area', 'address', 'cuisine', 'description',
-  'venue_name', 'venue_min_pax', 'venue_max_pax', 'venue_hire_fee', 'venue_extra_time_fee', 'venue_amenities', 'venue_description',
+  'venue_name', 'venue_min_pax', 'venue_max_pax', 'venue_hire_fee', 'venue_extra_time_fee', 'venue_ambience', 'venue_amenities', 'venue_description',
   'menu_name', 'menu_price_per_person', 'menu_min_pax', 'menu_diet', 'menu_items',
 ];
 const REQUIRED = ['restaurant_name', 'owner_name', 'owner_email', 'owner_phone', 'city'];
@@ -25,13 +26,13 @@ const MAX_ROWS = 500;
 
 const SAMPLE = [
   ['Noor Kitchen', 'Ayesha Khan', 'ayesha@noorkitchen.in', '9876543210', 'Hyderabad', 'Banjara Hills', 'Road No. 12, Banjara Hills', 'Hyderabadi, Mughlai', 'Family-run since 1998.',
-    'Rooftop Lounge', '20', '80', '5000', '1500', 'Open air|Prayer area', 'Sunset views over the lake.',
+    'Rooftop Lounge', '20', '80', '5000', '1500', 'Rooftop|Open air|Prayer area', 'Fairy lights|Sea view', 'Sunset views over the lake.',
     'Royal Iftar Platter', '899', '20', 'non-veg', 'Dates & Rooh Afza|Fruit chaat|Chicken haleem|Mutton biryani|Phirni'],
   ['Noor Kitchen', 'Ayesha Khan', 'ayesha@noorkitchen.in', '9876543210', 'Hyderabad', '', '', '', '',
-    'Banquet Hall', '50', '200', '15000', '3000', 'Air-conditioned|Valet parking', '',
+    'Banquet Hall', '50', '200', '15000', '3000', 'Private hall|Air-conditioned|Family section', 'Valet parking|Stage', '',
     'Veg Iftar Thali', '599', '20', 'veg', 'Dates|Fruit chaat|Veg haleem|Veg biryani|Sheer khurma'],
   ['Al Madina Grill', 'Imran Shaikh', 'imran@almadina.in', '+91 98200 11223', 'Mumbai', 'Mohammed Ali Road', '', 'Mughlai, Grill', '',
-    'Main Dining', '15', '60', '0', '0', 'Air-conditioned', '',
+    'Main Dining', '15', '60', '0', '0', 'Air-conditioned|Family section', '', '',
     '', '', '', '', ''],
 ];
 
@@ -91,6 +92,7 @@ function parseSheet(buffer) {
         hire_fee: r.venue_hire_fee ? money.toMinor(r.venue_hire_fee) : 0,
         extra_time_fee: r.venue_extra_time_fee ? money.toMinor(r.venue_extra_time_fee) : 0,
         amenities: list(r.venue_amenities).join(', ').slice(0, 500), description: text(r.venue_description, 1000),
+        ambience: ambience.parse(list(r.venue_ambience)).join(','),
       };
       if (!(v.min_pax >= 1)) bad('venue_min_pax must be a whole number of at least 1.');
       else if (!(v.max_pax >= v.min_pax)) bad('venue_max_pax must be a whole number at least venue_min_pax.');
@@ -160,8 +162,8 @@ async function importSheet(db, buffer, { status = 'approved', dryRun = false } =
           .run(userId, p.name, p.description, p.cuisine, p.address, p.area, p.city, p.phone, status)).lastInsertRowid);
       }
       for (const v of p.venues) {
-        await db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(restaurantId, v.name, v.description, v.amenities, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee);
+        await db.prepare('INSERT INTO venues (restaurant_id, name, description, amenities, ambience, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(restaurantId, v.name, v.description, v.amenities, v.ambience, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee);
       }
       for (const m of p.menus) {
         await db.prepare("INSERT INTO menus (restaurant_id, kind, name, items, diet, price_per_person, min_pax) VALUES (?, 'set', ?, ?, ?, ?, ?)")
