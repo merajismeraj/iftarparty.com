@@ -21,7 +21,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
       .attach('images', PNG, { filename: 'venue1.png', contentType: 'image/png' })
       .attach('images', PNG, { filename: 'venue2.png', contentType: 'image/png' })
       .attach('images', PNG, { filename: 'venue3.png', contentType: 'image/png' })
-      .expect(302);
+      .expect(303);
     venueId = (await db.prepare('SELECT id FROM venues').get()).id;
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM venue_images WHERE venue_id = ?').get(venueId)).n, 3);
     assert.equal((await db.prepare('SELECT ambience FROM venues WHERE id = ?').get(venueId)).ambience, 'private_hall,prayer_area');
@@ -30,7 +30,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     token = await csrf(restaurant, '/restaurant/menus/new');
     await restaurant.post('/restaurant/menus').type('form').send({
       _csrf: token, name: 'Classic Iftar', price_per_person: '950', min_pax: '20', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani',
-    }).expect(302);
+    }).expect(303);
     menuId = (await db.prepare('SELECT id FROM menus').get()).id;
   });
 
@@ -57,7 +57,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     const admin = await signinAdmin(app, db);
     const token = await csrf(admin, '/admin/restaurants');
     const rid = (await db.prepare('SELECT id FROM restaurants').get()).id;
-    await admin.post(`/admin/restaurants/${rid}/status`).type('form').send({ _csrf: token, status: 'approved' }).expect(302);
+    await admin.post(`/admin/restaurants/${rid}/status`).type('form').send({ _csrf: token, status: 'approved' }).expect(303);
     assert.equal((await db.prepare('SELECT status FROM restaurants').get()).status, 'approved');
   });
 
@@ -76,14 +76,14 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     let token = await csrf(restaurant, `/venues/${venueId}`);
     await restaurant.post(`/venues/${venueId}/reserve`).type('form').send({ _csrf: token, date, guests: 50, menu_id: menuId }).expect(403);
     token = await csrf(host, `/venues/${venueId}`);
-    await host.post(`/venues/${venueId}/reserve`).type('form').send({ _csrf: token, date, guests: 500, menu_id: menuId }).expect(302);
+    await host.post(`/venues/${venueId}/reserve`).type('form').send({ _csrf: token, date, guests: 500, menu_id: menuId }).expect(303);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n, 0);
   });
 
   test('host reserves: price is computed server-side and venue is held', async () => {
     const token = await csrf(host, `/venues/${venueId}`);
     const res = await host.post(`/venues/${venueId}/reserve`).type('form')
-      .send({ _csrf: token, date, guests: 50, menu_id: menuId, arrival_time: '18:15' }).expect(302);
+      .send({ _csrf: token, date, guests: 50, menu_id: menuId, arrival_time: '18:15' }).expect(303);
     bookingId = Number(res.headers.location.match(/\/bookings\/(\d+)\/checkout/)[1]);
     const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId);
     assert.equal(b.status, 'pending_payment');
@@ -97,7 +97,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
   test('a second host cannot grab the same night while it is held', async () => {
     const other = await signupHost(app, 'Sara Ali', 'sara@host.test');
     const token = await csrf(other, `/venues/${venueId}`);
-    await other.post(`/venues/${venueId}/reserve`).type('form').send({ _csrf: token, date, guests: 40, menu_id: menuId }).expect(302);
+    await other.post(`/venues/${venueId}/reserve`).type('form').send({ _csrf: token, date, guests: 40, menu_id: menuId }).expect(303);
     assert.equal((await db.prepare(`SELECT COUNT(*) n FROM bookings WHERE venue_id = ? AND event_date = ?`).get(venueId, date)).n, 1);
     // ...and cannot see the first host's booking
     await other.get(`/bookings/${bookingId}/checkout`).expect(404);
@@ -110,9 +110,9 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     assert.match(orderId, new RegExp(`^IP-${bookingId}-`));
     assert.equal((await db.prepare('SELECT status FROM payments WHERE order_id = ?').get(orderId)).status, 'created');
     token = await csrf(host, pay.headers.location);
-    await host.post(`/bookings/${bookingId}/demo-pay`).type('form').send({ _csrf: token, order_id: 'IP-999-forged' }).expect(302);
+    await host.post(`/bookings/${bookingId}/demo-pay`).type('form').send({ _csrf: token, order_id: 'IP-999-forged' }).expect(303);
     assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(bookingId)).status, 'pending_payment', 'forged order ignored');
-    const done = await host.post(`/bookings/${bookingId}/demo-pay`).type('form').send({ _csrf: token, order_id: orderId }).expect(302);
+    const done = await host.post(`/bookings/${bookingId}/demo-pay`).type('form').send({ _csrf: token, order_id: orderId }).expect(303);
     assert.equal((await db.prepare('SELECT payment_ref FROM bookings WHERE id = ?').get(bookingId)).payment_ref, orderId);
     assert.match(done.headers.location, new RegExp(`/bookings/${bookingId}\\?welcome=1`));
     assert.equal((await db.prepare('SELECT status FROM bookings WHERE id = ?').get(bookingId)).status, 'confirmed');
@@ -133,7 +133,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`)
       .field('consent', 'on').field('send_now', 'on')
       .attach('file', Buffer.from(csv), { filename: 'guests.csv', contentType: 'text/csv' })
-      .expect(302);
+      .expect(303);
     const guests = await db.prepare('SELECT * FROM guests WHERE booking_id = ? ORDER BY id').all(bookingId);
     assert.deepEqual(guests.map((g) => [g.name, g.email, g.phone]), [
       ['Aisha Khan', 'aisha@example.com', '+919876543210'],
@@ -152,7 +152,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`)
       .field('consent', 'on')
       .field('list', 'Aisha Again, aisha@example.com\nFatima, fatima@example.com, ')
-      .expect(302);
+      .expect(303);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM guests WHERE booking_id = ?').get(bookingId)).n, 3);
     const fatima = await db.prepare(`SELECT * FROM guests WHERE name = 'Fatima'`).get();
     assert.equal(fatima.invited_at, null, 'not sent without send_now');
@@ -211,7 +211,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     const res = await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`)
       .field('consent', 'on')
       .attach('file', Buffer.from(vcf), { filename: 'Iftar guests.vcf', contentType: 'text/vcard' })
-      .expect(302);
+      .expect(303);
     const added = await db.prepare(`SELECT name, phone FROM guests WHERE phone IN ('+919988776655', '+919988776644') ORDER BY phone DESC`).all();
     assert.deepEqual(added.map((g) => [g.name, g.phone]), [['Zainab Rahman', '+919988776655'], ['फातिमा', '+919988776644']]);
     const page = await host.get(res.headers.location.replace('#guests', ''));
@@ -222,7 +222,7 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
   test('adding guests requires confirming they expect the invite', async () => {
     const token = await csrf(host, `/bookings/${bookingId}`);
     const before = (await db.prepare('SELECT COUNT(*) n FROM guests WHERE booking_id = ?').get(bookingId)).n;
-    await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`).field('list', 'Stranger, , 98765 11111').expect(302);
+    await host.post(`/bookings/${bookingId}/guests?_csrf=${token}`).field('list', 'Stranger, , 98765 11111').expect(303);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM guests WHERE booking_id = ?').get(bookingId)).n, before);
     assert.match((await host.get(`/bookings/${bookingId}`)).text, /confirm your guests know you/);
   });
@@ -247,13 +247,13 @@ describe('security & edge cases', () => {
     await a.post(`/restaurant/venues?_csrf=${token}`).field('name', 'Venue A').field('min_pax', '1').field('max_pax', '10').field('ambience', 'garden')
       .attach('images', PNG, { filename: 'a1.png', contentType: 'image/png' })
       .attach('images', PNG, { filename: 'a2.png', contentType: 'image/png' })
-      .attach('images', PNG, { filename: 'a3.png', contentType: 'image/png' }).expect(302);
+      .attach('images', PNG, { filename: 'a3.png', contentType: 'image/png' }).expect(303);
     const vid = (await db.prepare('SELECT id FROM venues').get()).id;
 
     const b = request.agent(app);
     const t2 = await csrf(b, '/signup?role=restaurant');
     await b.post('/signup').type('form').send({ _csrf: t2, role: 'restaurant', name: 'Other', email: 'other@r.test', phone: '9000000000',
-      password: 'password123', restaurant_name: 'Other', city: 'Pune' }).expect(302);
+      password: 'password123', restaurant_name: 'Other', city: 'Pune' }).expect(303);
     await b.get(`/restaurant/venues/${vid}/edit`).expect(404);
     const t3 = await csrf(b, '/restaurant');
     await b.post(`/restaurant/venues/${vid}/toggle`).type('form').send({ _csrf: t3 }).expect(404);
@@ -266,7 +266,7 @@ describe('security & edge cases', () => {
     let token = await csrf(agent);
     await agent.post('/login').type('form').send({ _csrf: token, email: 'zed@host.test', password: 'nope' }).expect(401);
     token = await csrf(agent);
-    const ok = await agent.post('/login').type('form').send({ _csrf: token, email: 'ZED@host.test', password: 'password123' }).expect(302);
+    const ok = await agent.post('/login').type('form').send({ _csrf: token, email: 'ZED@host.test', password: 'password123' }).expect(303);
     assert.equal(ok.headers.location, '/my-parties');
   });
 

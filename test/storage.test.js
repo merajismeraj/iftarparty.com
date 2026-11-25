@@ -59,7 +59,7 @@ describe('venue photos on Supabase Storage', () => {
       .attach('images', PNG, { filename: 'p1.png', contentType: 'image/png' })
       .attach('images', PNG, { filename: 'p2.png', contentType: 'image/png' })
       .attach('images', PNG, { filename: 'p3.png', contentType: 'image/png' })
-      .expect(302);
+      .expect(303);
     assert.deepEqual([...sb.state.buckets], ['venue-photos']);
     assert.equal(sb.state.objects.size, 3);
     assert.ok(sb.state.auth.every((h) => h === 'Bearer service-role-key'));
@@ -85,7 +85,7 @@ describe('venue photos on Supabase Storage', () => {
     const venueId = (await db.prepare('SELECT id FROM venues').get()).id;
     const img = await db.prepare('SELECT * FROM venue_images WHERE venue_id = ? ORDER BY id DESC LIMIT 1').get(venueId);
     token = await csrf(restaurant, `/restaurant/venues/${venueId}/edit`);
-    await restaurant.post(`/restaurant/venues/${venueId}/images/${img.id}/delete?_csrf=${token}`).expect(302);
+    await restaurant.post(`/restaurant/venues/${venueId}/images/${img.id}/delete?_csrf=${token}`).expect(303);
     assert.deepEqual(sb.state.deleted, [img.filename]);
     assert.equal(sb.state.objects.has(img.filename), false);
   });

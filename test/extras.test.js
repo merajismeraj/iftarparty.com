@@ -24,10 +24,10 @@ describe('extras & add-ons', () => {
     await owner.post('/restaurant/addons').type('form').send({ _csrf: token, name: 'Free?', pricing: 'flat', price: '0' }).expect(422);
     token = await csrf(owner, '/restaurant/addons/new');
     await owner.post('/restaurant/addons').type('form')
-      .send({ _csrf: token, name: 'Live Kebab Grill', category: 'food', pricing: 'per_guest', price: '150', description: 'Seekh & boti' }).expect(302);
+      .send({ _csrf: token, name: 'Live Kebab Grill', category: 'food', pricing: 'per_guest', price: '150', description: 'Seekh & boti' }).expect(303);
     token = await csrf(owner, '/restaurant/addons/new');
     await owner.post('/restaurant/addons').type('form')
-      .send({ _csrf: token, name: 'Ramadan Décor', category: 'decor', pricing: 'flat', price: '5000' }).expect(302);
+      .send({ _csrf: token, name: 'Ramadan Décor', category: 'decor', pricing: 'flat', price: '5000' }).expect(303);
     [grill, decor] = await db.prepare('SELECT * FROM addons ORDER BY id').all();
     assert.deepEqual([grill.pricing, grill.price, decor.pricing, decor.price], ['per_guest', 15000, 'flat', 500000]);
     const dash = await owner.get('/restaurant').expect(200);
@@ -43,7 +43,7 @@ describe('extras & add-ons', () => {
   test('reserving with extras prices them server-side and snapshots each line', async () => {
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(15), guests: '40', menu_id: fx.menuId, addon_ids: [String(grill.id), String(decor.id)] }).expect(302);
+      .send({ _csrf: token, date: futureDate(15), guests: '40', menu_id: fx.menuId, addon_ids: [String(grill.id), String(decor.id)] }).expect(303);
     const id = Number(res.headers.location.match(/bookings\/(\d+)/)[1]);
     const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
     assert.equal(b.addons_total, 15000 * 40 + 500000);
@@ -57,7 +57,7 @@ describe('extras & add-ons', () => {
 
     // Later price edits never touch a booking that was already quoted.
     const t2 = await csrf(owner, `/restaurant/addons/${grill.id}/edit`);
-    await owner.post(`/restaurant/addons/${grill.id}`).type('form').send({ _csrf: t2, name: 'Live Kebab Grill', pricing: 'per_guest', price: '999', category: 'food' }).expect(302);
+    await owner.post(`/restaurant/addons/${grill.id}`).type('form').send({ _csrf: t2, name: 'Live Kebab Grill', pricing: 'per_guest', price: '999', category: 'food' }).expect(303);
     assert.equal((await db.prepare('SELECT addons_total FROM bookings WHERE id = ?').get(id)).addons_total, 1100000);
   });
 
@@ -67,14 +67,14 @@ describe('extras & add-ons', () => {
     let token = await csrf(host, `/venues/${fx.venueId}`);
     const before = (await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n;
     await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(16), guests: '20', menu_id: fx.menuId, addon_ids: String(foreign) }).expect(302);
+      .send({ _csrf: token, date: futureDate(16), guests: '20', menu_id: fx.menuId, addon_ids: String(foreign) }).expect(303);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n, before);
 
     token = await csrf(owner, '/restaurant');
-    await owner.post(`/restaurant/addons/${decor.id}/toggle`).type('form').send({ _csrf: token }).expect(302);
+    await owner.post(`/restaurant/addons/${decor.id}/toggle`).type('form').send({ _csrf: token }).expect(303);
     token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(17), guests: '20', menu_id: fx.menuId, addon_ids: String(decor.id) }).expect(302);
+      .send({ _csrf: token, date: futureDate(17), guests: '20', menu_id: fx.menuId, addon_ids: String(decor.id) }).expect(303);
     assert.match(res.headers.location, new RegExp(`/venues/${fx.venueId}\\?.*addon=${decor.id}`), 'selection kept on the error redirect');
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n, before);
     assert.doesNotMatch((await request(app).get(`/venues/${fx.venueId}`)).text, /Ramadan Décor/);

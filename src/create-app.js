@@ -81,6 +81,15 @@ function createApp(db) {
     next();
   });
 
+  // Post/Redirect/Get: after a form post, always redirect with 303 so the browser follows with a GET.
+  // (A plain 302 is delivered as 307 on Vercel, which makes browsers re-POST to the new URL.)
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      const redirect = res.redirect.bind(res);
+      res.redirect = (status, url) => (typeof status === 'number' ? redirect(status, url) : redirect(303, status));
+    }
+    next();
+  });
   app.use(csrf);
   app.use(loadUser(db));
   app.use(requireProfile);

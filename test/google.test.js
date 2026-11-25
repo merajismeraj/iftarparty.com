@@ -60,7 +60,7 @@ describe('Google sign-in', () => {
     assert.equal(blocked.headers.location, '/welcome');
     const token = await csrf(agent, '/welcome');
     await agent.post('/welcome').type('form').send({ _csrf: token, phone: 'nope' }).expect(422);
-    const done = await agent.post('/welcome').type('form').send({ _csrf: token, phone: '9876543210' }).expect(302);
+    const done = await agent.post('/welcome').type('form').send({ _csrf: token, phone: '9876543210' }).expect(303);
     assert.equal(done.headers.location, '/search');
     await agent.get('/search').expect(200);
     assert.match((await db.prepare('SELECT phone FROM users WHERE id = ?').get(u.id)).phone, /9876543210$/);
@@ -93,7 +93,7 @@ describe('Google sign-in', () => {
     await googleSignIn(agent, { sub: 'g-3', email: 'chef@example.com', name: 'Chef Ali' }, { role: 'restaurant' });
     assert.equal((await agent.get('/restaurant').expect(302)).headers.location, '/welcome');
     const token = await csrf(agent, '/welcome');
-    await agent.post('/welcome').type('form').send({ _csrf: token, phone: '9876500000', restaurant_name: 'Ali’s Kitchen', city: 'Pune' }).expect(302);
+    await agent.post('/welcome').type('form').send({ _csrf: token, phone: '9876500000', restaurant_name: 'Ali’s Kitchen', city: 'Pune' }).expect(303);
     const r = await db.prepare(`SELECT r.* FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE u.google_sub = 'g-3'`).get();
     assert.deepEqual([r.name, r.city, r.status], ['Ali’s Kitchen', 'Pune', 'pending']);
     await agent.get('/restaurant').expect(200);

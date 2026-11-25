@@ -51,7 +51,7 @@ describe('verified reviews with admin moderation', () => {
     await host.post(`/bookings/${pastId}/review`).type('form').send({
       _csrf: token, rating: '4', food_rating: '5', service_rating: '3', title: 'Great haleem',
       body: 'Wonderful <script>alert(1)</script> haleem and a calm prayer space before Maghrib.',
-    }).expect(302);
+    }).expect(303);
     const r = await review(pastId);
     assert.deepEqual([r.status, r.rating, r.food_rating, r.service_rating, r.ambience_rating], ['pending', 4, 5, 3, null]);
     const page = await request(app).get(`/venues/${fx.venueId}`).expect(200);
@@ -66,10 +66,10 @@ describe('verified reviews with admin moderation', () => {
     const queue = await admin.get('/admin/reviews').expect(200);
     assert.match(queue.text, /Great haleem/);
     token = await csrf(admin, '/admin/reviews');
-    await admin.post(`/admin/reviews/${id}/moderate`).type('form').send({ _csrf: token, decision: 'reject', note: '' }).expect(302);
+    await admin.post(`/admin/reviews/${id}/moderate`).type('form').send({ _csrf: token, decision: 'reject', note: '' }).expect(303);
     assert.equal((await review(pastId)).status, 'pending');
     token = await csrf(admin, '/admin/reviews');
-    await admin.post(`/admin/reviews/${id}/moderate`).type('form').send({ _csrf: token, decision: 'reject', note: 'Please remove the code snippet' }).expect(302);
+    await admin.post(`/admin/reviews/${id}/moderate`).type('form').send({ _csrf: token, decision: 'reject', note: 'Please remove the code snippet' }).expect(303);
     assert.equal((await review(pastId)).status, 'rejected');
 
     const form = await host.get(`/bookings/${pastId}/review`).expect(200);
@@ -77,7 +77,7 @@ describe('verified reviews with admin moderation', () => {
     token = await csrf(host, `/bookings/${pastId}/review`);
     await host.post(`/bookings/${pastId}/review`).type('form').send({
       _csrf: token, rating: '5', title: 'Great haleem', body: 'Wonderful <b>haleem</b> and a calm prayer space before Maghrib.',
-    }).expect(302);
+    }).expect(303);
     assert.equal((await review(pastId)).status, 'pending');
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM reviews').get()).n, 1, 'one review per booking');
   });
@@ -85,7 +85,7 @@ describe('verified reviews with admin moderation', () => {
   test('approved reviews appear with a privacy-safe name, escaped, and feed ratings', async () => {
     const id = (await review(pastId)).id;
     const token = await csrf(admin, '/admin/reviews');
-    await admin.post(`/admin/reviews/${id}/moderate`).type('form').send({ _csrf: token, decision: 'approve' }).expect(302);
+    await admin.post(`/admin/reviews/${id}/moderate`).type('form').send({ _csrf: token, decision: 'approve' }).expect(303);
     const page = await request(app).get(`/venues/${fx.venueId}`).expect(200);
     assert.match(page.text, /Great haleem/);
     // The reservation label ("Iftar Party by <full name>") is public by design; the review section is not.
@@ -102,13 +102,13 @@ describe('verified reviews with admin moderation', () => {
   test('restaurant replies are moderated before they go public', async () => {
     const id = (await review(pastId)).id;
     let token = await csrf(owner, '/restaurant/reviews');
-    await owner.post(`/restaurant/reviews/${id}/reply`).type('form').send({ _csrf: token, reply: 'JazakAllah khair, see you next Ramadan!' }).expect(302);
+    await owner.post(`/restaurant/reviews/${id}/reply`).type('form').send({ _csrf: token, reply: 'JazakAllah khair, see you next Ramadan!' }).expect(303);
     assert.equal((await review(pastId)).reply_status, 'pending');
     assert.doesNotMatch((await request(app).get(`/venues/${fx.venueId}`)).text, /see you next Ramadan/);
     assert.match((await owner.get('/restaurant/reviews')).text, /see you next Ramadan/);
 
     token = await csrf(admin, '/admin/reviews');
-    await admin.post(`/admin/reviews/${id}/reply-moderate`).type('form').send({ _csrf: token, decision: 'approve' }).expect(302);
+    await admin.post(`/admin/reviews/${id}/reply-moderate`).type('form').send({ _csrf: token, decision: 'approve' }).expect(303);
     const page = await request(app).get(`/venues/${fx.venueId}`);
     assert.match(page.text, /Response from the restaurant/);
     assert.match(page.text, /see you next Ramadan/);
@@ -116,7 +116,7 @@ describe('verified reviews with admin moderation', () => {
 
   test('editing a published review takes it offline until re-approved', async () => {
     const token = await csrf(host, `/bookings/${pastId}/review`);
-    await host.post(`/bookings/${pastId}/review`).type('form').send({ _csrf: token, rating: '2', title: 'Changed my mind', body: 'Actually the service was slower than expected that evening.' }).expect(302);
+    await host.post(`/bookings/${pastId}/review`).type('form').send({ _csrf: token, rating: '2', title: 'Changed my mind', body: 'Actually the service was slower than expected that evening.' }).expect(303);
     assert.equal((await review(pastId)).status, 'pending');
     const page = await request(app).get(`/venues/${fx.venueId}`);
     assert.doesNotMatch(page.text, /Changed my mind/);
@@ -126,7 +126,7 @@ describe('verified reviews with admin moderation', () => {
   test('restaurants can only reply to their own published reviews', async () => {
     const id = (await review(pastId)).id; // currently pending again
     const token = await csrf(owner, '/restaurant/reviews');
-    await owner.post(`/restaurant/reviews/${id}/reply`).type('form').send({ _csrf: token, reply: 'Sneaky edit' }).expect(302);
+    await owner.post(`/restaurant/reviews/${id}/reply`).type('form').send({ _csrf: token, reply: 'Sneaky edit' }).expect(303);
     assert.notEqual((await review(pastId)).reply, 'Sneaky edit');
   });
 });

@@ -41,7 +41,7 @@ describe('Iftar only / Iftar & Dinner / Dinner only', () => {
   let comboMenu;
   const reserve = async (agent, body) => {
     const token = await csrf(agent, `/venues/${fx.venueId}`);
-    return agent.post(`/venues/${fx.venueId}/reserve`).type('form').send({ _csrf: token, guests: '20', ...body }).expect(302);
+    return agent.post(`/venues/${fx.venueId}/reserve`).type('form').send({ _csrf: token, guests: '20', ...body }).expect(303);
   };
   const idOf = (res) => Number((res.headers.location.match(/bookings\/(\d+)/) || [])[1]) || null;
 
@@ -120,7 +120,7 @@ describe('Iftar only / Iftar & Dinner / Dinner only', () => {
     assert.match(form, /name="meal" value="dinner" checked/);
     const token = await csrf(owner, '/restaurant/menus/new');
     await owner.post('/restaurant/menus').type('form')
-      .send({ _csrf: token, meal: 'combo', name: 'Grand Combo', price_per_person: '1499', min_pax: '10', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani' }).expect(302);
+      .send({ _csrf: token, meal: 'combo', name: 'Grand Combo', price_per_person: '1499', min_pax: '10', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani' }).expect(303);
     assert.equal((await db.prepare(`SELECT meal FROM menus WHERE name = 'Grand Combo'`).get()).meal, 'combo');
     assert.match((await owner.get('/restaurant').expect(200)).text, /Grand Combo<\/strong> <span class="pill pill-soft">Iftar &amp; Dinner combo/);
     assert.equal(sessions.normalizeMeal('nonsense'), 'iftar');

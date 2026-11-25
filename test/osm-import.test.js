@@ -51,7 +51,7 @@ describe('restaurants from OpenStreetMap', () => {
       return new Response(JSON.stringify(FIXTURE), { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
     const token = await csrf(admin, '/admin/restaurants/import');
-    const res = await admin.post(`/admin/restaurants/import-osm?_csrf=${encodeURIComponent(token)}`).field('city', 'Hyderabad').expect(302);
+    const res = await admin.post(`/admin/restaurants/import-osm?_csrf=${encodeURIComponent(token)}`).field('city', 'Hyderabad').expect(303);
     global.fetch = realFetch;
     assert.equal(res.headers.location, '/admin/restaurants?status=unclaimed');
     assert.match(query, /"amenity"="restaurant"\]\["name"\]\(17\.2,78\.2,17\.6,78\.7\)/);
@@ -74,7 +74,7 @@ describe('restaurants from OpenStreetMap', () => {
     changed.elements[0].tags.website = 'https://shadab.example';
     const token = await csrf(admin, '/admin/restaurants/import');
     await admin.post(`/admin/restaurants/import-osm?_csrf=${encodeURIComponent(token)}`)
-      .field('city', 'Hyderabad').attach('file', Buffer.from(JSON.stringify(changed)), 'export.json').expect(302);
+      .field('city', 'Hyderabad').attach('file', Buffer.from(JSON.stringify(changed)), 'export.json').expect(303);
     const rows = await db.prepare('SELECT website FROM restaurants WHERE source_ref IS NOT NULL ORDER BY id').all();
     assert.equal(rows.length, 5);
     assert.equal(rows[0].website, 'https://shadab.example');
@@ -88,31 +88,31 @@ describe('restaurants from OpenStreetMap', () => {
     assert.match(page.text, /href="https:\/\/www\.openstreetmap\.org\/node\/101"/);
 
     await admin.post(`/admin/restaurants/${r.id}/owner`).type('form')
-      .send({ _csrf: token, owner_name: 'Owner', owner_email: 'x@unclaimed.iftarparty.invalid', owner_phone: '9876543210' }).expect(302);
+      .send({ _csrf: token, owner_name: 'Owner', owner_email: 'x@unclaimed.iftarparty.invalid', owner_phone: '9876543210' }).expect(303);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM users WHERE email = ?').get('owner@shadab.test')).n, 0);
 
     token = await csrf(admin, `/admin/restaurants/${r.id}`);
     await admin.post(`/admin/restaurants/${r.id}/owner`).type('form')
-      .send({ _csrf: token, owner_name: 'Mohammed Shadab', owner_email: 'Owner@Shadab.test', owner_phone: '9876543210' }).expect(302);
+      .send({ _csrf: token, owner_name: 'Mohammed Shadab', owner_email: 'Owner@Shadab.test', owner_phone: '9876543210' }).expect(303);
     const owner = await db.prepare('SELECT u.* FROM users u JOIN restaurants r ON r.owner_id = u.id WHERE r.id = ?').get(r.id);
     assert.equal(owner.email, 'owner@shadab.test');
     assert.equal(owner.phone, '+919876543210');
 
     token = await csrf(admin, `/admin/restaurants/${r.id}`);
-    await admin.post(`/admin/restaurants/${r.id}/status`).type('form').send({ _csrf: token, status: 'approved' }).expect(302);
+    await admin.post(`/admin/restaurants/${r.id}/status`).type('form').send({ _csrf: token, status: 'approved' }).expect(303);
     assert.equal((await db.prepare('SELECT status FROM restaurants WHERE id = ?').get(r.id)).status, 'approved');
 
     // Onboarded places are never overwritten by a later import.
     token = await csrf(admin, '/admin/restaurants/import');
     await admin.post(`/admin/restaurants/import-osm?_csrf=${encodeURIComponent(token)}`)
-      .field('city', 'Hyderabad').attach('file', Buffer.from(JSON.stringify(FIXTURE)), 'export.json').expect(302);
+      .field('city', 'Hyderabad').attach('file', Buffer.from(JSON.stringify(FIXTURE)), 'export.json').expect(303);
     assert.equal((await db.prepare('SELECT website FROM restaurants WHERE id = ?').get(r.id)).website, 'https://shadab.example');
   });
 
   test('a bad export is reported, not imported', async () => {
     const token = await csrf(admin, '/admin/restaurants/import');
     await admin.post(`/admin/restaurants/import-osm?_csrf=${encodeURIComponent(token)}`)
-      .field('city', 'Hyderabad').attach('file', Buffer.from('not json'), 'x.json').expect(302);
+      .field('city', 'Hyderabad').attach('file', Buffer.from('not json'), 'x.json').expect(303);
     const page = await admin.get('/admin/restaurants/import');
     assert.match(page.text, /Could not import from OpenStreetMap/);
   });
