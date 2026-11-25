@@ -19,6 +19,7 @@
     <% if (v.vibes && v.vibes.length) { %>
       <div class="vcard-vibes"><% v.vibes.slice(0, 4).forEach(l => { %><span><%= l %></span><% }) %></div>
     <% } %>
+    <% if (v.prayer) { %><p class="vcard-prayer"><svg class="prayer-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c.3 1.6 1.6 2.4 1.6 3.6a1.6 1.6 0 0 1-3.2 0c0-1.2 1.3-2 1.6-3.6ZM5 21V12a7 7 0 0 1 14 0v9h-4v-4a3 3 0 0 0-6 0v4H5Z" fill="currentColor"/></svg><%= v.prayer.lines.join(' · ') %></p><% } %>
     <% if (v.dishes && v.dishes.length) { %>
       <p class="vcard-label">On the table</p>
       <div class="vcard-dishes"><% v.dishes.forEach(d => { %><span><%= d %></span><% }) %><% if (v.dish_count > v.dishes.length) { %><span class="muted">+<%= v.dish_count - v.dishes.length %></span><% } %></div>

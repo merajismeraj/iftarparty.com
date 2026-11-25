@@ -5,6 +5,8 @@ const { makeApp, csrf, futureDate, seedMarketplace, signin, signinAdmin, request
 const pricing = require('../src/services/pricing');
 const fmt = require('../src/services/format');
 const restaurantImport = require('../src/services/restaurantImport');
+const sessions = require('../src/services/sessions');
+const sunset = require('../src/services/sunset');
 
 describe('time at the venue', () => {
   const { db, app } = makeApp();
@@ -32,23 +34,27 @@ describe('time at the venue', () => {
     assert.equal(fmt.timeRange('18:15', 90), '6:15 PM – 7:45 PM');
   });
 
-  test('a booking gets the included 90 minutes by default', async () => {
+  test('an Iftar booking starts 20 minutes before Maghrib and gets the included 90 minutes', async () => {
     const page = await host.get(`/venues/${fx.venueId}`).expect(200);
-    assert.match(page.text, /Includes 90 min at the venue/);
+    assert.match(page.text, /Iftar only · 90 min/);
     const token = await csrf(host, `/venues/${fx.venueId}`);
+    const date = futureDate(20);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(20), guests: '20', menu_id: fx.menuId }).expect(302);
+      .send({ _csrf: token, date, guests: '20', menu_id: fx.menuId }).expect(302);
     const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(Number(res.headers.location.match(/bookings\/(\d+)/)[1]));
+    assert.equal(b.session, 'iftar');
     assert.equal(b.duration_minutes, 90);
     assert.equal(b.extra_time_total, 0);
+    const maghrib = sunset.maghrib(date, 'Mumbai');
+    assert.equal(b.arrival_time, sessions.toHHMM(Math.floor((maghrib - 20) / 5) * 5));
   });
 
   test('a venue without an extra-time rate refuses longer bookings', async () => {
     const before = (await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n;
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(21), guests: '20', menu_id: fx.menuId, duration_minutes: '120' }).expect(302);
-    assert.match(res.headers.location, /duration=120/);
+      .send({ _csrf: token, date: futureDate(21), guests: '20', menu_id: fx.menuId, extra_minutes: '30' }).expect(302);
+    assert.match(res.headers.location, /extra=30/);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n, before);
   });
 
@@ -56,10 +62,10 @@ describe('time at the venue', () => {
     await db.prepare('UPDATE venues SET extra_time_fee = 150000 WHERE id = ?').run(fx.venueId);
     const page = await host.get(`/venues/${fx.venueId}`).expect(200);
     assert.match(page.text, /data-duration/);
-    assert.match(page.text, /value="150" data-extra="300000"/);
+    assert.match(page.text, /value="60" data-extra="300000"/);
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(22), guests: '20', menu_id: fx.menuId, duration_minutes: '150' }).expect(302);
+      .send({ _csrf: token, date: futureDate(22), guests: '20', menu_id: fx.menuId, extra_minutes: '60' }).expect(302);
     const id = Number(res.headers.location.match(/bookings\/(\d+)/)[1]);
     const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
     assert.equal(b.duration_minutes, 150);
@@ -69,6 +75,16 @@ describe('time at the venue', () => {
     const checkout = await host.get(`/bookings/${id}/checkout`).expect(200);
     assert.match(checkout.text, /Extra time/);
     assert.match(checkout.text, /2 hr 30 min/);
+    assert.match(checkout.text, /Iftar only/);
+  });
+
+  test('legacy total-duration forms still work for Iftar', async () => {
+    const token = await csrf(host, `/venues/${fx.venueId}`);
+    const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
+      .send({ _csrf: token, date: futureDate(23), guests: '20', menu_id: fx.menuId, duration_minutes: '120' }).expect(302);
+    const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(Number(res.headers.location.match(/bookings\/(\d+)/)[1]));
+    assert.equal(b.duration_minutes, 120);
+    assert.equal(b.extra_time_total, 150000);
   });
 
   test('admin changes the included time; bad values are rejected', async () => {
@@ -79,7 +95,7 @@ describe('time at the venue', () => {
     }
     token = await csrf(admin, '/admin/settings');
     await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', included_minutes: '120' }).expect(302);
-    assert.match((await request(app).get(`/venues/${fx.venueId}`)).text, /2 hr \(included\)/);
+    assert.match((await request(app).get(`/venues/${fx.venueId}`)).text, /Iftar only · 2 hr/);
     assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'settings.update' AND detail LIKE '%included_minutes 90 → 120%'`).get());
   });
 });

@@ -615,6 +615,7 @@ blockquote cite { display: block; font: normal .9rem var(--sans); color: var(--m
 .menu-selection { display: grid; gap: 4px; margin: 6px 0; font-size: .93rem; }
 @media (min-width: 640px) {
   .kind-choice { grid-template-columns: 1fr 1fr; }
+  .kind-choice-3 { grid-template-columns: 1fr 1fr 1fr; }
   .course-block { padding: 12px 14px; }
   .picker { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: -2px 0 10px; background: #fff; }
 }
@@ -852,3 +853,20 @@ th { background: #f0f7f7; }
 .legal ul { padding-left: 1.2em; }
 .legal li { margin-bottom: .5em; }
 .legal p, .legal li { line-height: 1.65; }
+
+/* Booking session picker (Iftar only / Iftar & Dinner / Dinner only) */
+.session-pick { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.session-card { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+.session-card input { margin-top: 4px; accent-color: var(--gold); }
+.session-card strong { display: block; }
+.session-card .session-time { font-variant-numeric: tabular-nums; }
+.session-card:has(input:checked) { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(19, 149, 157, .14); }
+.session-card.is-off { opacity: .55; cursor: not-allowed; }
+.session-card .session-why { color: var(--bad); }
+.maghrib-note { margin: 2px 2px 0; }
+
+/* Prayer space (on-site prayer area / nearest mosque) */
+.prayer-ico { width: 1.05em; height: 1.05em; flex: none; color: var(--gold); }
+.vcard-prayer, .venue-prayer { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: .9rem; color: var(--gold-2); font-weight: 600; }
+.venue-prayer { font-size: 1rem; margin: 10px 0 4px; flex-wrap: wrap; }
+.venue-prayer strong { color: var(--ink); }

@@ -14,7 +14,21 @@
         <label class="field"><span>Venue hire fee (<%= currency %>)</span><input type="number" name="hire_fee" min="0" step="any" value="<%= fee || 0 %>"><small class="muted">0 if included in menu</small></label>
       </div>
       <label class="field"><span>Extra time, per 30 minutes (<%= currency %>)</span><input type="number" name="extra_time_fee" min="0" step="any" value="<%= extraFee || 0 %>">
-        <small class="muted">Every booking includes <%= includedMinutes %> minutes. Set a price to let hosts book up to 3 extra hours; 0 = no extra time.</small></label>
+        <small class="muted">Iftar bookings include <%= includedMinutes %> minutes from 20 minutes before Maghrib. Set a price to let hosts add up to 3 hours to any booking; 0 = no extra time.</small></label>
+      <div class="row-2">
+        <label class="field"><span>Dinner service starts</span><input type="time" name="dinner_start" required value="<%= venue.dinner_start || '21:30' %>"></label>
+        <label class="field"><span>Dinner booking length</span>
+          <select name="dinner_minutes">
+            <% for (let m = 60; m <= 360; m += 30) { %><option value="<%= m %>" <%= Number(venue.dinner_minutes || 120) === m ? 'selected' : '' %>><%= fmt.duration(m) %></option><% } %>
+          </select>
+        </label>
+      </div>
+      <div class="row-2">
+        <label class="field"><span>Nearest mosque <span class="muted">(optional)</span></span><input name="mosque_name" maxlength="120" value="<%= venue.mosque_name || '' %>" placeholder="Masjid-e-Noor"></label>
+        <label class="field"><span>Walk to it (minutes)</span><input type="number" name="mosque_walk_minutes" min="1" max="60" value="<%= venue.mosque_walk_minutes || '' %>" placeholder="5"></label>
+      </div>
+      <p class="small muted">Hosts look for somewhere to pray Maghrib. Also tick “Prayer area on site” below if you have one.</p>
+      <p class="small muted">Used for “Dinner only” bookings; “Iftar &amp; Dinner” runs from Iftar until dinner ends. Iftar and Dinner parties can share a night if their times don’t overlap.</p>
       <% const picked = ambience.parse(venue.ambience); %>
       <fieldset class="field ambience-pick">
         <legend>The space <span class="muted">(tick all that apply – hosts filter and choose by these)</span></legend>

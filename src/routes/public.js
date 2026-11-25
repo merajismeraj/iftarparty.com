@@ -8,7 +8,9 @@ const pricing = require('../services/pricing');
 const settings = require('../services/settings');
 const waitlist = require('../services/waitlist');
 const ambience = require('../services/ambience');
-const { isValidDate, todayISO, blockingBooking, upcomingReservations, expireStaleHolds } = require('../services/bookings');
+const sessions = require('../services/sessions');
+const fmt = require('../services/format');
+const { isValidDate, todayISO, upcomingReservations, expireStaleHolds } = require('../services/bookings');
 
 const PAGE_SIZE = 12;
 const SORTS = {
@@ -94,13 +96,24 @@ async function searchVenues(db, q, feePercent = 0) {
   // Ambience filter chips (e.g. ?vibe=rooftop). Keys are matched as whole entries of the stored list.
   const vibe = typeof q.vibe === 'string' && ambience.isFilter(q.vibe) ? q.vibe : null;
   if (vibe) {
-    where.push(`(',' || v.ambience || ',') LIKE ?`);
+    // "Prayer area" also matches venues with a mosque a short walk away.
+    where.push(vibe === 'prayer_area'
+      ? `((',' || v.ambience || ',') LIKE ? OR v.mosque_walk_minutes <= ${ambience.NEARBY_MOSQUE_MINUTES})`
+      : `(',' || v.ambience || ',') LIKE ?`);
     params.push(`%,${vibe},%`);
   }
   if (isValidDate(q.date)) {
-    where.push(`NOT EXISTS (SELECT 1 FROM bookings b WHERE b.venue_id = v.id AND b.event_date = ?
-      AND (b.status = 'confirmed' OR (b.status = 'pending_payment' AND b.hold_expires_at > ?)))`);
-    params.push(q.date, new Date().toISOString());
+    // A venue stays listed while at least one session it offers is still free that night:
+    // Iftar (no Iftar or combo party), Dinner (no Dinner or combo party) or the combo (no party at all).
+    // The venue page then shows the exact per-session times.
+    const taken = (sessionsSql) => `EXISTS (SELECT 1 FROM bookings b WHERE b.venue_id = v.id AND b.event_date = ?
+      AND (b.status = 'confirmed' OR (b.status = 'pending_payment' AND b.hold_expires_at > ?))${sessionsSql ? ` AND b.session IN (${sessionsSql})` : ''})`;
+    const serves = (meal) => `EXISTS (SELECT 1 FROM menus mm WHERE mm.restaurant_id = r.id AND mm.active = 1 AND mm.meal = '${meal}')`;
+    where.push(`((${serves('iftar')} AND NOT ${taken(`'iftar', 'iftar_dinner'`)})
+      OR (${serves('dinner')} AND NOT ${taken(`'dinner', 'iftar_dinner'`)})
+      OR (${serves('combo')} AND NOT ${taken('')}))`);
+    const now = new Date().toISOString();
+    params.push(q.date, now, q.date, now, q.date, now);
   }
 
   const page = Math.max(1, Number.parseInt(q.page, 10) || 1);
@@ -125,7 +138,7 @@ async function searchVenues(db, q, feePercent = 0) {
             (SELECT filename FROM venue_images vi WHERE vi.venue_id = v.id ORDER BY sort_order, id LIMIT 1) AS image,
             (SELECT string_agg(t.filename, '|' ORDER BY t.sort_order, t.id) FROM
               (SELECT filename, sort_order, id FROM venue_images vi WHERE vi.venue_id = v.id ORDER BY sort_order, id LIMIT 3) t) AS images,
-            v.ambience, r.id AS restaurant_id
+            v.ambience, v.mosque_name, v.mosque_walk_minutes, r.id AS restaurant_id
      ${base}
      GROUP BY v.id, r.id
      ) s ORDER BY ${order}, id DESC LIMIT ? OFFSET ?`
@@ -134,7 +147,8 @@ async function searchVenues(db, q, feePercent = 0) {
   await attachSignatureDishes(db, rows);
   for (const row of rows) {
     row.images = row.images ? row.images.split('|') : [];
-    row.vibes = ambience.labels(row.ambience);
+    row.vibes = ambience.labels(row.ambience).filter((l) => l !== ambience.LABEL.get('prayer_area'));
+    row.prayer = ambience.prayer(row);
   }
 
   const budgetNeedsGuests = budget?.type === 'total' && !(guests > 0);
@@ -160,7 +174,7 @@ module.exports = (db) => {
     await expireStaleHolds(db);
     const result = await searchVenues(db, req.query, await settings.feePercent(db));
     const comingSoon = result.page === 1 ? await waitlist.comingSoon(db, req.query) : [];
-    res.render('search', { title: 'Find an Iftar venue', ...result, comingSoon, q: req.query, vibeFilters: ambience.FILTERS.map((k) => [k, ambience.LABEL.get(k)]) });
+    res.render('search', { title: 'Find an Iftar venue', ...result, comingSoon, q: req.query, vibeFilters: ambience.FILTERS.map((k) => [k, k === 'prayer_area' ? 'Prayer space' : ambience.LABEL.get(k)]) });
   });
 
   router.post('/waitlist/:restaurantId', async (req, res) => {
@@ -206,12 +220,20 @@ module.exports = (db) => {
     const picked = new Set([].concat(req.query.addon || []).map(String));
     const reservations = await upcomingReservations(db, venue.id);
     const date = isValidDate(req.query.date) ? req.query.date : '';
-    const taken = date ? await blockingBooking(db, venue.id, date) : null;
+    const included = await settings.includedMinutes(db);
+    const meals = new Set(menus.map((m) => m.meal));
+    // Session times need a date (Iftar follows sunset); before one is picked, show today's as a guide.
+    const slots = await sessions.availability(db, venue, date || sessions.nowIST().date, { includedMinutes: included, meals });
+    if (!date) slots.forEach((s) => { if (s.offered) { s.available = true; s.reason = null; } });
+    const wanted = slots.find((s) => s.key === req.query.session && s.offered);
+    const session = (wanted || slots.find((s) => s.available) || slots.find((s) => s.offered) || slots[0]).key;
+    const taken = date && !slots.some((s) => s.available) ? (slots.find((s) => s.offered && s.reason) || { reason: 'Not available' }) : null;
     res.render('venue', {
       title: `${venue.name} at ${venue.restaurant_name}`, venue, images, menus, addons, picked, pickedDishes, reservations, budget, minDishes,
       rating: await reviews.summary(db, venue.restaurant_id), reviewList: await reviews.published(db, venue.restaurant_id, 20),
-      form: { date, guests: req.query.guests || '', menu_id: req.query.menu || '', arrival_time: '18:00', duration: Number(req.query.duration) || 0 },
-      durations: pricing.durationOptions({ includedMinutes: await settings.includedMinutes(db), feePerBlock: venue.extra_time_fee }),
+      form: { date, guests: req.query.guests || '', menu_id: req.query.menu || '', session, extra: Number(req.query.extra) || 0 },
+      slots, includedMinutes: included,
+      extras: pricing.durationOptions({ includedMinutes: 0, feePerBlock: venue.extra_time_fee }),
       taken, today: todayISO(),
     });
   });
@@ -221,8 +243,16 @@ module.exports = (db) => {
     const { date } = req.query;
     if (!isValidDate(date)) return res.status(400).json({ error: 'invalid date' });
     await expireStaleHolds(db);
-    const b = await blockingBooking(db, req.params.id, date);
-    res.json({ date, available: !b, label: b ? (b.status === 'confirmed' ? b.title : 'On hold – payment in progress') : null });
+    const venue = await db.prepare('SELECT v.*, r.city FROM venues v JOIN restaurants r ON r.id = v.restaurant_id WHERE v.id = ?').get(req.params.id);
+    if (!venue) return res.status(404).json({ error: 'not found' });
+    const meals = new Set((await db.prepare('SELECT DISTINCT meal FROM menus WHERE restaurant_id = ? AND active = 1').all(venue.restaurant_id)).map((m) => m.meal));
+    const slots = await sessions.availability(db, venue, date, { includedMinutes: await settings.includedMinutes(db), meals });
+    const open = slots.filter((s) => s.available);
+    res.json({
+      date, maghrib: slots[0].maghrib, available: open.length > 0,
+      label: open.length ? null : (slots.find((s) => s.offered && s.reason) || {}).reason || 'Not available',
+      sessions: slots.map((s) => ({ key: s.key, label: s.label, start: s.start, minutes: s.minutes, range: fmt.timeRange(s.start, s.minutes), offered: s.offered, available: s.available, reason: s.reason })),
+    });
   });
 
   router.get('/guest-list-template.csv', (req, res) => {

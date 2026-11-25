@@ -13,7 +13,6 @@ const reviews = require('../services/reviews');
 const packages = require('../services/packages');
 const settings = require('../services/settings');
 
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function csvCell(v) {
   const s = String(v ?? '');
@@ -41,14 +40,16 @@ module.exports = (db) => {
     try {
       const id = await svc.createHold(db, {
         venueId: Number(req.params.id), menuId: Number(req.body.menu_id), hostId: req.user.id,
-        eventDate: req.body.date, guestCount: req.body.guests, arrivalTime: req.body.arrival_time, durationMinutes: req.body.duration_minutes,
+        eventDate: req.body.date, guestCount: req.body.guests, session: req.body.session,
+        extraMinutes: req.body.extra_minutes, durationMinutes: req.body.duration_minutes,
         addonIds: req.body.addon_ids, dishIds: req.body.dish_ids,
       });
       res.redirect(`/bookings/${id}/checkout`);
     } catch (err) {
       if (!(err instanceof svc.BookingError)) throw err;
       req.flash('error', err.message);
-      const qs = new URLSearchParams({ date: req.body.date || '', guests: req.body.guests || '', menu: req.body.menu_id || '', duration: req.body.duration_minutes || '' });
+      const keep = { date: req.body.date, guests: req.body.guests, menu: req.body.menu_id, session: req.body.session, extra: req.body.extra_minutes };
+      const qs = new URLSearchParams(Object.entries(keep).filter(([, v]) => typeof v === 'string' && v !== ''));
       [].concat(req.body.addon_ids || []).forEach((id) => qs.append('addon', id));
       [].concat(req.body.dish_ids || []).forEach((id) => qs.append('dish', id));
       res.redirect(`/venues/${req.params.id}?${qs}#reserve`);
@@ -206,9 +207,9 @@ module.exports = (db) => {
     const b = await ownBooking(req, res);
     if (!b) return;
     const message = String(req.body.invite_message || '').trim().slice(0, 600);
-    const time = TIME_RE.test(req.body.arrival_time || '') ? req.body.arrival_time : b.arrival_time;
+    // The arrival time is fixed by the booked session (Iftar follows Maghrib), so it is not editable here.
     const showList = req.body.show_guest_list === 'on' ? 1 : 0;
-    await db.prepare('UPDATE bookings SET invite_message = ?, arrival_time = ?, show_guest_list = ? WHERE id = ?').run(message, time, showList, b.id);
+    await db.prepare('UPDATE bookings SET invite_message = ?, show_guest_list = ? WHERE id = ?').run(message, showList, b.id);
     req.flash('success', 'Invitation updated.');
     res.redirect(`/bookings/${b.id}#invite`);
   });
