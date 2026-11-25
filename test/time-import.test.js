@@ -4,7 +4,6 @@ const assert = require('node:assert/strict');
 const { makeApp, csrf, futureDate, seedMarketplace, signin, signinAdmin, request } = require('./helpers');
 const pricing = require('../src/services/pricing');
 const fmt = require('../src/services/format');
-const restaurantImport = require('../src/services/restaurantImport');
 const sessions = require('../src/services/sessions');
 const sunset = require('../src/services/sunset');
 
@@ -97,99 +96,5 @@ describe('time at the venue', () => {
     await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', included_minutes: '120' }).expect(303);
     assert.match((await request(app).get(`/venues/${fx.venueId}`)).text, /Iftar only · 2 hr/);
     assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'settings.update' AND detail LIKE '%included_minutes 90 → 120%'`).get());
-  });
-});
-
-describe('admin bulk restaurant upload', () => {
-  const { db, app } = makeApp();
-  let admin;
-  const upload = (agent, token, csv, fields = {}) => {
-    let req = agent.post(`/admin/restaurants/import?_csrf=${encodeURIComponent(token)}`);
-    for (const [k, v] of Object.entries(fields)) req = req.field(k, v);
-    return req.attach('file', Buffer.from(csv), 'restaurants.csv');
-  };
-
-  before(async () => {
-    admin = await signinAdmin(app, db);
-  });
-
-  test('the sample sheet downloads and is itself a valid import', async () => {
-    const res = await admin.get('/admin/restaurants/template.csv').expect(200);
-    assert.match(res.headers['content-type'], /text\/csv/);
-    assert.equal(res.text.split('\n')[0], restaurantImport.COLUMNS.join(','));
-    const parsed = restaurantImport.parseSheet(Buffer.from(res.text));
-    assert.deepEqual(parsed.errors, []);
-    assert.equal(parsed.restaurants.length, 2);
-    assert.equal(parsed.restaurants[0].venues.length, 2);
-    const page = await admin.get('/admin/restaurants').expect(200);
-    assert.match(page.text, /href="\/admin\/restaurants\/import"/);
-    const form = await admin.get('/admin/restaurants/import').expect(200);
-    assert.match(form.text, /href="\/admin\/restaurants\/template.csv"/);
-  });
-
-  test('only admins can upload', async () => {
-    await request(app).get('/admin/restaurants/template.csv').expect(302);
-  });
-
-  test('check shows problems per line and imports nothing', async () => {
-    const csv = [
-      restaurantImport.COLUMNS.join(','),
-      'Good Place,Ali,ali@good.test,9820000001,Pune,,,,,Hall,10,50,0,0,,,,,,,',
-      'Bad Place,Sara,not-an-email,123,,,,,,Hall,60,50,abc,0,,,Menu,0,,fish,',
-    ].join('\n');
-    const token = await csrf(admin, '/admin/restaurants/import');
-    const res = await upload(admin, token, csv, { action: 'import' }).expect(422);
-    for (const msg of [/not a valid email/, /not a valid mobile/, /city is required/]) assert.match(res.text, msg);
-    assert.equal((await db.prepare('SELECT COUNT(*) n FROM restaurants').get()).n, 0);
-  });
-
-  test('check then import creates owners, restaurants, venues and menus atomically', async () => {
-    const csv = (await admin.get('/admin/restaurants/template.csv')).text;
-    let token = await csrf(admin, '/admin/restaurants/import');
-    const check = await upload(admin, token, csv, { action: 'check', status: 'pending' }).expect(200);
-    assert.match(check.text, /Ready to import 3 rows/);
-    assert.equal((await db.prepare('SELECT COUNT(*) n FROM restaurants').get()).n, 0, 'check writes nothing');
-    const sheet = check.text.match(/name="sheet" value="([^"]+)"/)[1];
-
-    token = check.text.match(/_csrf=([A-Za-z0-9_%-]+)/)[1];
-    await admin.post(`/admin/restaurants/import?_csrf=${token}`)
-      .field('sheet', sheet).field('filename', 'restaurants.csv').field('status', 'pending').field('action', 'import').expect(303);
-
-    const noor = await db.prepare(`SELECT r.*, u.role, u.password_hash, u.phone AS owner_phone FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE lower(u.email) = 'ayesha@noorkitchen.in'`).get();
-    assert.equal(noor.name, 'Noor Kitchen');
-    assert.equal(noor.status, 'pending');
-    assert.equal(noor.role, 'restaurant');
-    assert.equal(noor.password_hash, '', 'owners sign in with Google');
-    assert.equal(noor.owner_phone, '+919876543210');
-    const venues = await db.prepare('SELECT name, min_pax, max_pax, hire_fee, extra_time_fee, ambience, amenities FROM venues WHERE restaurant_id = ? ORDER BY id').all(noor.id);
-    assert.deepEqual(venues.map((v) => ({ ...v })), [
-      { name: 'Rooftop Lounge', min_pax: 20, max_pax: 80, hire_fee: 500000, extra_time_fee: 150000, ambience: 'rooftop,open_air,prayer_area', amenities: 'Fairy lights, Sea view' },
-      { name: 'Banquet Hall', min_pax: 50, max_pax: 200, hire_fee: 1500000, extra_time_fee: 300000, ambience: 'private_hall,ac,family', amenities: 'Valet parking, Stage' },
-    ]);
-    const menu = await db.prepare(`SELECT * FROM menus WHERE restaurant_id = ? AND name = 'Royal Iftar Platter'`).get(noor.id);
-    assert.equal(menu.price_per_person, 89900);
-    assert.equal(menu.items.split('\n').length, 5);
-    assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'restaurant.bulk_import'`).get());
-
-    // Re-uploading the same sheet: existing partners are recognised, and duplicate venue names refused.
-    token = await csrf(admin, '/admin/restaurants/import');
-    const again = await upload(admin, token, csv, { action: 'check' }).expect(422);
-    assert.match(again.text, /already has a venue called/);
-  });
-
-  test('rows for an existing partner add venues to their restaurant', async () => {
-    const csv = `${restaurantImport.COLUMNS.join(',')}\nNoor Kitchen,Ayesha Khan,AYESHA@noorkitchen.in,9876543210,Hyderabad,,,,,Garden,10,40,0,0,,,,,,,\n`;
-    const token = await csrf(admin, '/admin/restaurants/import');
-    await upload(admin, token, csv, { action: 'import' }).expect(303);
-    const n = await db.prepare(`SELECT COUNT(*) n FROM venues v JOIN restaurants r ON r.id = v.restaurant_id JOIN users u ON u.id = r.owner_id WHERE u.email = 'ayesha@noorkitchen.in'`).get();
-    assert.equal(n.n, 3);
-    assert.equal((await db.prepare(`SELECT COUNT(*) n FROM users WHERE lower(email) = 'ayesha@noorkitchen.in'`).get()).n, 1);
-  });
-
-  test('a host or admin email cannot become a restaurant owner', async () => {
-    const csv = `${restaurantImport.COLUMNS.join(',')}\nX,Y,admin@test.local,9820000002,Pune,,,,,,,,,,,,,,,,\n`;
-    const token = await csrf(admin, '/admin/restaurants/import');
-    const res = await upload(admin, token, csv, { action: 'import' }).expect(422);
-    assert.match(res.text, /already registered as an admin/);
   });
 });
