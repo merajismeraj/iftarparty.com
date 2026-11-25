@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const config = require('../config');
 const { requireAuth } = require('../middleware/auth');
 const { guestList: guestListUpload } = require('../middleware/uploads');
 const svc = require('../services/bookings');
@@ -83,6 +84,11 @@ module.exports = (db) => {
       await db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, req.user.id);
       req.user.phone = phone;
     }
+    if (!payments.isLive() && !config.demoPayments) {
+      console.error(`[payment] booking ${b.id}: Cashfree keys are not configured; payment refused`);
+      req.flash('error', 'Online payment isn’t available yet. Your venue is held – please try again shortly or contact support.');
+      return res.redirect(`/bookings/${b.id}/checkout`);
+    }
     let start;
     try {
       start = await checkout.startPayment(db, b, req.user);
@@ -115,7 +121,7 @@ module.exports = (db) => {
 
   // Built-in payment simulator, available only when Cashfree is not configured.
   router.get('/bookings/:id/demo-pay', host, async (req, res) => {
-    if (payments.isLive()) return res.redirect(`/bookings/${req.params.id}/checkout`);
+    if (payments.isLive() || !config.demoPayments) return res.redirect(`/bookings/${req.params.id}/checkout`);
     const b = await ownBooking(req, res);
     if (!b) return;
     if (b.status === 'confirmed') return res.redirect(`/bookings/${b.id}`);
@@ -123,7 +129,7 @@ module.exports = (db) => {
   });
 
   router.post('/bookings/:id/demo-pay', host, async (req, res) => {
-    if (payments.isLive()) return res.status(404).end();
+    if (payments.isLive() || !config.demoPayments) return res.status(404).end();
     const b = await ownBooking(req, res);
     if (!b) return;
     const p = await db.prepare(`SELECT * FROM payments WHERE order_id = ? AND booking_id = ? AND provider = 'demo'`).get(String(req.body.order_id || ''), b.id);

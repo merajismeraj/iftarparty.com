@@ -130,7 +130,7 @@ async function getRefund(orderId, refundId) {
 function verifyWebhook(rawBody, timestamp, signature, { maxAgeMs = 10 * 60_000 } = {}) {
   if (!isLive() || !timestamp || !signature) return false;
   const ts = Number(timestamp);
-  if (Number.isFinite(ts) && Math.abs(Date.now() - ts) > maxAgeMs) return false;
+  if (!Number.isFinite(ts) || Math.abs(Date.now() - ts) > maxAgeMs) return false;
   const expected = crypto.createHmac('sha256', config.cashfree.secretKey)
     .update(String(timestamp) + rawBody.toString('utf8')).digest('base64');
   const a = Buffer.from(expected);

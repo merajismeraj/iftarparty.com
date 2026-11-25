@@ -18,7 +18,11 @@ const config = {
   root,
   port: Number(env.PORT || 3000),
   baseUrl: (env.BASE_URL || (vercelUrl ? `https://${vercelUrl}` : `http://localhost:${env.PORT || 3000}`)).replace(/\/$/, ''),
-  sessionSecret: env.SESSION_SECRET || 'dev-only-secret-change-me',
+  // Previews share SESSION_SECRET with production but run a demo database with known logins, so their
+  // cookies are signed with a derived key: a preview session can never be replayed on production.
+  sessionSecret: env.SESSION_SECRET
+    ? (isolatedPreview ? require('node:crypto').createHmac('sha256', env.SESSION_SECRET).update('preview-sessions').digest('base64url') : env.SESSION_SECRET)
+    : 'dev-only-secret-change-me',
   // Postgres connection (Supabase: the pooled "Transaction" URL). The Supabase Vercel integration sets POSTGRES_URL.
   databaseUrl: sharedOk(env.DATABASE_URL || env.POSTGRES_URL || ''),
   // Without a URL, an in-process PGlite database: on disk locally, in memory on Vercel previews.
@@ -34,6 +38,9 @@ const config = {
   // deployments without a real database (previews).
   demoMode: isolatedPreview || env.DEMO_MODE === 'true' || (onVercel && !(env.DATABASE_URL || env.POSTGRES_URL) && env.DEMO_MODE !== 'false'),
   onVercel,
+  // The simulated payment page confirms bookings without money changing hands: never in a real
+  // production deployment, only locally, in tests and on demo previews.
+  demoPayments: env.NODE_ENV !== 'production' || isolatedPreview || env.DEMO_MODE === 'true',
   currency: (env.CURRENCY || 'INR').toUpperCase(),
   platformFeePercent: Number(env.PLATFORM_FEE_PERCENT ?? 5),
   holdMinutes: Number(env.BOOKING_HOLD_MINUTES || 30),
