@@ -72,14 +72,14 @@ async function signupRestaurant(app) {
   await agent.post('/signup').type('form').send({
     _csrf: token, role: 'restaurant', name: 'Imran Q', email: 'chef@noor.test', phone: '9820011111', password: 'password123',
     restaurant_name: 'Noor Mahal', cuisine: 'Mughlai', area: 'Bandra', city: 'Mumbai', address: '14 Hill Rd',
-  }).expect(302);
+  }).expect(303);
   return agent;
 }
 
 async function signupHost(app, name = 'Meraj Ahmed', email = 'meraj@host.test') {
   const agent = request.agent(app);
   const token = await csrf(agent, '/signup');
-  await agent.post('/signup').type('form').send({ _csrf: token, role: 'host', name, email, phone: '9876500001', password: 'password123' }).expect(302);
+  await agent.post('/signup').type('form').send({ _csrf: token, role: 'host', name, email, phone: '9876500001', password: 'password123' }).expect(303);
   return agent;
 }
 
@@ -91,7 +91,7 @@ async function signinAdmin(app, db) {
   }
   const agent = request.agent(app);
   const token = await csrf(agent);
-  await agent.post('/login').type('form').send({ _csrf: token, email: 'admin@test.local', password: 'admin-password-123' }).expect(302);
+  await agent.post('/login').type('form').send({ _csrf: token, email: 'admin@test.local', password: 'admin-password-123' }).expect(303);
   return agent;
 }
 
@@ -125,7 +125,7 @@ async function paidBooking(db, { venueId, menuId, hostId, date, guests = 20 }) {
 async function signin(app, email, password = 'password123') {
   const agent = request.agent(app);
   const token = await csrf(agent);
-  await agent.post('/login').type('form').send({ _csrf: token, email, password }).expect(302);
+  await agent.post('/login').type('form').send({ _csrf: token, email, password }).expect(303);
   return agent;
 }
 

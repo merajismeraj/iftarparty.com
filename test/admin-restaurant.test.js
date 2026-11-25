@@ -22,7 +22,7 @@ describe('admin adds and manages a single restaurant', () => {
     const res = await admin.post('/admin/restaurants').type('form').send({
       _csrf: token, name: 'Shadab', cuisine: 'Hyderabadi', area: 'Ghansi Bazaar', city: 'Hyderabad', website: 'shadab.in',
       owner_name: 'Mohammed Shadab', owner_email: 'Owner@Shadab.test', owner_phone: '9876543210', status: 'pending',
-    }).expect(302);
+    }).expect(303);
     rid = Number(res.headers.location.match(/restaurants\/(\d+)/)[1]);
     const r = await db.prepare('SELECT r.*, u.email, u.phone AS owner_phone, u.password_hash, u.role FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE r.id = ?').get(rid);
     assert.equal(r.status, 'pending');
@@ -47,7 +47,7 @@ describe('admin adds and manages a single restaurant', () => {
     await admin.get('/restaurant').expect(403); // not without manage mode
 
     let token = await csrf(admin, `/admin/restaurants/${rid}`);
-    const enter = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token }).expect(302);
+    const enter = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token }).expect(303);
     assert.equal(enter.headers.location, '/restaurant');
     const dash = await admin.get('/restaurant').expect(200);
     assert.match(dash.text, /Managing <strong>Shadab<\/strong> as admin/);
@@ -58,22 +58,22 @@ describe('admin adds and manages a single restaurant', () => {
       .field('name', 'Rooftop').field('min_pax', '20').field('max_pax', '80').field('hire_fee', '5000').field('ambience', 'rooftop')
       .attach('images', PNG, { filename: 'v1.png', contentType: 'image/png' })
       .attach('images', PNG, { filename: 'v2.png', contentType: 'image/png' })
-      .attach('images', PNG, { filename: 'v3.png', contentType: 'image/png' }).expect(302);
+      .attach('images', PNG, { filename: 'v3.png', contentType: 'image/png' }).expect(303);
     token = await csrf(admin, '/restaurant/menus/new');
     await admin.post('/restaurant/menus').type('form')
-      .send({ _csrf: token, name: 'Royal Iftar', price_per_person: '899', min_pax: '20', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani' }).expect(302);
+      .send({ _csrf: token, name: 'Royal Iftar', price_per_person: '899', min_pax: '20', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani' }).expect(303);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM venues WHERE restaurant_id = ?').get(rid)).n, 1);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM menus WHERE restaurant_id = ?').get(rid)).n, 1);
 
     token = await csrf(admin, '/restaurant');
-    const exit = await admin.post('/admin/manage/exit').type('form').send({ _csrf: token }).expect(302);
+    const exit = await admin.post('/admin/manage/exit').type('form').send({ _csrf: token }).expect(303);
     assert.equal(exit.headers.location, `/admin/restaurants/${rid}`);
     await admin.get('/restaurant').expect(403);
     assert.doesNotMatch((await admin.get('/admin')).text, /Managing <strong>/);
 
     assert.doesNotMatch((await request(app).get('/search?location=Hyderabad')).text, /Shadab/, 'pending is hidden');
     token = await csrf(admin, `/admin/restaurants/${rid}`);
-    await admin.post(`/admin/restaurants/${rid}/status`).type('form').send({ _csrf: token, status: 'approved' }).expect(302);
+    await admin.post(`/admin/restaurants/${rid}/status`).type('form').send({ _csrf: token, status: 'approved' }).expect(303);
     assert.match((await request(app).get('/search?location=Hyderabad')).text, /Shadab/);
   });
 
@@ -86,17 +86,17 @@ describe('admin adds and manages a single restaurant', () => {
     assert.match(page.text, /name="to" value="\/restaurant\/menus\/new\?kind=package"/);
 
     let token = await csrf(admin, `/admin/restaurants/${rid}`);
-    let res = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token, to: `/restaurant/venues/${vid}/edit` }).expect(302);
+    let res = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token, to: `/restaurant/venues/${vid}/edit` }).expect(303);
     assert.equal(res.headers.location, `/restaurant/venues/${vid}/edit`);
     token = await csrf(admin, `/restaurant/venues/${vid}/edit`);
     await admin.post(`/restaurant/venues/${vid}?_csrf=${token}`)
-      .field('name', 'Rooftop Terrace').field('min_pax', '25').field('max_pax', '90').field('hire_fee', '7500').field('extra_time_fee', '2000').field('ambience', 'rooftop').expect(302);
+      .field('name', 'Rooftop Terrace').field('min_pax', '25').field('max_pax', '90').field('hire_fee', '7500').field('extra_time_fee', '2000').field('ambience', 'rooftop').expect(303);
     const v = await db.prepare('SELECT * FROM venues WHERE id = ?').get(vid);
     assert.deepEqual([v.name, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee], ['Rooftop Terrace', 25, 90, 750000, 200000]);
 
     token = await csrf(admin, `/restaurant/menus/${mid}/edit`);
     await admin.post(`/restaurant/menus/${mid}`).type('form')
-      .send({ _csrf: token, name: 'Royal Iftar', price_per_person: '1099', min_pax: '25', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani\nPhirni' }).expect(302);
+      .send({ _csrf: token, name: 'Royal Iftar', price_per_person: '1099', min_pax: '25', diet: 'non-veg', items: 'Dates\nHaleem\nBiryani\nPhirni' }).expect(303);
     assert.equal((await db.prepare('SELECT price_per_person FROM menus WHERE id = ?').get(mid)).price_per_person, 109900);
 
     // The audit row is written after the response finishes, so wait for it rather than assume one tick.
@@ -109,10 +109,10 @@ describe('admin adds and manages a single restaurant', () => {
 
     // Only dashboard paths are accepted as deep links.
     token = await csrf(admin, '/restaurant');
-    res = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token, to: 'https://evil.example/' }).expect(302);
+    res = await admin.post(`/admin/restaurants/${rid}/manage`).type('form').send({ _csrf: token, to: 'https://evil.example/' }).expect(303);
     assert.equal(res.headers.location, '/restaurant');
     token = await csrf(admin, '/restaurant');
-    await admin.post('/admin/manage/exit').type('form').send({ _csrf: token }).expect(302);
+    await admin.post('/admin/manage/exit').type('form').send({ _csrf: token }).expect(303);
   });
 
   test('only admins can add or manage restaurants', async () => {

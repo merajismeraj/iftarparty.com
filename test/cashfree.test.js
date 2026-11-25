@@ -66,7 +66,7 @@ describe('Cashfree payments', () => {
 
   async function reserve(agent, date, guests = 20) {
     const token = await csrf(agent, `/venues/${fx.venueId}`);
-    const res = await agent.post(`/venues/${fx.venueId}/reserve`).type('form').send({ _csrf: token, date, guests, menu_id: fx.menuId }).expect(302);
+    const res = await agent.post(`/venues/${fx.venueId}/reserve`).type('form').send({ _csrf: token, date, guests, menu_id: fx.menuId }).expect(303);
     return Number(res.headers.location.match(/bookings\/(\d+)/)[1]);
   }
   async function pay(agent, bookingId) {
@@ -181,7 +181,7 @@ describe('Cashfree payments', () => {
     config.cashfree.secretKey = 'wrong';
     try {
       const token = await csrf(host, `/bookings/${id}/checkout`);
-      const res = await host.post(`/bookings/${id}/pay`).type('form').send({ _csrf: token }).expect(302);
+      const res = await host.post(`/bookings/${id}/pay`).type('form').send({ _csrf: token }).expect(303);
       assert.equal(res.headers.location, `/bookings/${id}/checkout`);
     } finally {
       config.cashfree.secretKey = 'cf-secret';

@@ -23,12 +23,12 @@ describe('budget / tier packages with dish choices', () => {
   test('restaurant builds a dish catalogue', async () => {
     const add = async (name, course, diet = 'non-veg') => {
       const token = await csrf(owner, '/restaurant/dishes');
-      await owner.post('/restaurant/dishes').type('form').send({ _csrf: token, name, course, diet }).expect(302);
+      await owner.post('/restaurant/dishes').type('form').send({ _csrf: token, name, course, diet }).expect(303);
     };
     for (const [n, c, d] of [['Chicken samosa', 'starters'], ['Paneer tikka', 'starters', 'veg'], ['Chicken 65', 'starters'],
       ['Galouti kebab', 'starters'], ['Phirni', 'desserts', 'veg'], ['Kheer', 'desserts', 'veg'], ['Mutton haleem', 'mains']]) await add(n, c, d);
     const token = await csrf(owner, '/restaurant/dishes');
-    await owner.post('/restaurant/dishes').type('form').send({ _csrf: token, name: 'Mystery', course: 'appetisers' }).expect(302);
+    await owner.post('/restaurant/dishes').type('form').send({ _csrf: token, name: 'Mystery', course: 'appetisers' }).expect(303);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM dishes').get()).n, 7);
     assert.match((await owner.get('/restaurant/dishes')).text, /Galouti kebab/);
   });
@@ -61,14 +61,14 @@ describe('budget / tier packages with dish choices', () => {
       choose_starters: '2', dishes_starters: [await dish('Chicken samosa'), await dish('Paneer tikka'), await dish('Chicken 65')],
       choose_desserts: '2', dishes_desserts: [await dish('Phirni'), await dish('Kheer')],
       choose_mains: '0', dishes_mains: [await dish('Mutton haleem')], // 0 = course not included
-    }).expect(302);
+    }).expect(303);
     token = await csrf(owner, '/restaurant/menus/new?kind=package');
     await owner.post('/restaurant/menus').type('form').send({
       _csrf: token, kind: 'package', name: 'Gold Package', price_per_person: '1000', min_pax: '10', diet: 'mixed',
       choose_starters: '3', dishes_starters: [await dish('Chicken samosa'), await dish('Paneer tikka'), await dish('Chicken 65'), await dish('Galouti kebab')],
       choose_mains: '1', dishes_mains: [await dish('Mutton haleem')],
       choose_desserts: '2', dishes_desserts: [await dish('Phirni'), await dish('Kheer')],
-    }).expect(302);
+    }).expect(303);
     silver = await db.prepare(`SELECT * FROM menus WHERE name = 'Silver Package'`).get();
     gold = await db.prepare(`SELECT * FROM menus WHERE name = 'Gold Package'`).get();
     assert.equal(silver.kind, 'package');
@@ -86,7 +86,7 @@ describe('budget / tier packages with dish choices', () => {
   async function reserve(menuId, dishIds, date) {
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date, guests: '20', menu_id: String(menuId), dish_ids: dishIds.map(String) }).expect(302);
+      .send({ _csrf: token, date, guests: '20', menu_id: String(menuId), dish_ids: dishIds.map(String) }).expect(303);
     const m = res.headers.location.match(/^\/bookings\/(\d+)\/checkout/);
     return { id: m ? Number(m[1]) : null, location: res.headers.location };
   }
@@ -133,7 +133,7 @@ describe('budget / tier packages with dish choices', () => {
     const party = await host.get(`/bookings/${bid}`).expect(200);
     assert.match(party.text, /Change dishes/);
     let token = await csrf(host, `/bookings/${bid}/menu`);
-    await host.post(`/bookings/${bid}/menu`).type('form').send({ _csrf: token, dish_ids: [await dish('Galouti kebab'), await dish('Chicken 65'), await dish('Paneer tikka'), await dish('Mutton haleem'), await dish('Kheer')].map(String) }).expect(302);
+    await host.post(`/bookings/${bid}/menu`).type('form').send({ _csrf: token, dish_ids: [await dish('Galouti kebab'), await dish('Chicken 65'), await dish('Paneer tikka'), await dish('Mutton haleem'), await dish('Kheer')].map(String) }).expect(303);
     assert.deepEqual((await db.prepare(`SELECT name FROM booking_dishes WHERE booking_id = ? AND course = 'starters' ORDER BY name`).all(bid)).map((x) => x.name),
       ['Chicken 65', 'Galouti kebab', 'Paneer tikka']);
     token = await csrf(host, `/bookings/${bid}/menu`);
@@ -142,14 +142,14 @@ describe('budget / tier packages with dish choices', () => {
     await db.prepare(`UPDATE bookings SET event_date = to_char((now() AT TIME ZONE 'utc')::date + 1, 'YYYY-MM-DD') WHERE id = ?`).run(bid);
     await host.get(`/bookings/${bid}/menu`).expect(302);
     token = await csrf(host, '/my-parties');
-    await host.post(`/bookings/${bid}/menu`).type('form').send({ _csrf: token, dish_ids: [await dish('Chicken samosa')].map(String) }).expect(302);
+    await host.post(`/bookings/${bid}/menu`).type('form').send({ _csrf: token, dish_ids: [await dish('Chicken samosa')].map(String) }).expect(303);
     assert.equal((await db.prepare(`SELECT COUNT(*) n FROM booking_dishes WHERE booking_id = ? AND name = 'Galouti kebab'`).get(bid)).n, 1, 'unchanged after cutoff');
     assert.doesNotMatch((await host.get(`/bookings/${bid}`)).text, /Change dishes/);
   });
 
   test('unavailable dishes disappear from packages but stay on existing bookings', async () => {
     const token = await csrf(owner, '/restaurant/dishes');
-    await owner.post(`/restaurant/dishes/${await dish('Galouti kebab')}/toggle`).type('form').send({ _csrf: token }).expect(302);
+    await owner.post(`/restaurant/dishes/${await dish('Galouti kebab')}/toggle`).type('form').send({ _csrf: token }).expect(303);
     const page = await request(app).get(`/venues/${fx.venueId}`);
     assert.doesNotMatch(page.text, /Galouti kebab/);
     assert.equal((await db.prepare(`SELECT COUNT(*) n FROM booking_dishes WHERE name = 'Galouti kebab'`).get()).n, 1);
@@ -193,13 +193,13 @@ describe('budget / tier packages with dish choices', () => {
     let token = await csrf(admin, '/admin/settings');
     await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '0' }).expect(422);
     token = await csrf(admin, '/admin/settings');
-    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '5' }).expect(302);
+    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '5' }).expect(303);
     // Silver allows 2 + 2 = 4 picks → hidden; Gold allows 3 + 1 + 2 = 6 (one starter is unavailable → 3 starters still possible) → shown.
     const page = await request(app).get(`/venues/${fx.venueId}`);
     assert.doesNotMatch(page.text, /Silver Package/);
     assert.match(page.text, /Gold Package/);
     assert.match(page.text, /minimum 5 dishes/);
     token = await csrf(admin, '/admin/settings');
-    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '4' }).expect(302);
+    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', min_package_dishes: '4' }).expect(303);
   });
 });

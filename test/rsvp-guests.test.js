@@ -59,11 +59,11 @@ describe('RSVP page: who is coming', () => {
   test('the host can hide the list', async () => {
     const host = await signin(app, 'host@fixture.test');
     let token = await csrf(host, `/bookings/${bookingId}`);
-    await host.post(`/bookings/${bookingId}/details`).type('form').send({ _csrf: token, arrival_time: '18:00', invite_message: '' }).expect(302);
+    await host.post(`/bookings/${bookingId}/details`).type('form').send({ _csrf: token, arrival_time: '18:00', invite_message: '' }).expect(303);
     assert.equal((await db.prepare('SELECT show_guest_list FROM bookings WHERE id = ?').get(bookingId)).show_guest_list, 0);
     assert.equal(section((await request(app).get(`/rsvp/${tokens['Zara Mirza']}`)).text), '');
     token = await csrf(host, `/bookings/${bookingId}`);
-    await host.post(`/bookings/${bookingId}/details`).type('form').send({ _csrf: token, arrival_time: '18:00', invite_message: '', show_guest_list: 'on' }).expect(302);
+    await host.post(`/bookings/${bookingId}/details`).type('form').send({ _csrf: token, arrival_time: '18:00', invite_message: '', show_guest_list: 'on' }).expect(303);
     assert.notEqual(section((await request(app).get(`/rsvp/${tokens['Zara Mirza']}`)).text), '');
   });
 

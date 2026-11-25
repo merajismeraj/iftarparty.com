@@ -40,7 +40,7 @@ describe('time at the venue', () => {
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const date = futureDate(20);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date, guests: '20', menu_id: fx.menuId }).expect(302);
+      .send({ _csrf: token, date, guests: '20', menu_id: fx.menuId }).expect(303);
     const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(Number(res.headers.location.match(/bookings\/(\d+)/)[1]));
     assert.equal(b.session, 'iftar');
     assert.equal(b.duration_minutes, 90);
@@ -53,7 +53,7 @@ describe('time at the venue', () => {
     const before = (await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n;
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(21), guests: '20', menu_id: fx.menuId, extra_minutes: '30' }).expect(302);
+      .send({ _csrf: token, date: futureDate(21), guests: '20', menu_id: fx.menuId, extra_minutes: '30' }).expect(303);
     assert.match(res.headers.location, /extra=30/);
     assert.equal((await db.prepare('SELECT COUNT(*) n FROM bookings').get()).n, before);
   });
@@ -65,7 +65,7 @@ describe('time at the venue', () => {
     assert.match(page.text, /value="60" data-extra="300000"/);
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(22), guests: '20', menu_id: fx.menuId, extra_minutes: '60' }).expect(302);
+      .send({ _csrf: token, date: futureDate(22), guests: '20', menu_id: fx.menuId, extra_minutes: '60' }).expect(303);
     const id = Number(res.headers.location.match(/bookings\/(\d+)/)[1]);
     const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(id);
     assert.equal(b.duration_minutes, 150);
@@ -81,7 +81,7 @@ describe('time at the venue', () => {
   test('legacy total-duration forms still work for Iftar', async () => {
     const token = await csrf(host, `/venues/${fx.venueId}`);
     const res = await host.post(`/venues/${fx.venueId}/reserve`).type('form')
-      .send({ _csrf: token, date: futureDate(23), guests: '20', menu_id: fx.menuId, duration_minutes: '120' }).expect(302);
+      .send({ _csrf: token, date: futureDate(23), guests: '20', menu_id: fx.menuId, duration_minutes: '120' }).expect(303);
     const b = await db.prepare('SELECT * FROM bookings WHERE id = ?').get(Number(res.headers.location.match(/bookings\/(\d+)/)[1]));
     assert.equal(b.duration_minutes, 120);
     assert.equal(b.extra_time_total, 150000);
@@ -94,7 +94,7 @@ describe('time at the venue', () => {
       await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', included_minutes: bad }).expect(422);
     }
     token = await csrf(admin, '/admin/settings');
-    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', included_minutes: '120' }).expect(302);
+    await admin.post('/admin/settings').type('form').send({ _csrf: token, platform_fee_percent: '5', included_minutes: '120' }).expect(303);
     assert.match((await request(app).get(`/venues/${fx.venueId}`)).text, /Iftar only · 2 hr/);
     assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'settings.update' AND detail LIKE '%included_minutes 90 → 120%'`).get());
   });
@@ -153,7 +153,7 @@ describe('admin bulk restaurant upload', () => {
 
     token = check.text.match(/_csrf=([A-Za-z0-9_%-]+)/)[1];
     await admin.post(`/admin/restaurants/import?_csrf=${token}`)
-      .field('sheet', sheet).field('filename', 'restaurants.csv').field('status', 'pending').field('action', 'import').expect(302);
+      .field('sheet', sheet).field('filename', 'restaurants.csv').field('status', 'pending').field('action', 'import').expect(303);
 
     const noor = await db.prepare(`SELECT r.*, u.role, u.password_hash, u.phone AS owner_phone FROM restaurants r JOIN users u ON u.id = r.owner_id WHERE lower(u.email) = 'ayesha@noorkitchen.in'`).get();
     assert.equal(noor.name, 'Noor Kitchen');
@@ -180,7 +180,7 @@ describe('admin bulk restaurant upload', () => {
   test('rows for an existing partner add venues to their restaurant', async () => {
     const csv = `${restaurantImport.COLUMNS.join(',')}\nNoor Kitchen,Ayesha Khan,AYESHA@noorkitchen.in,9876543210,Hyderabad,,,,,Garden,10,40,0,0,,,,,,,\n`;
     const token = await csrf(admin, '/admin/restaurants/import');
-    await upload(admin, token, csv, { action: 'import' }).expect(302);
+    await upload(admin, token, csv, { action: 'import' }).expect(303);
     const n = await db.prepare(`SELECT COUNT(*) n FROM venues v JOIN restaurants r ON r.id = v.restaurant_id JOIN users u ON u.id = r.owner_id WHERE u.email = 'ayesha@noorkitchen.in'`).get();
     assert.equal(n.n, 3);
     assert.equal((await db.prepare(`SELECT COUNT(*) n FROM users WHERE lower(email) = 'ayesha@noorkitchen.in'`).get()).n, 1);
