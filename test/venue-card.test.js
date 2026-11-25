@@ -31,6 +31,9 @@ describe('space-first venue cards', () => {
     assert.deepEqual(ambience.parse(['Prayer area', 'rooftop', 'nonsense', 'ROOFTOP']), ['rooftop', 'prayer_area']);
     assert.deepEqual(ambience.parse('Garden|Ladies\' area'), ['garden', 'ladies']);
     assert.deepEqual(ambience.labels('family,rooftop'), ['Rooftop', 'Family section']);
+    assert.equal(ambience.prayer({ ambience: 'rooftop' }), null);
+    assert.deepEqual(ambience.prayer({ ambience: 'prayer_area', mosque_name: 'Masjid-e-Noor', mosque_walk_minutes: 4 }).lines, ['Prayer area on site', 'Masjid-e-Noor · 4 min walk']);
+    assert.deepEqual(ambience.prayer({ ambience: '', mosque_walk_minutes: 3 }).lines, ['Mosque · 3 min walk']);
   });
 
   test('cards lead with the restaurant, then the space, ambience, signature dishes and price', async () => {
@@ -41,9 +44,9 @@ describe('space-first venue cards', () => {
     assert.equal((card.match(/<div class="vcard-ph/g) || []).length, 3);
     assert.match(card, /vcard-gal n3/);
     assert.match(card, /\+2 photos/);
-    // Up to four ambience chips, in vocabulary order.
-    assert.match(card, /<span>Rooftop<\/span><span>Open air<\/span><span>Family section<\/span><span>Prayer area<\/span><\/div>/);
-    assert.doesNotMatch(card, /Parking/);
+    // Up to four ambience chips, in vocabulary order; prayer space gets its own line.
+    assert.match(card, /<span>Rooftop<\/span><span>Open air<\/span><span>Family section<\/span><span>Parking<\/span><\/div>/);
+    assert.match(card, /class="vcard-prayer"><svg[^]*?<\/svg>Prayer area on site<\/p>/);
     // Set menu: openers move to the back, so the first three are the signature dishes.
     assert.match(card, /<span>Chicken haleem<\/span><span>Mutton biryani<\/span><span>Phirni<\/span><span class="muted">\+2<\/span>/);
     assert.match(card, /≈ ₹[\d,]+ for 50/);
@@ -66,8 +69,23 @@ describe('space-first venue cards', () => {
     assert.match(page, /Fixture Kitchen/);
   });
 
-  test('the venue page shows the same ambience tags', async () => {
+  test('the venue page shows the same ambience tags and where to pray', async () => {
     const page = (await request(app).get(`/venues/${fx.venueId}`).expect(200)).text;
-    assert.match(page, /venue-vibes"><span>Rooftop<\/span><span>Open air<\/span><span>Family section<\/span><span>Prayer area<\/span><span>Parking<\/span>/);
+    assert.match(page, /venue-vibes"><span>Rooftop<\/span><span>Open air<\/span><span>Family section<\/span><span>Parking<\/span>/);
+    assert.match(page, /<strong>Prayer space:<\/strong> Prayer area on site<\/p>/);
+    const lawn = (await request(app).get(`/venues/${other.venueId}`).expect(200)).text;
+    assert.match(lawn, /Prayer space: ask the restaurant/);
+  });
+
+  test('a mosque within a short walk counts for the Prayer space filter and shows on the card', async () => {
+    let page = (await request(app).get('/search?vibe=prayer_area').expect(200)).text;
+    assert.doesNotMatch(page, /Garden Grill/);
+    assert.match(page, /class="chip on" href="[^"]*">Prayer space<\/a>/);
+    await db.prepare(`UPDATE venues SET mosque_name = 'Masjid-e-Noor', mosque_walk_minutes = 4 WHERE id = ?`).run(other.venueId);
+    page = (await request(app).get('/search?vibe=prayer_area').expect(200)).text;
+    assert.match(page, /Garden Grill/);
+    assert.match(page, /Masjid-e-Noor · 4 min walk/);
+    await db.prepare('UPDATE venues SET mosque_walk_minutes = 25 WHERE id = ?').run(other.venueId);
+    assert.doesNotMatch((await request(app).get('/search?vibe=prayer_area')).text, /Garden Grill/, 'too far to count');
   });
 });

@@ -16,6 +16,15 @@
           <label class="radio-card"><input type="radio" name="kind" value="package" <%= isPkg ? 'checked' : '' %>><span><strong>Package</strong><br><span class="small muted">Host picks dishes per course, e.g. 3 starters + 2 mains</span></span></label>
         </div>
       </fieldset>
+      <fieldset class="field">
+        <legend>Served for</legend>
+        <div class="kind-choice kind-choice-3">
+          <% const meal = sessions.normalizeMeal(menu.meal || locals.defaultMeal); %>
+          <label class="radio-card"><input type="radio" name="meal" value="iftar" <%= meal === 'iftar' ? 'checked' : '' %>><span><strong>Iftar</strong><br><span class="small muted">Shown for “Iftar only” bookings</span></span></label>
+          <label class="radio-card"><input type="radio" name="meal" value="dinner" <%= meal === 'dinner' ? 'checked' : '' %>><span><strong>Dinner</strong><br><span class="small muted">Shown for “Dinner only” bookings</span></span></label>
+          <label class="radio-card"><input type="radio" name="meal" value="combo" <%= meal === 'combo' ? 'checked' : '' %>><span><strong>Iftar &amp; Dinner combo</strong><br><span class="small muted">One price covering both</span></span></label>
+        </div>
+      </fieldset>
       <label class="field"><span>Name</span><input name="name" required maxlength="120" value="<%= menu.name || '' %>" placeholder="Gold Iftar Package"></label>
       <div class="row-3">
         <label class="field"><span>Price per guest (<%= currency %>)</span><input type="number" name="price_per_person" min="1" step="any" required value="<%= price %>"></label>

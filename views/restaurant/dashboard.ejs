@@ -48,7 +48,7 @@
         <tbody>
           <% bookings.forEach(b => { %>
             <tr>
-              <td><strong><%= fmt.shortDate(b.event_date) %></strong><br><span class="muted small"><%= fmt.time12(b.arrival_time) %></span></td>
+              <td><strong><%= fmt.shortDate(b.event_date) %></strong><br><span class="muted small"><%= sessions.get(b.session).label %> · <%= fmt.time12(b.arrival_time) %></span></td>
               <td><%= b.title %><br><span class="muted small"><%= b.host_phone || b.host_email %></span></td>
               <td><%= b.venue_name %></td>
               <td><%= b.menu_name %><% if (b.dishes.length) { %><br><span class="small"><%= b.dishes.map(g => g.dishes.map(d => d.name).join(', ')).join(' · ') %></span><% } %><% if (b.addons.length) { %><br><span class="muted small">+ <%= b.addons.map(a => a.name).join(', ') %></span><% } %></td>
@@ -94,7 +94,7 @@
       <tbody>
         <% menus.forEach(m => { %>
           <tr class="<%= m.active ? '' : 'inactive' %>">
-            <td><strong><%= m.name %></strong> <span class="pill pill-soft"><%= m.kind === 'package' ? 'Package' : 'Set menu' %></span><% if (!m.active) { %> <span class="pill">Not offered</span><% } %><br><span class="muted small"><%= m.kind === 'package' ? (m.rules || 'No courses set up yet – edit to add choices') : m.items.split(/\r?\n|,/).filter(s => s.trim()).slice(0, 4).join(' · ') %></span></td>
+            <td><strong><%= m.name %></strong> <span class="pill pill-soft"><%= sessions.mealLabel(m.meal) %></span> <span class="pill pill-soft"><%= m.kind === 'package' ? 'Package' : 'Set menu' %></span><% if (!m.active) { %> <span class="pill">Not offered</span><% } %><br><span class="muted small"><%= m.kind === 'package' ? (m.rules || 'No courses set up yet – edit to add choices') : m.items.split(/\r?\n|,/).filter(s => s.trim()).slice(0, 4).join(' · ') %></span></td>
             <td><span class="diet diet-<%= m.diet %>"><%= m.diet %></span></td>
             <td><%= money.format(m.price_per_person) %></td>
             <td><%= m.min_pax %></td>

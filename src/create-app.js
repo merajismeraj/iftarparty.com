@@ -76,7 +76,7 @@ function createApp(db) {
     Object.assign(res.locals, {
       money, fmt, packages, path: req.path, query: req.query,
       currency: config.currency, feePercent: await settings.feePercent(db), includedMinutes: await settings.includedMinutes(db), holdMinutes: config.holdMinutes, defaultCountryCode: config.defaultCountryCode,
-      paymentsLive: payments.isLive(), googleEnabled: google.enabled(), photoUrl: storage.photoUrl, assetVersion, ambience: require('./services/ambience'), title: null, user: null, restaurant: null, csrfToken: '',
+      paymentsLive: payments.isLive(), googleEnabled: google.enabled(), photoUrl: storage.photoUrl, assetVersion, ambience: require('./services/ambience'), sessions: require('./services/sessions'), title: null, user: null, restaurant: null, csrfToken: '',
     });
     next();
   });

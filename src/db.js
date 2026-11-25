@@ -333,6 +333,17 @@ const MIGRATIONS = [
   `
   ALTER TABLE venues ADD COLUMN ambience text NOT NULL DEFAULT '';
   `,
+  // v7: booking sessions (Iftar only / Iftar & Dinner / Dinner only). Menus say which meal they serve;
+  // venues set their own dinner service window. Iftar times come from sunset (services/sunset.js).
+  `
+  ALTER TABLE menus ADD COLUMN meal text NOT NULL DEFAULT 'iftar' CHECK (meal IN ('iftar', 'dinner', 'combo'));
+  ALTER TABLE bookings ADD COLUMN session text NOT NULL DEFAULT 'iftar' CHECK (session IN ('iftar', 'iftar_dinner', 'dinner'));
+  ALTER TABLE venues ADD COLUMN dinner_start text NOT NULL DEFAULT '21:30';
+  ALTER TABLE venues ADD COLUMN dinner_minutes integer NOT NULL DEFAULT 120 CHECK (dinner_minutes BETWEEN 60 AND 360);
+  -- Prayer space nearby: on-site prayer area is the 'prayer_area' ambience tag; this is the nearest mosque.
+  ALTER TABLE venues ADD COLUMN mosque_name text NOT NULL DEFAULT '';
+  ALTER TABLE venues ADD COLUMN mosque_walk_minutes integer CHECK (mosque_walk_minutes BETWEEN 1 AND 60);
+  `,
 ];
 
 /* --------------------------------------------------------------- drivers */

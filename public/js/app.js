@@ -90,12 +90,34 @@ document.documentElement.classList.add('js');
 
     form.addEventListener('input', () => { syncPickers(); update(); });
     form.addEventListener('change', () => { syncPickers(); update(); });
+
+    // Sessions: each shows only its own menus (Iftar / Dinner / Iftar & Dinner combo).
+    function syncSession() {
+      const picked = form.querySelector('input[name="session"]:checked');
+      const meal = picked ? picked.dataset.meal : null;
+      let current = form.querySelector('input[name="menu_id"]:checked');
+      form.querySelectorAll('[data-menu-meal]').forEach((card) => {
+        const show = card.dataset.menuMeal === meal;
+        card.hidden = !show;
+        const input = card.querySelector('input[name="menu_id"]');
+        input.disabled = !show;
+        if (!show && input === current) { input.checked = false; current = null; }
+      });
+      if (!current) {
+        const first = form.querySelector('[data-menu-meal]:not([hidden]) input[name="menu_id"]');
+        if (first) first.checked = true;
+      }
+    }
+    form.querySelectorAll('input[name="session"]').forEach((r) => r.addEventListener('change', () => { syncSession(); syncPickers(); update(); }));
+    syncSession();
     syncPickers();
     update();
 
     const date = form.querySelector('[data-availability]');
     const msg = form.querySelector('[data-availability-msg]');
     const btn = form.querySelector('[data-reserve-btn]');
+    const maghrib = form.querySelector('[data-maghrib]');
+    const time12 = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
     if (date && msg) {
       date.addEventListener('change', async () => {
         msg.className = 'availability';
@@ -104,9 +126,24 @@ document.documentElement.classList.add('js');
         try {
           const res = await fetch(`/api/venues/${form.dataset.venue}/availability?date=${encodeURIComponent(date.value)}`);
           const data = await res.json();
-          msg.textContent = data.available ? 'Available ✓' : `Reserved · ${data.label}`;
+          msg.textContent = data.available ? 'Available ✓' : data.label;
           msg.classList.add(data.available ? 'good' : 'bad');
           if (btn) btn.disabled = !data.available;
+          if (maghrib && data.maghrib) maghrib.textContent = `Maghrib on this date: ${time12(data.maghrib)}. Iftar starts 20 minutes before.`;
+          let keep = false;
+          (data.sessions || []).forEach((s) => {
+            const card = form.querySelector(`[data-session-card="${s.key}"]`);
+            if (!card) return;
+            const input = card.querySelector('input');
+            input.disabled = !s.available;
+            if (!s.available) input.checked = false;
+            if (input.checked) keep = true;
+            card.classList.toggle('is-off', !s.available);
+            card.querySelector('[data-session-time]').textContent = s.offered ? s.range : '';
+            card.querySelector('[data-session-why]').textContent = s.available ? '' : (s.reason || '');
+          });
+          if (!keep) { const first = form.querySelector('input[name="session"]:not(:disabled)'); if (first) first.checked = true; }
+          syncSession(); syncPickers(); update();
         } catch { msg.textContent = ''; }
       });
     }

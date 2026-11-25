@@ -12,7 +12,7 @@
     <div>
       <span class="pill pill-ok"><%= past ? 'Completed' : 'Reserved' %></span>
       <h1><%= b.title %></h1>
-      <p class="lead"><%= fmt.longDate(b.event_date) %> · arrive <%= fmt.time12(b.arrival_time) %></p>
+      <p class="lead"><%= fmt.longDate(b.event_date) %> · <%= sessions.get(b.session).label %> · <%= fmt.timeRange(b.arrival_time, b.duration_minutes) %></p>
       <p class="muted"><strong><%= b.venue_name %></strong>, <%= b.restaurant_name %> · <%= [b.address, b.area, b.city].filter(Boolean).join(', ') %><br>
         <%= b.guest_count %> guests booked · <%= b.menu_name %><% if (addons.length) { %> + <%= addons.map(a => a.name).join(', ') %><% } %> · paid <%= money.format(b.total_amount, b.currency) %><% if (b.restaurant_phone) { %> · Restaurant: <%= b.restaurant_phone %><% } %></p>
     </div>
@@ -88,7 +88,7 @@
       <h2 class="h3">Personalise your invitation</h2>
       <form method="post" action="/bookings/<%= b.id %>/details">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <label class="field"><span>Arrival time</span><input type="time" name="arrival_time" value="<%= b.arrival_time %>"></label>
+        <p class="small muted"><%= sessions.get(b.session).label %> · <%= fmt.timeRange(b.arrival_time, b.duration_minutes) %> (set by your booking)</p>
         <label class="field"><span>Personal note to guests</span><textarea name="invite_message" rows="3" maxlength="600" placeholder="Join us to break our fast together this Ramadan."><%= b.invite_message %></textarea></label>
         <label class="check"><input type="checkbox" name="show_guest_list" <%= b.show_guest_list ? 'checked' : '' %>> Show guests who else is coming <span class="muted small">(first name + initial only)</span></label>
         <button class="btn btn-ghost btn-block">Save invitation</button>

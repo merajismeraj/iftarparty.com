@@ -38,7 +38,7 @@ describe('onboarding planner', () => {
     assert.match(res.text, new RegExp(`href="/venues/${fx.venueId}\\?date=${date}&amp;guests=40&amp;budget=900"`));
     const venue = await request(app).get(`/venues/${fx.venueId}?date=${date}&guests=40`).expect(200);
     assert.match(venue.text, /name="guests"[^>]*value="40"/);
-    assert.match(venue.text, /type="hidden" name="arrival_time" value="18:00"/);
+    assert.match(venue.text, /name="session" value="iftar" data-meal="iftar" checked/);
   });
 
   test('a search without guests or date nudges back to the planner', async () => {

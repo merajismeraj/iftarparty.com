@@ -10,6 +10,7 @@ const packages = require('../services/packages');
 const { transaction } = require('../db');
 const audit = require('../services/audit');
 const ambience = require('../services/ambience');
+const sessions = require('../services/sessions');
 
 const DIETS = ['veg', 'non-veg', 'mixed'];
 const MIN_PHOTOS = 3;
@@ -22,6 +23,10 @@ function venueFromBody(b) {
     ambience: ambience.parse(b.ambience).join(','),
     min_pax: int(b.min_pax), max_pax: int(b.max_pax), hire_fee: b.hire_fee === '' || b.hire_fee == null ? 0 : money.toMinor(b.hire_fee),
     extra_time_fee: b.extra_time_fee === '' || b.extra_time_fee == null ? 0 : money.toMinor(b.extra_time_fee),
+    dinner_start: b.dinner_start == null || b.dinner_start === '' ? '21:30' : str(b.dinner_start, 5),
+    dinner_minutes: b.dinner_minutes == null || b.dinner_minutes === '' ? 120 : int(b.dinner_minutes),
+    mosque_name: str(b.mosque_name, 120),
+    mosque_walk_minutes: b.mosque_walk_minutes == null || b.mosque_walk_minutes === '' ? null : int(b.mosque_walk_minutes),
   };
   const errors = [];
   if (!v.name) errors.push('Give the venue a name, e.g. “Noor Rooftop Lounge”.');
@@ -30,6 +35,9 @@ function venueFromBody(b) {
   if (!(v.max_pax >= v.min_pax)) errors.push('Maximum guests must be at least the minimum.');
   if (!Number.isFinite(v.hire_fee)) errors.push('Venue hire fee must be a number (use 0 if included in the menu price).');
   if (!Number.isFinite(v.extra_time_fee) || v.extra_time_fee < 0) errors.push('Extra time price must be a number (use 0 if you don’t offer extra time).');
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v.dinner_start)) errors.push('Dinner start must be a time, e.g. 21:30.');
+  if (!(v.dinner_minutes >= 60 && v.dinner_minutes <= 360 && v.dinner_minutes % 30 === 0)) errors.push('Dinner length must be between 1 and 6 hours, in 30-minute steps.');
+  if (v.mosque_walk_minutes !== null && !(v.mosque_walk_minutes >= 1 && v.mosque_walk_minutes <= 60)) errors.push('Walk to the mosque must be between 1 and 60 minutes (leave blank if unknown).');
   return { v, errors };
 }
 
@@ -52,7 +60,7 @@ function menuFromBody(b) {
     kind: b.kind === 'package' ? 'package' : 'set',
     name: str(b.name, 120), description: str(b.description, 1000), items: str(b.items, 4000),
     diet: DIETS.includes(b.diet) ? b.diet : 'non-veg', price_per_person: money.toMinor(b.price_per_person),
-    min_pax: int(b.min_pax) || 1,
+    min_pax: int(b.min_pax) || 1, meal: sessions.normalizeMeal(b.meal),
   };
   const errors = [];
   if (!m.name) errors.push(m.kind === 'package' ? 'Give the package a name, e.g. “Gold Iftar Package”.' : 'Give the menu a name, e.g. “Royal Iftar Platter”.');
@@ -158,8 +166,8 @@ module.exports = (db) => {
       return res.status(422).render('restaurant/venue-form', { title: 'Add a party venue', venue: { ...req.body, hire_fee: req.body.hire_fee }, images: [], errors, rawFee: true });
     }
     const id = Number((await db.prepare(
-      'INSERT INTO venues (restaurant_id, name, description, amenities, ambience, min_pax, max_pax, hire_fee, extra_time_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(req.restaurant.id, v.name, v.description, v.amenities, v.ambience, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee)).lastInsertRowid);
+      'INSERT INTO venues (restaurant_id, name, description, amenities, ambience, min_pax, max_pax, hire_fee, extra_time_fee, dinner_start, dinner_minutes, mosque_name, mosque_walk_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.restaurant.id, v.name, v.description, v.amenities, v.ambience, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee, v.dinner_start, v.dinner_minutes, v.mosque_name, v.mosque_walk_minutes)).lastInsertRowid);
     const ins = db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)');
     for (const [i, name] of (await storage.saveImages(req.files)).entries()) await ins.run(id, name, i);
     req.flash('success', `${v.name} is live. Hosts can now find and book it.`);
@@ -183,8 +191,8 @@ module.exports = (db) => {
     if (errors.length) {
       return res.status(422).render('restaurant/venue-form', { title: `Edit ${venue.name}`, venue: { ...req.body, id: venue.id }, images, errors, rawFee: true });
     }
-    await db.prepare('UPDATE venues SET name=?, description=?, amenities=?, ambience=?, min_pax=?, max_pax=?, hire_fee=?, extra_time_fee=? WHERE id=?')
-      .run(v.name, v.description, v.amenities, v.ambience, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee, venue.id);
+    await db.prepare('UPDATE venues SET name=?, description=?, amenities=?, ambience=?, min_pax=?, max_pax=?, hire_fee=?, extra_time_fee=?, dinner_start=?, dinner_minutes=?, mosque_name=?, mosque_walk_minutes=? WHERE id=?')
+      .run(v.name, v.description, v.amenities, v.ambience, v.min_pax, v.max_pax, v.hire_fee, v.extra_time_fee, v.dinner_start, v.dinner_minutes, v.mosque_name, v.mosque_walk_minutes, venue.id);
     const ins = db.prepare('INSERT INTO venue_images (venue_id, filename, sort_order) VALUES (?, ?, ?)');
     const added = await storage.saveImages(req.files);
     for (const [i, name] of added.entries()) await ins.run(venue.id, name, images.length + i);
@@ -241,11 +249,11 @@ module.exports = (db) => {
       let id = existing?.id;
       if (existing) {
         // Existing bookings keep the price and dishes they were quoted (stored on the booking).
-        await db.prepare('UPDATE menus SET kind=?, name=?, description=?, items=?, diet=?, price_per_person=?, min_pax=? WHERE id=?')
-          .run(m.kind, m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax, id);
+        await db.prepare('UPDATE menus SET kind=?, meal=?, name=?, description=?, items=?, diet=?, price_per_person=?, min_pax=? WHERE id=?')
+          .run(m.kind, m.meal, m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax, id);
       } else {
-        id = Number((await db.prepare('INSERT INTO menus (restaurant_id, kind, name, description, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .run(req.restaurant.id, m.kind, m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax)).lastInsertRowid);
+        id = Number((await db.prepare('INSERT INTO menus (restaurant_id, kind, meal, name, description, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(req.restaurant.id, m.kind, m.meal, m.name, m.description, m.items, m.diet, m.price_per_person, m.min_pax)).lastInsertRowid);
       }
       await packages.saveDefinition(db, id, def || { rules: [], dishIds: [] });
       return id;
@@ -254,7 +262,8 @@ module.exports = (db) => {
 
   router.get('/menus/new', async (req, res) => {
     const kind = req.query.kind === 'package' ? 'package' : 'set';
-    await menuForm(req, res, { title: kind === 'package' ? 'Add a package' : 'Add an Iftar menu', menu: { kind, diet: 'non-veg', min_pax: 1 } });
+    const meal = sessions.normalizeMeal(req.query.meal);
+    await menuForm(req, res, { title: kind === 'package' ? 'Add a package' : `Add a${meal === 'iftar' ? 'n' : ''} ${sessions.mealLabel(meal)} menu`, menu: { kind, meal, diet: 'non-veg', min_pax: 1 } });
   });
 
   router.post('/menus', async (req, res) => {

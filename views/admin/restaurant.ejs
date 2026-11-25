@@ -95,7 +95,7 @@
 <div class="table-wrap"><table>
   <thead><tr><th>Menu</th><th>Type</th><th>Price / guest</th><th>Min</th><th>Offered</th><th></th></tr></thead>
   <tbody><% menus.forEach(m => { %>
-    <tr class="<%= m.active ? '' : 'inactive' %>"><td><strong><%= m.name %></strong><br><span class="muted small"><%= m.items.split(/\r?\n/).filter(Boolean).join(' · ') %></span></td>
+    <tr class="<%= m.active ? '' : 'inactive' %>"><td><strong><%= m.name %></strong> <span class="pill pill-soft"><%= sessions.mealLabel(m.meal) %></span><br><span class="muted small"><%= m.items.split(/\r?\n/).filter(Boolean).join(' · ') %></span></td>
       <td><span class="diet diet-<%= m.diet %>"><%= m.diet %></span></td><td><%= money.format(m.price_per_person) %></td><td><%= m.min_pax %></td><td><%= m.active ? 'Yes' : 'No' %></td>
       <td><form method="post" action="/admin/restaurants/<%= r.id %>/manage" class="inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="to" value="/restaurant/menus/<%= m.id %>/edit"><button class="btn btn-small btn-ghost">Edit</button></form></td></tr>
   <% }) %>

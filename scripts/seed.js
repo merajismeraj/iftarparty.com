@@ -74,6 +74,8 @@ const restaurants = [
       { name: 'Classic Iftar Spread', price: 95000, diet: 'non-veg', min: 20, items: 'Dates & Rooh Afza\nFruit chaat\nChicken samosa\nMutton haleem\nChicken biryani\nPhirni' },
       { name: 'Royal Awadhi Feast', price: 165000, diet: 'non-veg', min: 30, items: 'Dates & fresh juices\nGalouti kebab\nNihari with sheermal\nMutton dum biryani\nShahi tukda\nKahwa' },
       { name: 'Vegetarian Iftar', price: 75000, diet: 'veg', min: 15, items: 'Dates & lemonade\nDahi vada\nPaneer tikka\nVeg biryani\nKheer' },
+      { name: 'Awadhi Dinner', meal: 'dinner', price: 140000, diet: 'non-veg', min: 20, items: 'Galouti kebab\nMurgh musallam\nNihari with sheermal\nMutton dum biryani\nShahi tukda' },
+      { name: 'Iftar to Dinner Royal', meal: 'combo', price: 225000, diet: 'non-veg', min: 30, items: 'Dates & fresh juices\nFruit chaat\nChicken samosa\nGalouti kebab\nNihari with sheermal\nMutton dum biryani\nShahi tukda\nKahwa' },
     ],
     dishes: {
       openers: [['Dates & Rooh Afza', 'veg'], ['Fruit chaat', 'veg'], ['Dahi phulki', 'veg']],
@@ -114,6 +116,7 @@ const restaurants = [
     menus: [
       { name: 'Hyderabadi Haleem Iftar', price: 120000, diet: 'non-veg', min: 50, items: 'Dates & sherbet\nPathar ka gosht\nHaleem\nKachi gosht biryani\nDouble ka meetha\nIrani chai' },
       { name: 'Mixed Buffet', price: 99000, diet: 'mixed', min: 50, items: 'Dates & fruit platter\nMirchi bajji\nChicken 65\nVeg & chicken biryani\nQubani ka meetha' },
+      { name: 'Nizami Dinner', meal: 'dinner', price: 135000, diet: 'non-veg', min: 50, items: 'Talawa gosht\nMutton marag\nKachi gosht biryani\nBagara baingan\nQubani ka meetha' },
     ],
     addons: [
       { name: 'Irani Chai & Osmania Station', category: 'food', pricing: 'per_guest', price: 6000, description: 'Unlimited Irani chai with Osmania biscuits after Maghrib.' },
@@ -169,8 +172,8 @@ await transaction(db, async () => {
         .run(rid, a.name, a.description, a.category, a.pricing, a.price);
     }
     for (const m of spec.menus) {
-      await db.prepare('INSERT INTO menus (restaurant_id, name, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(rid, m.name, m.items, m.diet, m.price, m.min);
+      await db.prepare('INSERT INTO menus (restaurant_id, meal, name, items, diet, price_per_person, min_pax) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(rid, m.meal || 'iftar', m.name, m.items, m.diet, m.price, m.min);
     }
   }
 

@@ -120,7 +120,9 @@ describe('end-to-end: list → search → reserve → pay → invite → RSVP', 
     const page = await request(app).get(`/venues/${venueId}`);
     assert.match(page.text, /Reserved · <strong>Iftar Party by Meraj Ahmed<\/strong>/);
     const avail = await request(app).get(`/api/venues/${venueId}/availability?date=${date}`);
-    assert.deepEqual(avail.body, { date, available: false, label: 'Iftar Party by Meraj Ahmed' });
+    assert.equal(avail.body.available, false);
+    assert.equal(avail.body.label, 'Reserved · Iftar Party by Meraj Ahmed');
+    assert.deepEqual(avail.body.sessions.map((s) => [s.key, s.offered, s.available]), [['iftar', true, false], ['iftar_dinner', false, false], ['dinner', false, false]]);
     const search = await request(app).get(`/search?date=${date}`);
     assert.ok(!search.text.includes('Shahi Darbar'), 'booked venue hidden from date search');
   });
