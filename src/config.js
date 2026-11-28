@@ -84,6 +84,14 @@ const config = {
     // Delivery webhooks: app secret signs payloads; the verify token answers Meta's subscription check.
     appSecret: env.WHATSAPP_APP_SECRET || '',
     verifyToken: env.WHATSAPP_VERIFY_TOKEN || '',
+    // AiSensy (Meta BSP) instead of calling Meta directly: set the API Campaign key. Each message type is
+    // a "Live" API campaign in AiSensy tied to an approved template with the same variables, in order.
+    aisensy: {
+      apiKey: env.AISENSY_API_KEY || '',
+      inviteCampaign: env.AISENSY_INVITE_CAMPAIGN || 'iftar_invite',
+      cancelCampaign: env.AISENSY_CANCEL_CAMPAIGN || 'iftar_cancelled',
+      endpoint: 'https://backend.aisensy.com/campaign/t1/api/v2',
+    },
   },
   isProduction: env.NODE_ENV === 'production',
 };

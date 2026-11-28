@@ -95,7 +95,7 @@ async function sendOne(db, booking, guest) {
   }
   if (guest.phone) {
     tasks.push((async () => {
-      const r = await notify.sendWhatsApp({ to: guest.phone, params: invite.whatsappParams, previewText: invite.text });
+      const r = await notify.sendWhatsApp({ to: guest.phone, name: guest.name, params: invite.whatsappParams, previewText: invite.text });
       await log(db, guest.id, 'whatsapp', guest.phone, r);
       await db.prepare('UPDATE guests SET whatsapp_status = ? WHERE id = ?').run(r.status, guest.id);
     })());
@@ -168,7 +168,7 @@ async function sendCancellations(db, booking, concurrency = 5) {
     }
     if (guest.phone) {
       tasks.push((async () => {
-        const r = await notify.sendWhatsApp({ to: guest.phone, params: notice.whatsappParams, previewText: notice.text, template: config.whatsapp.cancelTemplateName });
+        const r = await notify.sendWhatsApp({ to: guest.phone, name: guest.name, params: notice.whatsappParams, previewText: notice.text, template: config.whatsapp.cancelTemplateName });
         await log(db, guest.id, 'whatsapp', guest.phone, r, 'cancellation');
       })());
     }

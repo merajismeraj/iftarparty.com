@@ -29,9 +29,17 @@ async function sendEmail({ to, subject, html, text }) {
   }
 }
 
-/** WhatsApp sends through Meta's Cloud API once a token and phone number id are set; otherwise it logs. */
+/**
+ * WhatsApp goes through AiSensy when its API key is set, otherwise Meta's Cloud API when a token and
+ * phone number id are set; with neither, messages are only logged.
+ */
+function whatsappProvider() {
+  if (config.whatsapp.aisensy.apiKey) return 'aisensy';
+  if (config.whatsapp.token && config.whatsapp.phoneNumberId) return 'meta';
+  return null;
+}
 function whatsappEnabled() {
-  return Boolean(config.whatsapp.token && config.whatsapp.phoneNumberId);
+  return Boolean(whatsappProvider());
 }
 
 /**
@@ -49,11 +57,13 @@ function templateParam(value) {
  * Returns { status: 'sent', providerId } on acceptance – delivery and read receipts arrive later via the
  * webhook (routes/webhooks.js). Without credentials the message is only logged (demo mode).
  */
-async function sendWhatsApp({ to, params = [], previewText, template }) {
-  if (!whatsappEnabled()) {
+async function sendWhatsApp({ to, params = [], previewText, template, name }) {
+  const provider = whatsappProvider();
+  if (!provider) {
     console.log(`[whatsapp:demo] to=${to}\n${previewText}\n`);
     return { status: 'logged', detail: 'WhatsApp not configured – logged only' };
   }
+  if (provider === 'aisensy') return sendViaAiSensy({ to, params, template, name });
   const { token, phoneNumberId, templateLang, apiVersion } = config.whatsapp;
   try {
     const res = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
@@ -85,6 +95,41 @@ async function sendWhatsApp({ to, params = [], previewText, template }) {
   }
 }
 
+/**
+ * AiSensy API campaign (https://wiki.aisensy.com/en/articles/11501889-api-reference-docs): POST the
+ * campaign name, destination with country code and the template parameters, in template order.
+ * AiSensy reports no delivery receipts to us, so a guest stays at "sent".
+ */
+async function sendViaAiSensy({ to, params, template, name }) {
+  const { apiKey, inviteCampaign, cancelCampaign, endpoint } = config.whatsapp.aisensy;
+  const campaignName = template && template === config.whatsapp.cancelTemplateName ? cancelCampaign : inviteCampaign;
+  const digits = String(to).replace(/\D/g, '');
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey,
+        campaignName,
+        destination: `+${digits}`,
+        userName: templateParam(name || params[0] || 'Guest').slice(0, 100),
+        source: 'iftarparty.com',
+        templateParams: params.map(templateParam),
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      let why = text;
+      try { const b = JSON.parse(text); why = b.message || b.error || b.errorMessage || text; } catch { /* plain text */ }
+      return { status: 'failed', detail: `AiSensy HTTP ${res.status}: ${String(why).slice(0, 300)}` };
+    }
+    return { status: 'sent', detail: `AiSensy campaign ${campaignName}`, providerId: null };
+  } catch (err) {
+    return { status: 'failed', detail: `AiSensy unreachable: ${err.message}` };
+  }
+}
+
 /** Meta webhook signature: X-Hub-Signature-256 = "sha256=" + HMAC-SHA256(app secret, raw body). */
 function verifyWhatsAppSignature(rawBody, header) {
   const secret = config.whatsapp.appSecret;
@@ -94,4 +139,4 @@ function verifyWhatsAppSignature(rawBody, header) {
   return expected.length === given.length && require('node:crypto').timingSafeEqual(expected, given);
 }
 
-module.exports = { sendEmail, sendWhatsApp, whatsappEnabled, templateParam, verifyWhatsAppSignature };
+module.exports = { sendEmail, sendWhatsApp, whatsappEnabled, whatsappProvider, templateParam, verifyWhatsAppSignature };

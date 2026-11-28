@@ -578,8 +578,10 @@ module.exports = (db) => {
   });
 
   const settingsView = async (extra) => ({
-    title: 'Settings', live: payments.isLive(), wa: require('../services/notify').whatsappEnabled(),
-    waTemplates: [config.whatsapp.templateName, config.whatsapp.cancelTemplateName],
+    title: 'Settings', live: payments.isLive(), wa: require('../services/notify').whatsappProvider(),
+    waTemplates: require('../services/notify').whatsappProvider() === 'aisensy'
+      ? [config.whatsapp.aisensy.inviteCampaign, config.whatsapp.aisensy.cancelCampaign]
+      : [config.whatsapp.templateName, config.whatsapp.cancelTemplateName],
     waWebhook: Boolean(config.whatsapp.appSecret && config.whatsapp.verifyToken),
     fee: await settings.feePercent(db), minDishes: await settings.minPackageDishes(db), includedMinutes: await settings.includedMinutes(db),
     errors: [], ...extra,
