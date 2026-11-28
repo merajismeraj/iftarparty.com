@@ -20,9 +20,9 @@
     <dl class="kv">
       <dt>Payments</dt><dd><%= live ? 'Cashfree (live keys configured)' : 'Demo – set CASHFREE_APP_ID / CASHFREE_SECRET_KEY' %></dd>
       <dt>Webhook URL</dt><dd><code>/webhooks/cashfree</code> (payment success + refund status)</dd>
-      <dt>WhatsApp</dt><dd><%= wa ? 'Meta WhatsApp Cloud API' : 'Demo – set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID' %></dd>
-      <dt>Templates</dt><dd><code><%= waTemplates[0] %></code> (5 variables) · <code><%= waTemplates[1] %></code> (4 variables)</dd>
-      <dt>Delivery webhook</dt><dd><code>/webhooks/whatsapp</code> <%= waWebhook ? '' : '– set WHATSAPP_APP_SECRET and WHATSAPP_VERIFY_TOKEN to receive delivered/read/failed updates' %></dd>
+      <dt>WhatsApp</dt><dd><%= wa === 'aisensy' ? 'AiSensy API campaigns' : wa ? 'Meta WhatsApp Cloud API' : 'Demo – set AISENSY_API_KEY (or WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID)' %></dd>
+      <dt><%= wa === 'aisensy' ? 'AiSensy campaigns' : 'Templates' %></dt><dd><code><%= waTemplates[0] %></code> (5 variables) · <code><%= waTemplates[1] %></code> (4 variables)</dd>
+      <dt>Delivery webhook</dt><dd><% if (wa === 'aisensy') { %>Not used with AiSensy – guests show as “sent”; delivery reports are in the AiSensy dashboard.<% } else { %><code>/webhooks/whatsapp</code> <%= waWebhook ? '' : '– set WHATSAPP_APP_SECRET and WHATSAPP_VERIFY_TOKEN to receive delivered/read/failed updates' %><% } %></dd>
     </dl>
     <p class="small muted">Credentials live in environment variables, never in the database.</p>
     <h2 class="h3">Backup</h2>

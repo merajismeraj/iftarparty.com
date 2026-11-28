@@ -8,7 +8,7 @@ const server = http.createServer(handler).listen(config.port, () => {
   console.log(`IftarParty running at ${config.baseUrl}`);
   console.log(config.cashfree.appId ? `  payments: Cashfree (${config.cashfree.env})` : '  payments: DEMO mode (set CASHFREE_APP_ID + CASHFREE_SECRET_KEY for Cashfree)');
   if (!config.smtp.host) console.log('  email:    DEMO mode (set SMTP_HOST to send real email)');
-  console.log(whatsappEnabled() ? '  whatsapp: Meta WhatsApp Cloud API' : '  whatsapp: DEMO mode (set WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID)');
+  console.log(whatsappEnabled() ? `  whatsapp: ${require('./services/notify').whatsappProvider() === 'aisensy' ? 'AiSensy API campaigns' : 'Meta WhatsApp Cloud API'}` : '  whatsapp: DEMO mode (set WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID)');
   if (config.demoMode) console.log('  data:     DEMO mode (sample data seeded into an empty database)');
 });
 
