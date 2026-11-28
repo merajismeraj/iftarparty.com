@@ -49,3 +49,35 @@ describe('WhatsApp through AiSensy API campaigns', () => {
     reply = { status: 200, body: '{}' };
   });
 });
+
+describe('admin WhatsApp test button', () => {
+  const { makeApp, csrf, signinAdmin, signupHost } = require('./helpers');
+  const { db, app } = makeApp();
+  const realFetch = global.fetch;
+  let calls = [];
+  before(() => {
+    config.whatsapp.aisensy.apiKey = 'test-key';
+    global.fetch = async (url, opts) => { calls.push(JSON.parse(opts.body)); return new Response('{}', { status: 200 }); };
+  });
+  after(() => { config.whatsapp.aisensy.apiKey = ''; global.fetch = realFetch; });
+
+  test('sends one sample invitation, reports the result and is admin-only', async () => {
+    const admin = await signinAdmin(app, db);
+    let token = await csrf(admin, '/admin/settings');
+    await admin.post('/admin/settings/whatsapp-test').type('form').send({ _csrf: token, phone: '12' }).expect(303);
+    assert.equal(calls.length, 0);
+    token = await csrf(admin, '/admin/settings');
+    await admin.post('/admin/settings/whatsapp-test').type('form').send({ _csrf: token, phone: '98765 43210' }).expect(303);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].destination, '+919876543210');
+    assert.equal(calls[0].campaignName, 'iftar_invite');
+    assert.equal(calls[0].templateParams.length, 5);
+    assert.match((await admin.get('/admin/settings')).text, /Test sent to \+919876543210/);
+    assert.ok(await db.prepare(`SELECT 1 FROM admin_actions WHERE action = 'whatsapp.test' AND detail LIKE '+91987654XXXX: sent%'`).get());
+
+    const host = await signupHost(app, 'Some Host', 'h@x.test');
+    token = await csrf(host, '/');
+    await host.post('/admin/settings/whatsapp-test').type('form').send({ _csrf: token, phone: '9876543210' }).expect(403);
+    assert.equal(calls.length, 1);
+  });
+});

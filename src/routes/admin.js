@@ -591,6 +591,30 @@ module.exports = (db) => {
     res.render('admin/settings', await settingsView());
   });
 
+  // One-off delivery check for the WhatsApp integration: the invitation template with sample values.
+  router.post('/settings/whatsapp-test', async (req, res) => {
+    const notify = require('../services/notify');
+    const phone = normalizePhone(req.body.phone);
+    if (!phone) {
+      req.flash('error', 'Enter a valid mobile number for the test.');
+      return res.redirect('/admin/settings');
+    }
+    if (!notify.whatsappEnabled()) {
+      req.flash('error', 'WhatsApp is not configured, so nothing was sent.');
+      return res.redirect('/admin/settings');
+    }
+    const name = String(req.user.name || 'Admin').split(' ')[0];
+    const r = await notify.sendWhatsApp({
+      to: phone, name: req.user.name,
+      params: [name, 'IftarParty test invitation', 'Friday, 20 February 2026, 6:00 PM – 7:30 PM', 'Test venue, IftarParty', `${config.baseUrl}/`],
+      previewText: 'IftarParty WhatsApp test',
+    });
+    await audit.log(db, req.user.id, 'whatsapp.test', 'settings', null, `${phone.slice(0, -4)}XXXX: ${r.status}${r.detail ? ` – ${String(r.detail).slice(0, 200)}` : ''}`);
+    if (r.status === 'sent') req.flash('success', `Test sent to ${phone} (${r.detail || 'accepted'}). Check WhatsApp on that phone.`);
+    else req.flash('error', `Test not sent: ${r.detail || r.status}`);
+    res.redirect('/admin/settings');
+  });
+
   router.post('/settings', async (req, res) => {
     const fee = Number(req.body.platform_fee_percent);
     // Each field is optional so older forms/scripts can update one setting at a time.

@@ -25,6 +25,12 @@
       <dt>Delivery webhook</dt><dd><% if (wa === 'aisensy') { %>Not used with AiSensy – guests show as “sent”; delivery reports are in the AiSensy dashboard.<% } else { %><code>/webhooks/whatsapp</code> <%= waWebhook ? '' : '– set WHATSAPP_APP_SECRET and WHATSAPP_VERIFY_TOKEN to receive delivered/read/failed updates' %><% } %></dd>
     </dl>
     <p class="small muted">Credentials live in environment variables, never in the database.</p>
+    <form method="post" action="/admin/settings/whatsapp-test" class="wa-test">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label class="field"><span>Send a test WhatsApp invitation</span><input name="phone" type="tel" inputmode="tel" required placeholder="98765 43210" autocomplete="tel"></label>
+      <p class="small muted">Sends the invitation template with sample party details to this number<%= wa === 'aisensy' ? ' through AiSensy' : '' %>, and shows the provider’s reply.</p>
+      <button class="btn btn-ghost btn-block" <%= wa ? '' : 'disabled' %>>Send test</button>
+    </form>
     <h2 class="h3">Backup</h2>
     <p class="small muted">Download every table (bookings, guests, payments…) as one JSON file. Photos live in storage and are not included. Supabase also keeps daily backups.</p>
     <a class="btn btn-ghost btn-block" href="/admin/backup">Download database backup</a>
